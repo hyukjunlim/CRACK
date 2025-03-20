@@ -483,14 +483,13 @@ class EquiformerV2_OC20(BaseModel):
         Handles batched input embeddings.
         
         Args:
-            embeddings (torch.Tensor): Input embedding tensor of shape (N, 25, 128) where:
+            embeddings (torch.Tensor): Input embedding tensor of shape (N, C, F) where:
                 - N is the number of samples
-                - 25 channels contain frequency band information organized as [0e, 1o, 2e, 3o, 4e]
-                - 128 is the embedding dimension
-                The channels are distributed as [1, 3, 5, 7, 9] channels per band.
-            
+                - C is the total number of channels across all frequency bands
+                - F is the embedding dimension
+                
         Returns:
-            torch.Tensor: Normalized global embeddings of shape (N, 128)
+            torch.Tensor: Normalized global embeddings of shape (N, F)
             
         Raises:
             ValueError: If embedding shape is incorrect or doesn't match expected dimensions
@@ -498,13 +497,19 @@ class EquiformerV2_OC20(BaseModel):
         # Input validation
         if not isinstance(embeddings, torch.Tensor):
             raise ValueError("Input must be a torch.Tensor")
-        if len(embeddings.shape) != 3 or embeddings.shape[1:] != (25, 128):
-            raise ValueError(f"Expected shape (N, 25, 128), got {embeddings.shape}")
+        if len(embeddings.shape) != 3:
+            raise ValueError(f"Expected 3D tensor, got shape {embeddings.shape}")
         
-        # Define channel sizes for each frequency band
-        channel_sizes = [1, 3, 5, 7, 9]  # 0e, 1o, 2e, 3o, 4e
-        if sum(channel_sizes) != embeddings.shape[1]:
-            raise ValueError("Channel sizes don't match input dimensions")
+        # Calculate channel sizes for each l value in lmax_list
+        channel_sizes = []
+        for lmax in self.lmax_list:
+            for l in range(lmax + 1):
+                # For each l, we have (2l + 1) channels
+                channel_sizes.append(2 * l + 1)
+        
+        total_channels = sum(channel_sizes)
+        if embeddings.shape[1] != total_channels:
+            raise ValueError(f"Expected {total_channels} channels, got {embeddings.shape[1]}")
         
         # Initialize output tensor
         batch_size = embeddings.shape[0]
@@ -517,7 +522,7 @@ class EquiformerV2_OC20(BaseModel):
         for size in channel_sizes:
             end_idx = channel_idx + size
             band_channels = embeddings[:, channel_idx:end_idx]
-            # Use weighted average based on band size
+            # Use weighted average based on number of frequency bands
             global_embeddings += torch.mean(band_channels, dim=1) / len(channel_sizes)
             channel_idx = end_idx
         
