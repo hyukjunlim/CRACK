@@ -31,7 +31,7 @@ The OC20 S2EF dataset can be downloaded by following instructions in their [GitH
 For example, we can download the OC20 S2EF-2M dataset of O absorbates by running:
 ```
     cd fairchem
-    python scripts/download_data_Oabsorbates.py --task is2re --split "Oabs" --num-workers 8 --ref-energy
+    python scripts/download_data_Oabs.py --task is2re --split "Oabs" --num-workers 8 --ref-energy
 ```
 
 After downloading, place the datasets under `datasets/oc20/` by using `ln -s`:
