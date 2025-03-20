@@ -1,1952 +1,0 @@
-amp: true
-cmd:
-  checkpoint_dir: models/oc20/s2ef/2M/equiformer_v2/N@12_L@6_M@2/bs@64_lr@2e-4_wd@1e-3_epochs@12_warmup-epochs@0.1_g@1x1/checkpoints/2025-03-20-08-38-40
-  commit: f83d150b
-  identifier: ''
-  logs_dir: models/oc20/s2ef/2M/equiformer_v2/N@12_L@6_M@2/bs@64_lr@2e-4_wd@1e-3_epochs@12_warmup-epochs@0.1_g@1x1/logs/wandb/2025-03-20-08-38-40
-  print_every: 200
-  results_dir: models/oc20/s2ef/2M/equiformer_v2/N@12_L@6_M@2/bs@64_lr@2e-4_wd@1e-3_epochs@12_warmup-epochs@0.1_g@1x1/results/2025-03-20-08-38-40
-  seed: 0
-  timestamp_id: 2025-03-20-08-38-40
-dataset:
-  grad_target_mean: 0.0
-  grad_target_std: 2.887317180633545
-  normalize_labels: true
-  src: datasets/oc20/s2ef/2M/train/
-  target_mean: -0.7554450631141663
-  target_std: 2.887317180633545
-gpus: 1
-logger: wandb
-model: equiformer_v2
-model_attributes:
-  alpha_drop: 0.1
-  attn_activation: silu
-  attn_alpha_channels: 64
-  attn_hidden_channels: 64
-  attn_value_channels: 16
-  distance_function: gaussian
-  drop_path_rate: 0.1
-  edge_channels: 128
-  ffn_activation: silu
-  ffn_hidden_channels: 128
-  grid_resolution: 18
-  lmax_list:
-  - 6
-  max_neighbors: 20
-  max_num_elements: 90
-  max_radius: 12.0
-  mmax_list:
-  - 3
-  norm_type: layer_norm_sh
-  num_distance_basis: 512
-  num_heads: 8
-  num_layers: 20
-  num_sphere_samples: 128
-  otf_graph: true
-  proj_drop: 0.0
-  regress_forces: true
-  share_atom_edge_embedding: false
-  sphere_channels: 128
-  use_atom_edge_embedding: true
-  use_attn_renorm: true
-  use_gate_act: false
-  use_grid_mlp: true
-  use_pbc: true
-  use_s2_act_attn: false
-  use_sep_s2_act: true
-  weight_init: uniform
-noddp: false
-optim:
-  batch_size: 1
-  clip_grad_norm: 100
-  ema_decay: 0.999
-  energy_coefficient: 4
-  eval_batch_size: 1
-  eval_every: 10000
-  force_coefficient: 100
-  grad_accumulation_steps: 1
-  load_balancing: atoms
-  loss_energy: mae
-  loss_force: l2mae
-  lr_initial: 0.0004
-  max_epochs: 1
-  num_workers: 8
-  optimizer: AdamW
-  optimizer_params:
-    weight_decay: 0.001
-  scheduler: LambdaLR
-  scheduler_params:
-    lambda_type: cosine
-    lr_min_factor: 0.01
-    warmup_epochs: 0.01
-    warmup_factor: 0.2
-slurm:
-  cpus_per_task: 9
-  folder: /home/hyukjunlim03/ccel/equiformer_v2/logs/9083
-  gpus_per_node: 1
-  job_id: '9083'
-  job_name: ''
-  mem: 80GB
-  nodes: 1
-  ntasks_per_node: 1
-  partition: snu-gpu1
-  time: 4320
-task:
-  dataset: trajectory_lmdb_v2
-  eval_on_free_atoms: true
-  grad_input: atomic forces
-  labels:
-  - potential energy
-  primary_metric: forces_mae
-  train_on_free_atoms: true
-test_dataset:
-  src: datasets/oc20/Oabs
-val_dataset:
-  src: datasets/oc20/s2ef/all/val_id/
-
-wandb: Using wandb-core as the SDK backend.  Please refer to https://wandb.me/wandb-core for more information.
-wandb: Currently logged in as: hyukjunlim (hyukjunlim-seoul-national-university) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
-wandb: Tracking run with wandb version 0.19.8
-wandb: Run data is saved locally in models/oc20/s2ef/2M/equiformer_v2/N@12_L@6_M@2/bs@64_lr@2e-4_wd@1e-3_epochs@12_warmup-epochs@0.1_g@1x1/logs/wandb/2025-03-20-08-38-40/wandb/run-20250320_083835-2025-03-20-08-38-40
-wandb: Run `wandb offline` to turn off syncing.
-wandb: Resuming run 2025-03-20-08-38-40
-wandb: ⭐️ View project at https://wandb.ai/hyukjunlim-seoul-national-university/equiformer_v2
-wandb: 🚀 View run at https://wandb.ai/hyukjunlim-seoul-national-university/equiformer_v2/runs/2025-03-20-08-38-40
-Loading dataset: trajectory_lmdb_v2
-Loading model: equiformer_v2
-EquiformerV2_OC20(
-  (sphere_embedding): Embedding(90, 128)
-  (distance_expansion): GaussianSmearing()
-  (SO3_rotation): ModuleList(
-    (0): SO3_Rotation(
-      (mapping): CoefficientMappingModule(lmax_list=[6], mmax_list=[6])
-    )
-  )
-  (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-  (SO3_grid): (6, 6)
-  (edge_degree_embedding): EdgeDegreeEmbedding(
-    (SO3_rotation): ModuleList(
-      (0): SO3_Rotation(
-        (mapping): CoefficientMappingModule(lmax_list=[6], mmax_list=[6])
-      )
-    )
-    (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-    (source_embedding): Embedding(90, 128)
-    (target_embedding): Embedding(90, 128)
-    (rad_func): RadialFunction(
-      (net): Sequential(
-        (0): Linear(in_features=856, out_features=128, bias=True)
-        (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-        (2): SiLU()
-        (3): Linear(in_features=128, out_features=128, bias=True)
-        (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-        (5): SiLU()
-        (6): Linear(in_features=128, out_features=896, bias=True)
-      )
-    )
-  )
-  (blocks): ModuleList(
-    (0): TransBlockV2(
-      (norm_1): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ga): SO2EquivariantGraphAttention(
-        (SO3_rotation): ModuleList(
-          (0): SO3_Rotation(
-            (mapping): CoefficientMappingModule(lmax_list=[6], mmax_list=[6])
-          )
-        )
-        (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-        (SO3_grid): (6, 6)
-        (source_embedding): Embedding(90, 128)
-        (target_embedding): Embedding(90, 128)
-        (so2_conv_1): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-          (fc_m0): Linear(in_features=1792, out_features=1024, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=1536, out_features=768, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=1280, out_features=640, bias=False)
-            )
-            (2): SO2_m_Convolution(
-              (fc): Linear(in_features=1024, out_features=512, bias=False)
-            )
-          )
-          (rad_func): RadialFunction(
-            (net): Sequential(
-              (0): Linear(in_features=856, out_features=128, bias=True)
-              (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (2): SiLU()
-              (3): Linear(in_features=128, out_features=128, bias=True)
-              (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (5): SiLU()
-              (6): Linear(in_features=128, out_features=5632, bias=True)
-            )
-          )
-        )
-        (alpha_norm): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
-        (alpha_act): SmoothLeakyReLU(negative_slope=0.2)
-        (alpha_dropout): Dropout(p=0.1, inplace=False)
-        (s2_act): SeparableS2Activation(
-          (scalar_act): SiLU()
-          (s2_act): S2Activation(
-            (act): SiLU()
-          )
-        )
-        (so2_conv_2): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-          (fc_m0): Linear(in_features=448, out_features=896, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=384, out_features=1536, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=320, out_features=1280, bias=False)
-            )
-            (2): SO2_m_Convolution(
-              (fc): Linear(in_features=256, out_features=1024, bias=False)
-            )
-          )
-        )
-        (proj): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-      )
-      (drop_path): GraphDropPath(drop_prob=0.1)
-      (norm_2): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ffn): FeedForwardNetwork(
-        (SO3_grid): (6, 6)
-        (so3_linear_1): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-        (scalar_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=True)
-          (1): SiLU()
-        )
-        (grid_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=False)
-          (1): SiLU()
-          (2): Linear(in_features=128, out_features=128, bias=False)
-          (3): SiLU()
-          (4): Linear(in_features=128, out_features=128, bias=False)
-        )
-        (so3_linear_2): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-      )
-    )
-    (1): TransBlockV2(
-      (norm_1): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ga): SO2EquivariantGraphAttention(
-        (SO3_rotation): ModuleList(
-          (0): SO3_Rotation(
-            (mapping): CoefficientMappingModule(lmax_list=[6], mmax_list=[6])
-          )
-        )
-        (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-        (SO3_grid): (6, 6)
-        (source_embedding): Embedding(90, 128)
-        (target_embedding): Embedding(90, 128)
-        (so2_conv_1): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-          (fc_m0): Linear(in_features=1792, out_features=1024, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=1536, out_features=768, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=1280, out_features=640, bias=False)
-            )
-            (2): SO2_m_Convolution(
-              (fc): Linear(in_features=1024, out_features=512, bias=False)
-            )
-          )
-          (rad_func): RadialFunction(
-            (net): Sequential(
-              (0): Linear(in_features=856, out_features=128, bias=True)
-              (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (2): SiLU()
-              (3): Linear(in_features=128, out_features=128, bias=True)
-              (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (5): SiLU()
-              (6): Linear(in_features=128, out_features=5632, bias=True)
-            )
-          )
-        )
-        (alpha_norm): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
-        (alpha_act): SmoothLeakyReLU(negative_slope=0.2)
-        (alpha_dropout): Dropout(p=0.1, inplace=False)
-        (s2_act): SeparableS2Activation(
-          (scalar_act): SiLU()
-          (s2_act): S2Activation(
-            (act): SiLU()
-          )
-        )
-        (so2_conv_2): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-          (fc_m0): Linear(in_features=448, out_features=896, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=384, out_features=1536, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=320, out_features=1280, bias=False)
-            )
-            (2): SO2_m_Convolution(
-              (fc): Linear(in_features=256, out_features=1024, bias=False)
-            )
-          )
-        )
-        (proj): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-      )
-      (drop_path): GraphDropPath(drop_prob=0.1)
-      (norm_2): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ffn): FeedForwardNetwork(
-        (SO3_grid): (6, 6)
-        (so3_linear_1): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-        (scalar_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=True)
-          (1): SiLU()
-        )
-        (grid_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=False)
-          (1): SiLU()
-          (2): Linear(in_features=128, out_features=128, bias=False)
-          (3): SiLU()
-          (4): Linear(in_features=128, out_features=128, bias=False)
-        )
-        (so3_linear_2): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-      )
-    )
-    (2): TransBlockV2(
-      (norm_1): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ga): SO2EquivariantGraphAttention(
-        (SO3_rotation): ModuleList(
-          (0): SO3_Rotation(
-            (mapping): CoefficientMappingModule(lmax_list=[6], mmax_list=[6])
-          )
-        )
-        (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-        (SO3_grid): (6, 6)
-        (source_embedding): Embedding(90, 128)
-        (target_embedding): Embedding(90, 128)
-        (so2_conv_1): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-          (fc_m0): Linear(in_features=1792, out_features=1024, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=1536, out_features=768, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=1280, out_features=640, bias=False)
-            )
-            (2): SO2_m_Convolution(
-              (fc): Linear(in_features=1024, out_features=512, bias=False)
-            )
-          )
-          (rad_func): RadialFunction(
-            (net): Sequential(
-              (0): Linear(in_features=856, out_features=128, bias=True)
-              (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (2): SiLU()
-              (3): Linear(in_features=128, out_features=128, bias=True)
-              (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (5): SiLU()
-              (6): Linear(in_features=128, out_features=5632, bias=True)
-            )
-          )
-        )
-        (alpha_norm): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
-        (alpha_act): SmoothLeakyReLU(negative_slope=0.2)
-        (alpha_dropout): Dropout(p=0.1, inplace=False)
-        (s2_act): SeparableS2Activation(
-          (scalar_act): SiLU()
-          (s2_act): S2Activation(
-            (act): SiLU()
-          )
-        )
-        (so2_conv_2): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-          (fc_m0): Linear(in_features=448, out_features=896, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=384, out_features=1536, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=320, out_features=1280, bias=False)
-            )
-            (2): SO2_m_Convolution(
-              (fc): Linear(in_features=256, out_features=1024, bias=False)
-            )
-          )
-        )
-        (proj): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-      )
-      (drop_path): GraphDropPath(drop_prob=0.1)
-      (norm_2): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ffn): FeedForwardNetwork(
-        (SO3_grid): (6, 6)
-        (so3_linear_1): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-        (scalar_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=True)
-          (1): SiLU()
-        )
-        (grid_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=False)
-          (1): SiLU()
-          (2): Linear(in_features=128, out_features=128, bias=False)
-          (3): SiLU()
-          (4): Linear(in_features=128, out_features=128, bias=False)
-        )
-        (so3_linear_2): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-      )
-    )
-    (3): TransBlockV2(
-      (norm_1): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ga): SO2EquivariantGraphAttention(
-        (SO3_rotation): ModuleList(
-          (0): SO3_Rotation(
-            (mapping): CoefficientMappingModule(lmax_list=[6], mmax_list=[6])
-          )
-        )
-        (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-        (SO3_grid): (6, 6)
-        (source_embedding): Embedding(90, 128)
-        (target_embedding): Embedding(90, 128)
-        (so2_conv_1): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-          (fc_m0): Linear(in_features=1792, out_features=1024, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=1536, out_features=768, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=1280, out_features=640, bias=False)
-            )
-            (2): SO2_m_Convolution(
-              (fc): Linear(in_features=1024, out_features=512, bias=False)
-            )
-          )
-          (rad_func): RadialFunction(
-            (net): Sequential(
-              (0): Linear(in_features=856, out_features=128, bias=True)
-              (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (2): SiLU()
-              (3): Linear(in_features=128, out_features=128, bias=True)
-              (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (5): SiLU()
-              (6): Linear(in_features=128, out_features=5632, bias=True)
-            )
-          )
-        )
-        (alpha_norm): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
-        (alpha_act): SmoothLeakyReLU(negative_slope=0.2)
-        (alpha_dropout): Dropout(p=0.1, inplace=False)
-        (s2_act): SeparableS2Activation(
-          (scalar_act): SiLU()
-          (s2_act): S2Activation(
-            (act): SiLU()
-          )
-        )
-        (so2_conv_2): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-          (fc_m0): Linear(in_features=448, out_features=896, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=384, out_features=1536, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=320, out_features=1280, bias=False)
-            )
-            (2): SO2_m_Convolution(
-              (fc): Linear(in_features=256, out_features=1024, bias=False)
-            )
-          )
-        )
-        (proj): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-      )
-      (drop_path): GraphDropPath(drop_prob=0.1)
-      (norm_2): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ffn): FeedForwardNetwork(
-        (SO3_grid): (6, 6)
-        (so3_linear_1): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-        (scalar_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=True)
-          (1): SiLU()
-        )
-        (grid_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=False)
-          (1): SiLU()
-          (2): Linear(in_features=128, out_features=128, bias=False)
-          (3): SiLU()
-          (4): Linear(in_features=128, out_features=128, bias=False)
-        )
-        (so3_linear_2): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-      )
-    )
-    (4): TransBlockV2(
-      (norm_1): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ga): SO2EquivariantGraphAttention(
-        (SO3_rotation): ModuleList(
-          (0): SO3_Rotation(
-            (mapping): CoefficientMappingModule(lmax_list=[6], mmax_list=[6])
-          )
-        )
-        (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-        (SO3_grid): (6, 6)
-        (source_embedding): Embedding(90, 128)
-        (target_embedding): Embedding(90, 128)
-        (so2_conv_1): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-          (fc_m0): Linear(in_features=1792, out_features=1024, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=1536, out_features=768, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=1280, out_features=640, bias=False)
-            )
-            (2): SO2_m_Convolution(
-              (fc): Linear(in_features=1024, out_features=512, bias=False)
-            )
-          )
-          (rad_func): RadialFunction(
-            (net): Sequential(
-              (0): Linear(in_features=856, out_features=128, bias=True)
-              (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (2): SiLU()
-              (3): Linear(in_features=128, out_features=128, bias=True)
-              (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (5): SiLU()
-              (6): Linear(in_features=128, out_features=5632, bias=True)
-            )
-          )
-        )
-        (alpha_norm): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
-        (alpha_act): SmoothLeakyReLU(negative_slope=0.2)
-        (alpha_dropout): Dropout(p=0.1, inplace=False)
-        (s2_act): SeparableS2Activation(
-          (scalar_act): SiLU()
-          (s2_act): S2Activation(
-            (act): SiLU()
-          )
-        )
-        (so2_conv_2): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-          (fc_m0): Linear(in_features=448, out_features=896, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=384, out_features=1536, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=320, out_features=1280, bias=False)
-            )
-            (2): SO2_m_Convolution(
-              (fc): Linear(in_features=256, out_features=1024, bias=False)
-            )
-          )
-        )
-        (proj): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-      )
-      (drop_path): GraphDropPath(drop_prob=0.1)
-      (norm_2): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ffn): FeedForwardNetwork(
-        (SO3_grid): (6, 6)
-        (so3_linear_1): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-        (scalar_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=True)
-          (1): SiLU()
-        )
-        (grid_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=False)
-          (1): SiLU()
-          (2): Linear(in_features=128, out_features=128, bias=False)
-          (3): SiLU()
-          (4): Linear(in_features=128, out_features=128, bias=False)
-        )
-        (so3_linear_2): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-      )
-    )
-    (5): TransBlockV2(
-      (norm_1): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ga): SO2EquivariantGraphAttention(
-        (SO3_rotation): ModuleList(
-          (0): SO3_Rotation(
-            (mapping): CoefficientMappingModule(lmax_list=[6], mmax_list=[6])
-          )
-        )
-        (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-        (SO3_grid): (6, 6)
-        (source_embedding): Embedding(90, 128)
-        (target_embedding): Embedding(90, 128)
-        (so2_conv_1): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-          (fc_m0): Linear(in_features=1792, out_features=1024, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=1536, out_features=768, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=1280, out_features=640, bias=False)
-            )
-            (2): SO2_m_Convolution(
-              (fc): Linear(in_features=1024, out_features=512, bias=False)
-            )
-          )
-          (rad_func): RadialFunction(
-            (net): Sequential(
-              (0): Linear(in_features=856, out_features=128, bias=True)
-              (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (2): SiLU()
-              (3): Linear(in_features=128, out_features=128, bias=True)
-              (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (5): SiLU()
-              (6): Linear(in_features=128, out_features=5632, bias=True)
-            )
-          )
-        )
-        (alpha_norm): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
-        (alpha_act): SmoothLeakyReLU(negative_slope=0.2)
-        (alpha_dropout): Dropout(p=0.1, inplace=False)
-        (s2_act): SeparableS2Activation(
-          (scalar_act): SiLU()
-          (s2_act): S2Activation(
-            (act): SiLU()
-          )
-        )
-        (so2_conv_2): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-          (fc_m0): Linear(in_features=448, out_features=896, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=384, out_features=1536, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=320, out_features=1280, bias=False)
-            )
-            (2): SO2_m_Convolution(
-              (fc): Linear(in_features=256, out_features=1024, bias=False)
-            )
-          )
-        )
-        (proj): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-      )
-      (drop_path): GraphDropPath(drop_prob=0.1)
-      (norm_2): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ffn): FeedForwardNetwork(
-        (SO3_grid): (6, 6)
-        (so3_linear_1): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-        (scalar_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=True)
-          (1): SiLU()
-        )
-        (grid_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=False)
-          (1): SiLU()
-          (2): Linear(in_features=128, out_features=128, bias=False)
-          (3): SiLU()
-          (4): Linear(in_features=128, out_features=128, bias=False)
-        )
-        (so3_linear_2): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-      )
-    )
-    (6): TransBlockV2(
-      (norm_1): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ga): SO2EquivariantGraphAttention(
-        (SO3_rotation): ModuleList(
-          (0): SO3_Rotation(
-            (mapping): CoefficientMappingModule(lmax_list=[6], mmax_list=[6])
-          )
-        )
-        (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-        (SO3_grid): (6, 6)
-        (source_embedding): Embedding(90, 128)
-        (target_embedding): Embedding(90, 128)
-        (so2_conv_1): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-          (fc_m0): Linear(in_features=1792, out_features=1024, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=1536, out_features=768, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=1280, out_features=640, bias=False)
-            )
-            (2): SO2_m_Convolution(
-              (fc): Linear(in_features=1024, out_features=512, bias=False)
-            )
-          )
-          (rad_func): RadialFunction(
-            (net): Sequential(
-              (0): Linear(in_features=856, out_features=128, bias=True)
-              (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (2): SiLU()
-              (3): Linear(in_features=128, out_features=128, bias=True)
-              (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (5): SiLU()
-              (6): Linear(in_features=128, out_features=5632, bias=True)
-            )
-          )
-        )
-        (alpha_norm): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
-        (alpha_act): SmoothLeakyReLU(negative_slope=0.2)
-        (alpha_dropout): Dropout(p=0.1, inplace=False)
-        (s2_act): SeparableS2Activation(
-          (scalar_act): SiLU()
-          (s2_act): S2Activation(
-            (act): SiLU()
-          )
-        )
-        (so2_conv_2): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-          (fc_m0): Linear(in_features=448, out_features=896, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=384, out_features=1536, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=320, out_features=1280, bias=False)
-            )
-            (2): SO2_m_Convolution(
-              (fc): Linear(in_features=256, out_features=1024, bias=False)
-            )
-          )
-        )
-        (proj): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-      )
-      (drop_path): GraphDropPath(drop_prob=0.1)
-      (norm_2): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ffn): FeedForwardNetwork(
-        (SO3_grid): (6, 6)
-        (so3_linear_1): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-        (scalar_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=True)
-          (1): SiLU()
-        )
-        (grid_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=False)
-          (1): SiLU()
-          (2): Linear(in_features=128, out_features=128, bias=False)
-          (3): SiLU()
-          (4): Linear(in_features=128, out_features=128, bias=False)
-        )
-        (so3_linear_2): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-      )
-    )
-    (7): TransBlockV2(
-      (norm_1): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ga): SO2EquivariantGraphAttention(
-        (SO3_rotation): ModuleList(
-          (0): SO3_Rotation(
-            (mapping): CoefficientMappingModule(lmax_list=[6], mmax_list=[6])
-          )
-        )
-        (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-        (SO3_grid): (6, 6)
-        (source_embedding): Embedding(90, 128)
-        (target_embedding): Embedding(90, 128)
-        (so2_conv_1): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-          (fc_m0): Linear(in_features=1792, out_features=1024, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=1536, out_features=768, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=1280, out_features=640, bias=False)
-            )
-            (2): SO2_m_Convolution(
-              (fc): Linear(in_features=1024, out_features=512, bias=False)
-            )
-          )
-          (rad_func): RadialFunction(
-            (net): Sequential(
-              (0): Linear(in_features=856, out_features=128, bias=True)
-              (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (2): SiLU()
-              (3): Linear(in_features=128, out_features=128, bias=True)
-              (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (5): SiLU()
-              (6): Linear(in_features=128, out_features=5632, bias=True)
-            )
-          )
-        )
-        (alpha_norm): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
-        (alpha_act): SmoothLeakyReLU(negative_slope=0.2)
-        (alpha_dropout): Dropout(p=0.1, inplace=False)
-        (s2_act): SeparableS2Activation(
-          (scalar_act): SiLU()
-          (s2_act): S2Activation(
-            (act): SiLU()
-          )
-        )
-        (so2_conv_2): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-          (fc_m0): Linear(in_features=448, out_features=896, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=384, out_features=1536, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=320, out_features=1280, bias=False)
-            )
-            (2): SO2_m_Convolution(
-              (fc): Linear(in_features=256, out_features=1024, bias=False)
-            )
-          )
-        )
-        (proj): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-      )
-      (drop_path): GraphDropPath(drop_prob=0.1)
-      (norm_2): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ffn): FeedForwardNetwork(
-        (SO3_grid): (6, 6)
-        (so3_linear_1): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-        (scalar_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=True)
-          (1): SiLU()
-        )
-        (grid_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=False)
-          (1): SiLU()
-          (2): Linear(in_features=128, out_features=128, bias=False)
-          (3): SiLU()
-          (4): Linear(in_features=128, out_features=128, bias=False)
-        )
-        (so3_linear_2): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-      )
-    )
-    (8): TransBlockV2(
-      (norm_1): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ga): SO2EquivariantGraphAttention(
-        (SO3_rotation): ModuleList(
-          (0): SO3_Rotation(
-            (mapping): CoefficientMappingModule(lmax_list=[6], mmax_list=[6])
-          )
-        )
-        (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-        (SO3_grid): (6, 6)
-        (source_embedding): Embedding(90, 128)
-        (target_embedding): Embedding(90, 128)
-        (so2_conv_1): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-          (fc_m0): Linear(in_features=1792, out_features=1024, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=1536, out_features=768, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=1280, out_features=640, bias=False)
-            )
-            (2): SO2_m_Convolution(
-              (fc): Linear(in_features=1024, out_features=512, bias=False)
-            )
-          )
-          (rad_func): RadialFunction(
-            (net): Sequential(
-              (0): Linear(in_features=856, out_features=128, bias=True)
-              (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (2): SiLU()
-              (3): Linear(in_features=128, out_features=128, bias=True)
-              (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (5): SiLU()
-              (6): Linear(in_features=128, out_features=5632, bias=True)
-            )
-          )
-        )
-        (alpha_norm): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
-        (alpha_act): SmoothLeakyReLU(negative_slope=0.2)
-        (alpha_dropout): Dropout(p=0.1, inplace=False)
-        (s2_act): SeparableS2Activation(
-          (scalar_act): SiLU()
-          (s2_act): S2Activation(
-            (act): SiLU()
-          )
-        )
-        (so2_conv_2): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-          (fc_m0): Linear(in_features=448, out_features=896, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=384, out_features=1536, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=320, out_features=1280, bias=False)
-            )
-            (2): SO2_m_Convolution(
-              (fc): Linear(in_features=256, out_features=1024, bias=False)
-            )
-          )
-        )
-        (proj): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-      )
-      (drop_path): GraphDropPath(drop_prob=0.1)
-      (norm_2): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ffn): FeedForwardNetwork(
-        (SO3_grid): (6, 6)
-        (so3_linear_1): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-        (scalar_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=True)
-          (1): SiLU()
-        )
-        (grid_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=False)
-          (1): SiLU()
-          (2): Linear(in_features=128, out_features=128, bias=False)
-          (3): SiLU()
-          (4): Linear(in_features=128, out_features=128, bias=False)
-        )
-        (so3_linear_2): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-      )
-    )
-    (9): TransBlockV2(
-      (norm_1): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ga): SO2EquivariantGraphAttention(
-        (SO3_rotation): ModuleList(
-          (0): SO3_Rotation(
-            (mapping): CoefficientMappingModule(lmax_list=[6], mmax_list=[6])
-          )
-        )
-        (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-        (SO3_grid): (6, 6)
-        (source_embedding): Embedding(90, 128)
-        (target_embedding): Embedding(90, 128)
-        (so2_conv_1): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-          (fc_m0): Linear(in_features=1792, out_features=1024, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=1536, out_features=768, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=1280, out_features=640, bias=False)
-            )
-            (2): SO2_m_Convolution(
-              (fc): Linear(in_features=1024, out_features=512, bias=False)
-            )
-          )
-          (rad_func): RadialFunction(
-            (net): Sequential(
-              (0): Linear(in_features=856, out_features=128, bias=True)
-              (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (2): SiLU()
-              (3): Linear(in_features=128, out_features=128, bias=True)
-              (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (5): SiLU()
-              (6): Linear(in_features=128, out_features=5632, bias=True)
-            )
-          )
-        )
-        (alpha_norm): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
-        (alpha_act): SmoothLeakyReLU(negative_slope=0.2)
-        (alpha_dropout): Dropout(p=0.1, inplace=False)
-        (s2_act): SeparableS2Activation(
-          (scalar_act): SiLU()
-          (s2_act): S2Activation(
-            (act): SiLU()
-          )
-        )
-        (so2_conv_2): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-          (fc_m0): Linear(in_features=448, out_features=896, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=384, out_features=1536, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=320, out_features=1280, bias=False)
-            )
-            (2): SO2_m_Convolution(
-              (fc): Linear(in_features=256, out_features=1024, bias=False)
-            )
-          )
-        )
-        (proj): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-      )
-      (drop_path): GraphDropPath(drop_prob=0.1)
-      (norm_2): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ffn): FeedForwardNetwork(
-        (SO3_grid): (6, 6)
-        (so3_linear_1): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-        (scalar_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=True)
-          (1): SiLU()
-        )
-        (grid_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=False)
-          (1): SiLU()
-          (2): Linear(in_features=128, out_features=128, bias=False)
-          (3): SiLU()
-          (4): Linear(in_features=128, out_features=128, bias=False)
-        )
-        (so3_linear_2): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-      )
-    )
-    (10): TransBlockV2(
-      (norm_1): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ga): SO2EquivariantGraphAttention(
-        (SO3_rotation): ModuleList(
-          (0): SO3_Rotation(
-            (mapping): CoefficientMappingModule(lmax_list=[6], mmax_list=[6])
-          )
-        )
-        (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-        (SO3_grid): (6, 6)
-        (source_embedding): Embedding(90, 128)
-        (target_embedding): Embedding(90, 128)
-        (so2_conv_1): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-          (fc_m0): Linear(in_features=1792, out_features=1024, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=1536, out_features=768, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=1280, out_features=640, bias=False)
-            )
-            (2): SO2_m_Convolution(
-              (fc): Linear(in_features=1024, out_features=512, bias=False)
-            )
-          )
-          (rad_func): RadialFunction(
-            (net): Sequential(
-              (0): Linear(in_features=856, out_features=128, bias=True)
-              (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (2): SiLU()
-              (3): Linear(in_features=128, out_features=128, bias=True)
-              (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (5): SiLU()
-              (6): Linear(in_features=128, out_features=5632, bias=True)
-            )
-          )
-        )
-        (alpha_norm): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
-        (alpha_act): SmoothLeakyReLU(negative_slope=0.2)
-        (alpha_dropout): Dropout(p=0.1, inplace=False)
-        (s2_act): SeparableS2Activation(
-          (scalar_act): SiLU()
-          (s2_act): S2Activation(
-            (act): SiLU()
-          )
-        )
-        (so2_conv_2): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-          (fc_m0): Linear(in_features=448, out_features=896, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=384, out_features=1536, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=320, out_features=1280, bias=False)
-            )
-            (2): SO2_m_Convolution(
-              (fc): Linear(in_features=256, out_features=1024, bias=False)
-            )
-          )
-        )
-        (proj): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-      )
-      (drop_path): GraphDropPath(drop_prob=0.1)
-      (norm_2): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ffn): FeedForwardNetwork(
-        (SO3_grid): (6, 6)
-        (so3_linear_1): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-        (scalar_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=True)
-          (1): SiLU()
-        )
-        (grid_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=False)
-          (1): SiLU()
-          (2): Linear(in_features=128, out_features=128, bias=False)
-          (3): SiLU()
-          (4): Linear(in_features=128, out_features=128, bias=False)
-        )
-        (so3_linear_2): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-      )
-    )
-    (11): TransBlockV2(
-      (norm_1): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ga): SO2EquivariantGraphAttention(
-        (SO3_rotation): ModuleList(
-          (0): SO3_Rotation(
-            (mapping): CoefficientMappingModule(lmax_list=[6], mmax_list=[6])
-          )
-        )
-        (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-        (SO3_grid): (6, 6)
-        (source_embedding): Embedding(90, 128)
-        (target_embedding): Embedding(90, 128)
-        (so2_conv_1): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-          (fc_m0): Linear(in_features=1792, out_features=1024, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=1536, out_features=768, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=1280, out_features=640, bias=False)
-            )
-            (2): SO2_m_Convolution(
-              (fc): Linear(in_features=1024, out_features=512, bias=False)
-            )
-          )
-          (rad_func): RadialFunction(
-            (net): Sequential(
-              (0): Linear(in_features=856, out_features=128, bias=True)
-              (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (2): SiLU()
-              (3): Linear(in_features=128, out_features=128, bias=True)
-              (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (5): SiLU()
-              (6): Linear(in_features=128, out_features=5632, bias=True)
-            )
-          )
-        )
-        (alpha_norm): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
-        (alpha_act): SmoothLeakyReLU(negative_slope=0.2)
-        (alpha_dropout): Dropout(p=0.1, inplace=False)
-        (s2_act): SeparableS2Activation(
-          (scalar_act): SiLU()
-          (s2_act): S2Activation(
-            (act): SiLU()
-          )
-        )
-        (so2_conv_2): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-          (fc_m0): Linear(in_features=448, out_features=896, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=384, out_features=1536, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=320, out_features=1280, bias=False)
-            )
-            (2): SO2_m_Convolution(
-              (fc): Linear(in_features=256, out_features=1024, bias=False)
-            )
-          )
-        )
-        (proj): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-      )
-      (drop_path): GraphDropPath(drop_prob=0.1)
-      (norm_2): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ffn): FeedForwardNetwork(
-        (SO3_grid): (6, 6)
-        (so3_linear_1): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-        (scalar_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=True)
-          (1): SiLU()
-        )
-        (grid_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=False)
-          (1): SiLU()
-          (2): Linear(in_features=128, out_features=128, bias=False)
-          (3): SiLU()
-          (4): Linear(in_features=128, out_features=128, bias=False)
-        )
-        (so3_linear_2): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-      )
-    )
-    (12): TransBlockV2(
-      (norm_1): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ga): SO2EquivariantGraphAttention(
-        (SO3_rotation): ModuleList(
-          (0): SO3_Rotation(
-            (mapping): CoefficientMappingModule(lmax_list=[6], mmax_list=[6])
-          )
-        )
-        (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-        (SO3_grid): (6, 6)
-        (source_embedding): Embedding(90, 128)
-        (target_embedding): Embedding(90, 128)
-        (so2_conv_1): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-          (fc_m0): Linear(in_features=1792, out_features=1024, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=1536, out_features=768, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=1280, out_features=640, bias=False)
-            )
-            (2): SO2_m_Convolution(
-              (fc): Linear(in_features=1024, out_features=512, bias=False)
-            )
-          )
-          (rad_func): RadialFunction(
-            (net): Sequential(
-              (0): Linear(in_features=856, out_features=128, bias=True)
-              (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (2): SiLU()
-              (3): Linear(in_features=128, out_features=128, bias=True)
-              (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (5): SiLU()
-              (6): Linear(in_features=128, out_features=5632, bias=True)
-            )
-          )
-        )
-        (alpha_norm): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
-        (alpha_act): SmoothLeakyReLU(negative_slope=0.2)
-        (alpha_dropout): Dropout(p=0.1, inplace=False)
-        (s2_act): SeparableS2Activation(
-          (scalar_act): SiLU()
-          (s2_act): S2Activation(
-            (act): SiLU()
-          )
-        )
-        (so2_conv_2): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-          (fc_m0): Linear(in_features=448, out_features=896, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=384, out_features=1536, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=320, out_features=1280, bias=False)
-            )
-            (2): SO2_m_Convolution(
-              (fc): Linear(in_features=256, out_features=1024, bias=False)
-            )
-          )
-        )
-        (proj): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-      )
-      (drop_path): GraphDropPath(drop_prob=0.1)
-      (norm_2): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ffn): FeedForwardNetwork(
-        (SO3_grid): (6, 6)
-        (so3_linear_1): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-        (scalar_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=True)
-          (1): SiLU()
-        )
-        (grid_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=False)
-          (1): SiLU()
-          (2): Linear(in_features=128, out_features=128, bias=False)
-          (3): SiLU()
-          (4): Linear(in_features=128, out_features=128, bias=False)
-        )
-        (so3_linear_2): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-      )
-    )
-    (13): TransBlockV2(
-      (norm_1): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ga): SO2EquivariantGraphAttention(
-        (SO3_rotation): ModuleList(
-          (0): SO3_Rotation(
-            (mapping): CoefficientMappingModule(lmax_list=[6], mmax_list=[6])
-          )
-        )
-        (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-        (SO3_grid): (6, 6)
-        (source_embedding): Embedding(90, 128)
-        (target_embedding): Embedding(90, 128)
-        (so2_conv_1): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-          (fc_m0): Linear(in_features=1792, out_features=1024, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=1536, out_features=768, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=1280, out_features=640, bias=False)
-            )
-            (2): SO2_m_Convolution(
-              (fc): Linear(in_features=1024, out_features=512, bias=False)
-            )
-          )
-          (rad_func): RadialFunction(
-            (net): Sequential(
-              (0): Linear(in_features=856, out_features=128, bias=True)
-              (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (2): SiLU()
-              (3): Linear(in_features=128, out_features=128, bias=True)
-              (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (5): SiLU()
-              (6): Linear(in_features=128, out_features=5632, bias=True)
-            )
-          )
-        )
-        (alpha_norm): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
-        (alpha_act): SmoothLeakyReLU(negative_slope=0.2)
-        (alpha_dropout): Dropout(p=0.1, inplace=False)
-        (s2_act): SeparableS2Activation(
-          (scalar_act): SiLU()
-          (s2_act): S2Activation(
-            (act): SiLU()
-          )
-        )
-        (so2_conv_2): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-          (fc_m0): Linear(in_features=448, out_features=896, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=384, out_features=1536, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=320, out_features=1280, bias=False)
-            )
-            (2): SO2_m_Convolution(
-              (fc): Linear(in_features=256, out_features=1024, bias=False)
-            )
-          )
-        )
-        (proj): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-      )
-      (drop_path): GraphDropPath(drop_prob=0.1)
-      (norm_2): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ffn): FeedForwardNetwork(
-        (SO3_grid): (6, 6)
-        (so3_linear_1): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-        (scalar_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=True)
-          (1): SiLU()
-        )
-        (grid_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=False)
-          (1): SiLU()
-          (2): Linear(in_features=128, out_features=128, bias=False)
-          (3): SiLU()
-          (4): Linear(in_features=128, out_features=128, bias=False)
-        )
-        (so3_linear_2): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-      )
-    )
-    (14): TransBlockV2(
-      (norm_1): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ga): SO2EquivariantGraphAttention(
-        (SO3_rotation): ModuleList(
-          (0): SO3_Rotation(
-            (mapping): CoefficientMappingModule(lmax_list=[6], mmax_list=[6])
-          )
-        )
-        (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-        (SO3_grid): (6, 6)
-        (source_embedding): Embedding(90, 128)
-        (target_embedding): Embedding(90, 128)
-        (so2_conv_1): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-          (fc_m0): Linear(in_features=1792, out_features=1024, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=1536, out_features=768, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=1280, out_features=640, bias=False)
-            )
-            (2): SO2_m_Convolution(
-              (fc): Linear(in_features=1024, out_features=512, bias=False)
-            )
-          )
-          (rad_func): RadialFunction(
-            (net): Sequential(
-              (0): Linear(in_features=856, out_features=128, bias=True)
-              (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (2): SiLU()
-              (3): Linear(in_features=128, out_features=128, bias=True)
-              (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (5): SiLU()
-              (6): Linear(in_features=128, out_features=5632, bias=True)
-            )
-          )
-        )
-        (alpha_norm): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
-        (alpha_act): SmoothLeakyReLU(negative_slope=0.2)
-        (alpha_dropout): Dropout(p=0.1, inplace=False)
-        (s2_act): SeparableS2Activation(
-          (scalar_act): SiLU()
-          (s2_act): S2Activation(
-            (act): SiLU()
-          )
-        )
-        (so2_conv_2): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-          (fc_m0): Linear(in_features=448, out_features=896, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=384, out_features=1536, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=320, out_features=1280, bias=False)
-            )
-            (2): SO2_m_Convolution(
-              (fc): Linear(in_features=256, out_features=1024, bias=False)
-            )
-          )
-        )
-        (proj): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-      )
-      (drop_path): GraphDropPath(drop_prob=0.1)
-      (norm_2): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ffn): FeedForwardNetwork(
-        (SO3_grid): (6, 6)
-        (so3_linear_1): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-        (scalar_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=True)
-          (1): SiLU()
-        )
-        (grid_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=False)
-          (1): SiLU()
-          (2): Linear(in_features=128, out_features=128, bias=False)
-          (3): SiLU()
-          (4): Linear(in_features=128, out_features=128, bias=False)
-        )
-        (so3_linear_2): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-      )
-    )
-    (15): TransBlockV2(
-      (norm_1): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ga): SO2EquivariantGraphAttention(
-        (SO3_rotation): ModuleList(
-          (0): SO3_Rotation(
-            (mapping): CoefficientMappingModule(lmax_list=[6], mmax_list=[6])
-          )
-        )
-        (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-        (SO3_grid): (6, 6)
-        (source_embedding): Embedding(90, 128)
-        (target_embedding): Embedding(90, 128)
-        (so2_conv_1): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-          (fc_m0): Linear(in_features=1792, out_features=1024, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=1536, out_features=768, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=1280, out_features=640, bias=False)
-            )
-            (2): SO2_m_Convolution(
-              (fc): Linear(in_features=1024, out_features=512, bias=False)
-            )
-          )
-          (rad_func): RadialFunction(
-            (net): Sequential(
-              (0): Linear(in_features=856, out_features=128, bias=True)
-              (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (2): SiLU()
-              (3): Linear(in_features=128, out_features=128, bias=True)
-              (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (5): SiLU()
-              (6): Linear(in_features=128, out_features=5632, bias=True)
-            )
-          )
-        )
-        (alpha_norm): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
-        (alpha_act): SmoothLeakyReLU(negative_slope=0.2)
-        (alpha_dropout): Dropout(p=0.1, inplace=False)
-        (s2_act): SeparableS2Activation(
-          (scalar_act): SiLU()
-          (s2_act): S2Activation(
-            (act): SiLU()
-          )
-        )
-        (so2_conv_2): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-          (fc_m0): Linear(in_features=448, out_features=896, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=384, out_features=1536, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=320, out_features=1280, bias=False)
-            )
-            (2): SO2_m_Convolution(
-              (fc): Linear(in_features=256, out_features=1024, bias=False)
-            )
-          )
-        )
-        (proj): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-      )
-      (drop_path): GraphDropPath(drop_prob=0.1)
-      (norm_2): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ffn): FeedForwardNetwork(
-        (SO3_grid): (6, 6)
-        (so3_linear_1): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-        (scalar_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=True)
-          (1): SiLU()
-        )
-        (grid_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=False)
-          (1): SiLU()
-          (2): Linear(in_features=128, out_features=128, bias=False)
-          (3): SiLU()
-          (4): Linear(in_features=128, out_features=128, bias=False)
-        )
-        (so3_linear_2): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-      )
-    )
-    (16): TransBlockV2(
-      (norm_1): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ga): SO2EquivariantGraphAttention(
-        (SO3_rotation): ModuleList(
-          (0): SO3_Rotation(
-            (mapping): CoefficientMappingModule(lmax_list=[6], mmax_list=[6])
-          )
-        )
-        (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-        (SO3_grid): (6, 6)
-        (source_embedding): Embedding(90, 128)
-        (target_embedding): Embedding(90, 128)
-        (so2_conv_1): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-          (fc_m0): Linear(in_features=1792, out_features=1024, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=1536, out_features=768, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=1280, out_features=640, bias=False)
-            )
-            (2): SO2_m_Convolution(
-              (fc): Linear(in_features=1024, out_features=512, bias=False)
-            )
-          )
-          (rad_func): RadialFunction(
-            (net): Sequential(
-              (0): Linear(in_features=856, out_features=128, bias=True)
-              (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (2): SiLU()
-              (3): Linear(in_features=128, out_features=128, bias=True)
-              (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (5): SiLU()
-              (6): Linear(in_features=128, out_features=5632, bias=True)
-            )
-          )
-        )
-        (alpha_norm): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
-        (alpha_act): SmoothLeakyReLU(negative_slope=0.2)
-        (alpha_dropout): Dropout(p=0.1, inplace=False)
-        (s2_act): SeparableS2Activation(
-          (scalar_act): SiLU()
-          (s2_act): S2Activation(
-            (act): SiLU()
-          )
-        )
-        (so2_conv_2): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-          (fc_m0): Linear(in_features=448, out_features=896, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=384, out_features=1536, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=320, out_features=1280, bias=False)
-            )
-            (2): SO2_m_Convolution(
-              (fc): Linear(in_features=256, out_features=1024, bias=False)
-            )
-          )
-        )
-        (proj): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-      )
-      (drop_path): GraphDropPath(drop_prob=0.1)
-      (norm_2): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ffn): FeedForwardNetwork(
-        (SO3_grid): (6, 6)
-        (so3_linear_1): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-        (scalar_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=True)
-          (1): SiLU()
-        )
-        (grid_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=False)
-          (1): SiLU()
-          (2): Linear(in_features=128, out_features=128, bias=False)
-          (3): SiLU()
-          (4): Linear(in_features=128, out_features=128, bias=False)
-        )
-        (so3_linear_2): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-      )
-    )
-    (17): TransBlockV2(
-      (norm_1): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ga): SO2EquivariantGraphAttention(
-        (SO3_rotation): ModuleList(
-          (0): SO3_Rotation(
-            (mapping): CoefficientMappingModule(lmax_list=[6], mmax_list=[6])
-          )
-        )
-        (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-        (SO3_grid): (6, 6)
-        (source_embedding): Embedding(90, 128)
-        (target_embedding): Embedding(90, 128)
-        (so2_conv_1): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-          (fc_m0): Linear(in_features=1792, out_features=1024, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=1536, out_features=768, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=1280, out_features=640, bias=False)
-            )
-            (2): SO2_m_Convolution(
-              (fc): Linear(in_features=1024, out_features=512, bias=False)
-            )
-          )
-          (rad_func): RadialFunction(
-            (net): Sequential(
-              (0): Linear(in_features=856, out_features=128, bias=True)
-              (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (2): SiLU()
-              (3): Linear(in_features=128, out_features=128, bias=True)
-              (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (5): SiLU()
-              (6): Linear(in_features=128, out_features=5632, bias=True)
-            )
-          )
-        )
-        (alpha_norm): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
-        (alpha_act): SmoothLeakyReLU(negative_slope=0.2)
-        (alpha_dropout): Dropout(p=0.1, inplace=False)
-        (s2_act): SeparableS2Activation(
-          (scalar_act): SiLU()
-          (s2_act): S2Activation(
-            (act): SiLU()
-          )
-        )
-        (so2_conv_2): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-          (fc_m0): Linear(in_features=448, out_features=896, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=384, out_features=1536, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=320, out_features=1280, bias=False)
-            )
-            (2): SO2_m_Convolution(
-              (fc): Linear(in_features=256, out_features=1024, bias=False)
-            )
-          )
-        )
-        (proj): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-      )
-      (drop_path): GraphDropPath(drop_prob=0.1)
-      (norm_2): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ffn): FeedForwardNetwork(
-        (SO3_grid): (6, 6)
-        (so3_linear_1): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-        (scalar_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=True)
-          (1): SiLU()
-        )
-        (grid_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=False)
-          (1): SiLU()
-          (2): Linear(in_features=128, out_features=128, bias=False)
-          (3): SiLU()
-          (4): Linear(in_features=128, out_features=128, bias=False)
-        )
-        (so3_linear_2): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-      )
-    )
-    (18): TransBlockV2(
-      (norm_1): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ga): SO2EquivariantGraphAttention(
-        (SO3_rotation): ModuleList(
-          (0): SO3_Rotation(
-            (mapping): CoefficientMappingModule(lmax_list=[6], mmax_list=[6])
-          )
-        )
-        (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-        (SO3_grid): (6, 6)
-        (source_embedding): Embedding(90, 128)
-        (target_embedding): Embedding(90, 128)
-        (so2_conv_1): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-          (fc_m0): Linear(in_features=1792, out_features=1024, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=1536, out_features=768, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=1280, out_features=640, bias=False)
-            )
-            (2): SO2_m_Convolution(
-              (fc): Linear(in_features=1024, out_features=512, bias=False)
-            )
-          )
-          (rad_func): RadialFunction(
-            (net): Sequential(
-              (0): Linear(in_features=856, out_features=128, bias=True)
-              (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (2): SiLU()
-              (3): Linear(in_features=128, out_features=128, bias=True)
-              (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (5): SiLU()
-              (6): Linear(in_features=128, out_features=5632, bias=True)
-            )
-          )
-        )
-        (alpha_norm): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
-        (alpha_act): SmoothLeakyReLU(negative_slope=0.2)
-        (alpha_dropout): Dropout(p=0.1, inplace=False)
-        (s2_act): SeparableS2Activation(
-          (scalar_act): SiLU()
-          (s2_act): S2Activation(
-            (act): SiLU()
-          )
-        )
-        (so2_conv_2): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-          (fc_m0): Linear(in_features=448, out_features=896, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=384, out_features=1536, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=320, out_features=1280, bias=False)
-            )
-            (2): SO2_m_Convolution(
-              (fc): Linear(in_features=256, out_features=1024, bias=False)
-            )
-          )
-        )
-        (proj): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-      )
-      (drop_path): GraphDropPath(drop_prob=0.1)
-      (norm_2): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ffn): FeedForwardNetwork(
-        (SO3_grid): (6, 6)
-        (so3_linear_1): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-        (scalar_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=True)
-          (1): SiLU()
-        )
-        (grid_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=False)
-          (1): SiLU()
-          (2): Linear(in_features=128, out_features=128, bias=False)
-          (3): SiLU()
-          (4): Linear(in_features=128, out_features=128, bias=False)
-        )
-        (so3_linear_2): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-      )
-    )
-    (19): TransBlockV2(
-      (norm_1): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ga): SO2EquivariantGraphAttention(
-        (SO3_rotation): ModuleList(
-          (0): SO3_Rotation(
-            (mapping): CoefficientMappingModule(lmax_list=[6], mmax_list=[6])
-          )
-        )
-        (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-        (SO3_grid): (6, 6)
-        (source_embedding): Embedding(90, 128)
-        (target_embedding): Embedding(90, 128)
-        (so2_conv_1): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-          (fc_m0): Linear(in_features=1792, out_features=1024, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=1536, out_features=768, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=1280, out_features=640, bias=False)
-            )
-            (2): SO2_m_Convolution(
-              (fc): Linear(in_features=1024, out_features=512, bias=False)
-            )
-          )
-          (rad_func): RadialFunction(
-            (net): Sequential(
-              (0): Linear(in_features=856, out_features=128, bias=True)
-              (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (2): SiLU()
-              (3): Linear(in_features=128, out_features=128, bias=True)
-              (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (5): SiLU()
-              (6): Linear(in_features=128, out_features=5632, bias=True)
-            )
-          )
-        )
-        (alpha_norm): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
-        (alpha_act): SmoothLeakyReLU(negative_slope=0.2)
-        (alpha_dropout): Dropout(p=0.1, inplace=False)
-        (s2_act): SeparableS2Activation(
-          (scalar_act): SiLU()
-          (s2_act): S2Activation(
-            (act): SiLU()
-          )
-        )
-        (so2_conv_2): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-          (fc_m0): Linear(in_features=448, out_features=896, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=384, out_features=1536, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=320, out_features=1280, bias=False)
-            )
-            (2): SO2_m_Convolution(
-              (fc): Linear(in_features=256, out_features=1024, bias=False)
-            )
-          )
-        )
-        (proj): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-      )
-      (drop_path): GraphDropPath(drop_prob=0.1)
-      (norm_2): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ffn): FeedForwardNetwork(
-        (SO3_grid): (6, 6)
-        (so3_linear_1): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-        (scalar_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=True)
-          (1): SiLU()
-        )
-        (grid_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=False)
-          (1): SiLU()
-          (2): Linear(in_features=128, out_features=128, bias=False)
-          (3): SiLU()
-          (4): Linear(in_features=128, out_features=128, bias=False)
-        )
-        (so3_linear_2): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-      )
-    )
-  )
-  (norm): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
-  (energy_block): FeedForwardNetwork(
-    (SO3_grid): (6, 6)
-    (so3_linear_1): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
-    (scalar_mlp): Sequential(
-      (0): Linear(in_features=128, out_features=128, bias=True)
-      (1): SiLU()
-    )
-    (grid_mlp): Sequential(
-      (0): Linear(in_features=128, out_features=128, bias=False)
-      (1): SiLU()
-      (2): Linear(in_features=128, out_features=128, bias=False)
-      (3): SiLU()
-      (4): Linear(in_features=128, out_features=128, bias=False)
-    )
-    (so3_linear_2): SO3_LinearV2(in_features=128, out_features=1, lmax=6)
-  )
-  (force_block): SO2EquivariantGraphAttention(
-    (SO3_rotation): ModuleList(
-      (0): SO3_Rotation(
-        (mapping): CoefficientMappingModule(lmax_list=[6], mmax_list=[6])
-      )
-    )
-    (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-    (SO3_grid): (6, 6)
-    (source_embedding): Embedding(90, 128)
-    (target_embedding): Embedding(90, 128)
-    (so2_conv_1): SO2_Convolution(
-      (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-      (fc_m0): Linear(in_features=1792, out_features=1024, bias=True)
-      (so2_m_conv): ModuleList(
-        (0): SO2_m_Convolution(
-          (fc): Linear(in_features=1536, out_features=768, bias=False)
-        )
-        (1): SO2_m_Convolution(
-          (fc): Linear(in_features=1280, out_features=640, bias=False)
-        )
-        (2): SO2_m_Convolution(
-          (fc): Linear(in_features=1024, out_features=512, bias=False)
-        )
-      )
-      (rad_func): RadialFunction(
-        (net): Sequential(
-          (0): Linear(in_features=856, out_features=128, bias=True)
-          (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-          (2): SiLU()
-          (3): Linear(in_features=128, out_features=128, bias=True)
-          (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-          (5): SiLU()
-          (6): Linear(in_features=128, out_features=5632, bias=True)
-        )
-      )
-    )
-    (alpha_norm): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
-    (alpha_act): SmoothLeakyReLU(negative_slope=0.2)
-    (s2_act): SeparableS2Activation(
-      (scalar_act): SiLU()
-      (s2_act): S2Activation(
-        (act): SiLU()
-      )
-    )
-    (so2_conv_2): SO2_Convolution(
-      (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
-      (fc_m0): Linear(in_features=448, out_features=896, bias=True)
-      (so2_m_conv): ModuleList(
-        (0): SO2_m_Convolution(
-          (fc): Linear(in_features=384, out_features=1536, bias=False)
-        )
-        (1): SO2_m_Convolution(
-          (fc): Linear(in_features=320, out_features=1280, bias=False)
-        )
-        (2): SO2_m_Convolution(
-          (fc): Linear(in_features=256, out_features=1024, bias=False)
-        )
-      )
-    )
-    (proj): SO3_LinearV2(in_features=128, out_features=1, lmax=6)
-  )
-)
-Loaded EquiformerV2_OC20 with 153602690 parameters.
-Parameters without weight decay:
-['module.blocks.0.ffn.scalar_mlp.0.bias', 'module.blocks.0.ffn.so3_linear_1.bias', 'module.blocks.0.ffn.so3_linear_2.bias', 'module.blocks.0.ga.alpha_norm.bias', 'module.blocks.0.ga.alpha_norm.weight', 'module.blocks.0.ga.proj.bias', 'module.blocks.0.ga.so2_conv_1.fc_m0.bias', 'module.blocks.0.ga.so2_conv_1.rad_func.net.0.bias', 'module.blocks.0.ga.so2_conv_1.rad_func.net.1.bias', 'module.blocks.0.ga.so2_conv_1.rad_func.net.1.weight', 'module.blocks.0.ga.so2_conv_1.rad_func.net.3.bias', 'module.blocks.0.ga.so2_conv_1.rad_func.net.4.bias', 'module.blocks.0.ga.so2_conv_1.rad_func.net.4.weight', 'module.blocks.0.ga.so2_conv_1.rad_func.net.6.bias', 'module.blocks.0.ga.so2_conv_2.fc_m0.bias', 'module.blocks.0.norm_1.affine_weight', 'module.blocks.0.norm_1.norm_l0.bias', 'module.blocks.0.norm_1.norm_l0.weight', 'module.blocks.0.norm_2.affine_weight', 'module.blocks.0.norm_2.norm_l0.bias', 'module.blocks.0.norm_2.norm_l0.weight', 'module.blocks.1.ffn.scalar_mlp.0.bias', 'module.blocks.1.ffn.so3_linear_1.bias', 'module.blocks.1.ffn.so3_linear_2.bias', 'module.blocks.1.ga.alpha_norm.bias', 'module.blocks.1.ga.alpha_norm.weight', 'module.blocks.1.ga.proj.bias', 'module.blocks.1.ga.so2_conv_1.fc_m0.bias', 'module.blocks.1.ga.so2_conv_1.rad_func.net.0.bias', 'module.blocks.1.ga.so2_conv_1.rad_func.net.1.bias', 'module.blocks.1.ga.so2_conv_1.rad_func.net.1.weight', 'module.blocks.1.ga.so2_conv_1.rad_func.net.3.bias', 'module.blocks.1.ga.so2_conv_1.rad_func.net.4.bias', 'module.blocks.1.ga.so2_conv_1.rad_func.net.4.weight', 'module.blocks.1.ga.so2_conv_1.rad_func.net.6.bias', 'module.blocks.1.ga.so2_conv_2.fc_m0.bias', 'module.blocks.1.norm_1.affine_weight', 'module.blocks.1.norm_1.norm_l0.bias', 'module.blocks.1.norm_1.norm_l0.weight', 'module.blocks.1.norm_2.affine_weight', 'module.blocks.1.norm_2.norm_l0.bias', 'module.blocks.1.norm_2.norm_l0.weight', 'module.blocks.10.ffn.scalar_mlp.0.bias', 'module.blocks.10.ffn.so3_linear_1.bias', 'module.blocks.10.ffn.so3_linear_2.bias', 'module.blocks.10.ga.alpha_norm.bias', 'module.blocks.10.ga.alpha_norm.weight', 'module.blocks.10.ga.proj.bias', 'module.blocks.10.ga.so2_conv_1.fc_m0.bias', 'module.blocks.10.ga.so2_conv_1.rad_func.net.0.bias', 'module.blocks.10.ga.so2_conv_1.rad_func.net.1.bias', 'module.blocks.10.ga.so2_conv_1.rad_func.net.1.weight', 'module.blocks.10.ga.so2_conv_1.rad_func.net.3.bias', 'module.blocks.10.ga.so2_conv_1.rad_func.net.4.bias', 'module.blocks.10.ga.so2_conv_1.rad_func.net.4.weight', 'module.blocks.10.ga.so2_conv_1.rad_func.net.6.bias', 'module.blocks.10.ga.so2_conv_2.fc_m0.bias', 'module.blocks.10.norm_1.affine_weight', 'module.blocks.10.norm_1.norm_l0.bias', 'module.blocks.10.norm_1.norm_l0.weight', 'module.blocks.10.norm_2.affine_weight', 'module.blocks.10.norm_2.norm_l0.bias', 'module.blocks.10.norm_2.norm_l0.weight', 'module.blocks.11.ffn.scalar_mlp.0.bias', 'module.blocks.11.ffn.so3_linear_1.bias', 'module.blocks.11.ffn.so3_linear_2.bias', 'module.blocks.11.ga.alpha_norm.bias', 'module.blocks.11.ga.alpha_norm.weight', 'module.blocks.11.ga.proj.bias', 'module.blocks.11.ga.so2_conv_1.fc_m0.bias', 'module.blocks.11.ga.so2_conv_1.rad_func.net.0.bias', 'module.blocks.11.ga.so2_conv_1.rad_func.net.1.bias', 'module.blocks.11.ga.so2_conv_1.rad_func.net.1.weight', 'module.blocks.11.ga.so2_conv_1.rad_func.net.3.bias', 'module.blocks.11.ga.so2_conv_1.rad_func.net.4.bias', 'module.blocks.11.ga.so2_conv_1.rad_func.net.4.weight', 'module.blocks.11.ga.so2_conv_1.rad_func.net.6.bias', 'module.blocks.11.ga.so2_conv_2.fc_m0.bias', 'module.blocks.11.norm_1.affine_weight', 'module.blocks.11.norm_1.norm_l0.bias', 'module.blocks.11.norm_1.norm_l0.weight', 'module.blocks.11.norm_2.affine_weight', 'module.blocks.11.norm_2.norm_l0.bias', 'module.blocks.11.norm_2.norm_l0.weight', 'module.blocks.12.ffn.scalar_mlp.0.bias', 'module.blocks.12.ffn.so3_linear_1.bias', 'module.blocks.12.ffn.so3_linear_2.bias', 'module.blocks.12.ga.alpha_norm.bias', 'module.blocks.12.ga.alpha_norm.weight', 'module.blocks.12.ga.proj.bias', 'module.blocks.12.ga.so2_conv_1.fc_m0.bias', 'module.blocks.12.ga.so2_conv_1.rad_func.net.0.bias', 'module.blocks.12.ga.so2_conv_1.rad_func.net.1.bias', 'module.blocks.12.ga.so2_conv_1.rad_func.net.1.weight', 'module.blocks.12.ga.so2_conv_1.rad_func.net.3.bias', 'module.blocks.12.ga.so2_conv_1.rad_func.net.4.bias', 'module.blocks.12.ga.so2_conv_1.rad_func.net.4.weight', 'module.blocks.12.ga.so2_conv_1.rad_func.net.6.bias', 'module.blocks.12.ga.so2_conv_2.fc_m0.bias', 'module.blocks.12.norm_1.affine_weight', 'module.blocks.12.norm_1.norm_l0.bias', 'module.blocks.12.norm_1.norm_l0.weight', 'module.blocks.12.norm_2.affine_weight', 'module.blocks.12.norm_2.norm_l0.bias', 'module.blocks.12.norm_2.norm_l0.weight', 'module.blocks.13.ffn.scalar_mlp.0.bias', 'module.blocks.13.ffn.so3_linear_1.bias', 'module.blocks.13.ffn.so3_linear_2.bias', 'module.blocks.13.ga.alpha_norm.bias', 'module.blocks.13.ga.alpha_norm.weight', 'module.blocks.13.ga.proj.bias', 'module.blocks.13.ga.so2_conv_1.fc_m0.bias', 'module.blocks.13.ga.so2_conv_1.rad_func.net.0.bias', 'module.blocks.13.ga.so2_conv_1.rad_func.net.1.bias', 'module.blocks.13.ga.so2_conv_1.rad_func.net.1.weight', 'module.blocks.13.ga.so2_conv_1.rad_func.net.3.bias', 'module.blocks.13.ga.so2_conv_1.rad_func.net.4.bias', 'module.blocks.13.ga.so2_conv_1.rad_func.net.4.weight', 'module.blocks.13.ga.so2_conv_1.rad_func.net.6.bias', 'module.blocks.13.ga.so2_conv_2.fc_m0.bias', 'module.blocks.13.norm_1.affine_weight', 'module.blocks.13.norm_1.norm_l0.bias', 'module.blocks.13.norm_1.norm_l0.weight', 'module.blocks.13.norm_2.affine_weight', 'module.blocks.13.norm_2.norm_l0.bias', 'module.blocks.13.norm_2.norm_l0.weight', 'module.blocks.14.ffn.scalar_mlp.0.bias', 'module.blocks.14.ffn.so3_linear_1.bias', 'module.blocks.14.ffn.so3_linear_2.bias', 'module.blocks.14.ga.alpha_norm.bias', 'module.blocks.14.ga.alpha_norm.weight', 'module.blocks.14.ga.proj.bias', 'module.blocks.14.ga.so2_conv_1.fc_m0.bias', 'module.blocks.14.ga.so2_conv_1.rad_func.net.0.bias', 'module.blocks.14.ga.so2_conv_1.rad_func.net.1.bias', 'module.blocks.14.ga.so2_conv_1.rad_func.net.1.weight', 'module.blocks.14.ga.so2_conv_1.rad_func.net.3.bias', 'module.blocks.14.ga.so2_conv_1.rad_func.net.4.bias', 'module.blocks.14.ga.so2_conv_1.rad_func.net.4.weight', 'module.blocks.14.ga.so2_conv_1.rad_func.net.6.bias', 'module.blocks.14.ga.so2_conv_2.fc_m0.bias', 'module.blocks.14.norm_1.affine_weight', 'module.blocks.14.norm_1.norm_l0.bias', 'module.blocks.14.norm_1.norm_l0.weight', 'module.blocks.14.norm_2.affine_weight', 'module.blocks.14.norm_2.norm_l0.bias', 'module.blocks.14.norm_2.norm_l0.weight', 'module.blocks.15.ffn.scalar_mlp.0.bias', 'module.blocks.15.ffn.so3_linear_1.bias', 'module.blocks.15.ffn.so3_linear_2.bias', 'module.blocks.15.ga.alpha_norm.bias', 'module.blocks.15.ga.alpha_norm.weight', 'module.blocks.15.ga.proj.bias', 'module.blocks.15.ga.so2_conv_1.fc_m0.bias', 'module.blocks.15.ga.so2_conv_1.rad_func.net.0.bias', 'module.blocks.15.ga.so2_conv_1.rad_func.net.1.bias', 'module.blocks.15.ga.so2_conv_1.rad_func.net.1.weight', 'module.blocks.15.ga.so2_conv_1.rad_func.net.3.bias', 'module.blocks.15.ga.so2_conv_1.rad_func.net.4.bias', 'module.blocks.15.ga.so2_conv_1.rad_func.net.4.weight', 'module.blocks.15.ga.so2_conv_1.rad_func.net.6.bias', 'module.blocks.15.ga.so2_conv_2.fc_m0.bias', 'module.blocks.15.norm_1.affine_weight', 'module.blocks.15.norm_1.norm_l0.bias', 'module.blocks.15.norm_1.norm_l0.weight', 'module.blocks.15.norm_2.affine_weight', 'module.blocks.15.norm_2.norm_l0.bias', 'module.blocks.15.norm_2.norm_l0.weight', 'module.blocks.16.ffn.scalar_mlp.0.bias', 'module.blocks.16.ffn.so3_linear_1.bias', 'module.blocks.16.ffn.so3_linear_2.bias', 'module.blocks.16.ga.alpha_norm.bias', 'module.blocks.16.ga.alpha_norm.weight', 'module.blocks.16.ga.proj.bias', 'module.blocks.16.ga.so2_conv_1.fc_m0.bias', 'module.blocks.16.ga.so2_conv_1.rad_func.net.0.bias', 'module.blocks.16.ga.so2_conv_1.rad_func.net.1.bias', 'module.blocks.16.ga.so2_conv_1.rad_func.net.1.weight', 'module.blocks.16.ga.so2_conv_1.rad_func.net.3.bias', 'module.blocks.16.ga.so2_conv_1.rad_func.net.4.bias', 'module.blocks.16.ga.so2_conv_1.rad_func.net.4.weight', 'module.blocks.16.ga.so2_conv_1.rad_func.net.6.bias', 'module.blocks.16.ga.so2_conv_2.fc_m0.bias', 'module.blocks.16.norm_1.affine_weight', 'module.blocks.16.norm_1.norm_l0.bias', 'module.blocks.16.norm_1.norm_l0.weight', 'module.blocks.16.norm_2.affine_weight', 'module.blocks.16.norm_2.norm_l0.bias', 'module.blocks.16.norm_2.norm_l0.weight', 'module.blocks.17.ffn.scalar_mlp.0.bias', 'module.blocks.17.ffn.so3_linear_1.bias', 'module.blocks.17.ffn.so3_linear_2.bias', 'module.blocks.17.ga.alpha_norm.bias', 'module.blocks.17.ga.alpha_norm.weight', 'module.blocks.17.ga.proj.bias', 'module.blocks.17.ga.so2_conv_1.fc_m0.bias', 'module.blocks.17.ga.so2_conv_1.rad_func.net.0.bias', 'module.blocks.17.ga.so2_conv_1.rad_func.net.1.bias', 'module.blocks.17.ga.so2_conv_1.rad_func.net.1.weight', 'module.blocks.17.ga.so2_conv_1.rad_func.net.3.bias', 'module.blocks.17.ga.so2_conv_1.rad_func.net.4.bias', 'module.blocks.17.ga.so2_conv_1.rad_func.net.4.weight', 'module.blocks.17.ga.so2_conv_1.rad_func.net.6.bias', 'module.blocks.17.ga.so2_conv_2.fc_m0.bias', 'module.blocks.17.norm_1.affine_weight', 'module.blocks.17.norm_1.norm_l0.bias', 'module.blocks.17.norm_1.norm_l0.weight', 'module.blocks.17.norm_2.affine_weight', 'module.blocks.17.norm_2.norm_l0.bias', 'module.blocks.17.norm_2.norm_l0.weight', 'module.blocks.18.ffn.scalar_mlp.0.bias', 'module.blocks.18.ffn.so3_linear_1.bias', 'module.blocks.18.ffn.so3_linear_2.bias', 'module.blocks.18.ga.alpha_norm.bias', 'module.blocks.18.ga.alpha_norm.weight', 'module.blocks.18.ga.proj.bias', 'module.blocks.18.ga.so2_conv_1.fc_m0.bias', 'module.blocks.18.ga.so2_conv_1.rad_func.net.0.bias', 'module.blocks.18.ga.so2_conv_1.rad_func.net.1.bias', 'module.blocks.18.ga.so2_conv_1.rad_func.net.1.weight', 'module.blocks.18.ga.so2_conv_1.rad_func.net.3.bias', 'module.blocks.18.ga.so2_conv_1.rad_func.net.4.bias', 'module.blocks.18.ga.so2_conv_1.rad_func.net.4.weight', 'module.blocks.18.ga.so2_conv_1.rad_func.net.6.bias', 'module.blocks.18.ga.so2_conv_2.fc_m0.bias', 'module.blocks.18.norm_1.affine_weight', 'module.blocks.18.norm_1.norm_l0.bias', 'module.blocks.18.norm_1.norm_l0.weight', 'module.blocks.18.norm_2.affine_weight', 'module.blocks.18.norm_2.norm_l0.bias', 'module.blocks.18.norm_2.norm_l0.weight', 'module.blocks.19.ffn.scalar_mlp.0.bias', 'module.blocks.19.ffn.so3_linear_1.bias', 'module.blocks.19.ffn.so3_linear_2.bias', 'module.blocks.19.ga.alpha_norm.bias', 'module.blocks.19.ga.alpha_norm.weight', 'module.blocks.19.ga.proj.bias', 'module.blocks.19.ga.so2_conv_1.fc_m0.bias', 'module.blocks.19.ga.so2_conv_1.rad_func.net.0.bias', 'module.blocks.19.ga.so2_conv_1.rad_func.net.1.bias', 'module.blocks.19.ga.so2_conv_1.rad_func.net.1.weight', 'module.blocks.19.ga.so2_conv_1.rad_func.net.3.bias', 'module.blocks.19.ga.so2_conv_1.rad_func.net.4.bias', 'module.blocks.19.ga.so2_conv_1.rad_func.net.4.weight', 'module.blocks.19.ga.so2_conv_1.rad_func.net.6.bias', 'module.blocks.19.ga.so2_conv_2.fc_m0.bias', 'module.blocks.19.norm_1.affine_weight', 'module.blocks.19.norm_1.norm_l0.bias', 'module.blocks.19.norm_1.norm_l0.weight', 'module.blocks.19.norm_2.affine_weight', 'module.blocks.19.norm_2.norm_l0.bias', 'module.blocks.19.norm_2.norm_l0.weight', 'module.blocks.2.ffn.scalar_mlp.0.bias', 'module.blocks.2.ffn.so3_linear_1.bias', 'module.blocks.2.ffn.so3_linear_2.bias', 'module.blocks.2.ga.alpha_norm.bias', 'module.blocks.2.ga.alpha_norm.weight', 'module.blocks.2.ga.proj.bias', 'module.blocks.2.ga.so2_conv_1.fc_m0.bias', 'module.blocks.2.ga.so2_conv_1.rad_func.net.0.bias', 'module.blocks.2.ga.so2_conv_1.rad_func.net.1.bias', 'module.blocks.2.ga.so2_conv_1.rad_func.net.1.weight', 'module.blocks.2.ga.so2_conv_1.rad_func.net.3.bias', 'module.blocks.2.ga.so2_conv_1.rad_func.net.4.bias', 'module.blocks.2.ga.so2_conv_1.rad_func.net.4.weight', 'module.blocks.2.ga.so2_conv_1.rad_func.net.6.bias', 'module.blocks.2.ga.so2_conv_2.fc_m0.bias', 'module.blocks.2.norm_1.affine_weight', 'module.blocks.2.norm_1.norm_l0.bias', 'module.blocks.2.norm_1.norm_l0.weight', 'module.blocks.2.norm_2.affine_weight', 'module.blocks.2.norm_2.norm_l0.bias', 'module.blocks.2.norm_2.norm_l0.weight', 'module.blocks.3.ffn.scalar_mlp.0.bias', 'module.blocks.3.ffn.so3_linear_1.bias', 'module.blocks.3.ffn.so3_linear_2.bias', 'module.blocks.3.ga.alpha_norm.bias', 'module.blocks.3.ga.alpha_norm.weight', 'module.blocks.3.ga.proj.bias', 'module.blocks.3.ga.so2_conv_1.fc_m0.bias', 'module.blocks.3.ga.so2_conv_1.rad_func.net.0.bias', 'module.blocks.3.ga.so2_conv_1.rad_func.net.1.bias', 'module.blocks.3.ga.so2_conv_1.rad_func.net.1.weight', 'module.blocks.3.ga.so2_conv_1.rad_func.net.3.bias', 'module.blocks.3.ga.so2_conv_1.rad_func.net.4.bias', 'module.blocks.3.ga.so2_conv_1.rad_func.net.4.weight', 'module.blocks.3.ga.so2_conv_1.rad_func.net.6.bias', 'module.blocks.3.ga.so2_conv_2.fc_m0.bias', 'module.blocks.3.norm_1.affine_weight', 'module.blocks.3.norm_1.norm_l0.bias', 'module.blocks.3.norm_1.norm_l0.weight', 'module.blocks.3.norm_2.affine_weight', 'module.blocks.3.norm_2.norm_l0.bias', 'module.blocks.3.norm_2.norm_l0.weight', 'module.blocks.4.ffn.scalar_mlp.0.bias', 'module.blocks.4.ffn.so3_linear_1.bias', 'module.blocks.4.ffn.so3_linear_2.bias', 'module.blocks.4.ga.alpha_norm.bias', 'module.blocks.4.ga.alpha_norm.weight', 'module.blocks.4.ga.proj.bias', 'module.blocks.4.ga.so2_conv_1.fc_m0.bias', 'module.blocks.4.ga.so2_conv_1.rad_func.net.0.bias', 'module.blocks.4.ga.so2_conv_1.rad_func.net.1.bias', 'module.blocks.4.ga.so2_conv_1.rad_func.net.1.weight', 'module.blocks.4.ga.so2_conv_1.rad_func.net.3.bias', 'module.blocks.4.ga.so2_conv_1.rad_func.net.4.bias', 'module.blocks.4.ga.so2_conv_1.rad_func.net.4.weight', 'module.blocks.4.ga.so2_conv_1.rad_func.net.6.bias', 'module.blocks.4.ga.so2_conv_2.fc_m0.bias', 'module.blocks.4.norm_1.affine_weight', 'module.blocks.4.norm_1.norm_l0.bias', 'module.blocks.4.norm_1.norm_l0.weight', 'module.blocks.4.norm_2.affine_weight', 'module.blocks.4.norm_2.norm_l0.bias', 'module.blocks.4.norm_2.norm_l0.weight', 'module.blocks.5.ffn.scalar_mlp.0.bias', 'module.blocks.5.ffn.so3_linear_1.bias', 'module.blocks.5.ffn.so3_linear_2.bias', 'module.blocks.5.ga.alpha_norm.bias', 'module.blocks.5.ga.alpha_norm.weight', 'module.blocks.5.ga.proj.bias', 'module.blocks.5.ga.so2_conv_1.fc_m0.bias', 'module.blocks.5.ga.so2_conv_1.rad_func.net.0.bias', 'module.blocks.5.ga.so2_conv_1.rad_func.net.1.bias', 'module.blocks.5.ga.so2_conv_1.rad_func.net.1.weight', 'module.blocks.5.ga.so2_conv_1.rad_func.net.3.bias', 'module.blocks.5.ga.so2_conv_1.rad_func.net.4.bias', 'module.blocks.5.ga.so2_conv_1.rad_func.net.4.weight', 'module.blocks.5.ga.so2_conv_1.rad_func.net.6.bias', 'module.blocks.5.ga.so2_conv_2.fc_m0.bias', 'module.blocks.5.norm_1.affine_weight', 'module.blocks.5.norm_1.norm_l0.bias', 'module.blocks.5.norm_1.norm_l0.weight', 'module.blocks.5.norm_2.affine_weight', 'module.blocks.5.norm_2.norm_l0.bias', 'module.blocks.5.norm_2.norm_l0.weight', 'module.blocks.6.ffn.scalar_mlp.0.bias', 'module.blocks.6.ffn.so3_linear_1.bias', 'module.blocks.6.ffn.so3_linear_2.bias', 'module.blocks.6.ga.alpha_norm.bias', 'module.blocks.6.ga.alpha_norm.weight', 'module.blocks.6.ga.proj.bias', 'module.blocks.6.ga.so2_conv_1.fc_m0.bias', 'module.blocks.6.ga.so2_conv_1.rad_func.net.0.bias', 'module.blocks.6.ga.so2_conv_1.rad_func.net.1.bias', 'module.blocks.6.ga.so2_conv_1.rad_func.net.1.weight', 'module.blocks.6.ga.so2_conv_1.rad_func.net.3.bias', 'module.blocks.6.ga.so2_conv_1.rad_func.net.4.bias', 'module.blocks.6.ga.so2_conv_1.rad_func.net.4.weight', 'module.blocks.6.ga.so2_conv_1.rad_func.net.6.bias', 'module.blocks.6.ga.so2_conv_2.fc_m0.bias', 'module.blocks.6.norm_1.affine_weight', 'module.blocks.6.norm_1.norm_l0.bias', 'module.blocks.6.norm_1.norm_l0.weight', 'module.blocks.6.norm_2.affine_weight', 'module.blocks.6.norm_2.norm_l0.bias', 'module.blocks.6.norm_2.norm_l0.weight', 'module.blocks.7.ffn.scalar_mlp.0.bias', 'module.blocks.7.ffn.so3_linear_1.bias', 'module.blocks.7.ffn.so3_linear_2.bias', 'module.blocks.7.ga.alpha_norm.bias', 'module.blocks.7.ga.alpha_norm.weight', 'module.blocks.7.ga.proj.bias', 'module.blocks.7.ga.so2_conv_1.fc_m0.bias', 'module.blocks.7.ga.so2_conv_1.rad_func.net.0.bias', 'module.blocks.7.ga.so2_conv_1.rad_func.net.1.bias', 'module.blocks.7.ga.so2_conv_1.rad_func.net.1.weight', 'module.blocks.7.ga.so2_conv_1.rad_func.net.3.bias', 'module.blocks.7.ga.so2_conv_1.rad_func.net.4.bias', 'module.blocks.7.ga.so2_conv_1.rad_func.net.4.weight', 'module.blocks.7.ga.so2_conv_1.rad_func.net.6.bias', 'module.blocks.7.ga.so2_conv_2.fc_m0.bias', 'module.blocks.7.norm_1.affine_weight', 'module.blocks.7.norm_1.norm_l0.bias', 'module.blocks.7.norm_1.norm_l0.weight', 'module.blocks.7.norm_2.affine_weight', 'module.blocks.7.norm_2.norm_l0.bias', 'module.blocks.7.norm_2.norm_l0.weight', 'module.blocks.8.ffn.scalar_mlp.0.bias', 'module.blocks.8.ffn.so3_linear_1.bias', 'module.blocks.8.ffn.so3_linear_2.bias', 'module.blocks.8.ga.alpha_norm.bias', 'module.blocks.8.ga.alpha_norm.weight', 'module.blocks.8.ga.proj.bias', 'module.blocks.8.ga.so2_conv_1.fc_m0.bias', 'module.blocks.8.ga.so2_conv_1.rad_func.net.0.bias', 'module.blocks.8.ga.so2_conv_1.rad_func.net.1.bias', 'module.blocks.8.ga.so2_conv_1.rad_func.net.1.weight', 'module.blocks.8.ga.so2_conv_1.rad_func.net.3.bias', 'module.blocks.8.ga.so2_conv_1.rad_func.net.4.bias', 'module.blocks.8.ga.so2_conv_1.rad_func.net.4.weight', 'module.blocks.8.ga.so2_conv_1.rad_func.net.6.bias', 'module.blocks.8.ga.so2_conv_2.fc_m0.bias', 'module.blocks.8.norm_1.affine_weight', 'module.blocks.8.norm_1.norm_l0.bias', 'module.blocks.8.norm_1.norm_l0.weight', 'module.blocks.8.norm_2.affine_weight', 'module.blocks.8.norm_2.norm_l0.bias', 'module.blocks.8.norm_2.norm_l0.weight', 'module.blocks.9.ffn.scalar_mlp.0.bias', 'module.blocks.9.ffn.so3_linear_1.bias', 'module.blocks.9.ffn.so3_linear_2.bias', 'module.blocks.9.ga.alpha_norm.bias', 'module.blocks.9.ga.alpha_norm.weight', 'module.blocks.9.ga.proj.bias', 'module.blocks.9.ga.so2_conv_1.fc_m0.bias', 'module.blocks.9.ga.so2_conv_1.rad_func.net.0.bias', 'module.blocks.9.ga.so2_conv_1.rad_func.net.1.bias', 'module.blocks.9.ga.so2_conv_1.rad_func.net.1.weight', 'module.blocks.9.ga.so2_conv_1.rad_func.net.3.bias', 'module.blocks.9.ga.so2_conv_1.rad_func.net.4.bias', 'module.blocks.9.ga.so2_conv_1.rad_func.net.4.weight', 'module.blocks.9.ga.so2_conv_1.rad_func.net.6.bias', 'module.blocks.9.ga.so2_conv_2.fc_m0.bias', 'module.blocks.9.norm_1.affine_weight', 'module.blocks.9.norm_1.norm_l0.bias', 'module.blocks.9.norm_1.norm_l0.weight', 'module.blocks.9.norm_2.affine_weight', 'module.blocks.9.norm_2.norm_l0.bias', 'module.blocks.9.norm_2.norm_l0.weight', 'module.edge_degree_embedding.rad_func.net.0.bias', 'module.edge_degree_embedding.rad_func.net.1.bias', 'module.edge_degree_embedding.rad_func.net.1.weight', 'module.edge_degree_embedding.rad_func.net.3.bias', 'module.edge_degree_embedding.rad_func.net.4.bias', 'module.edge_degree_embedding.rad_func.net.4.weight', 'module.edge_degree_embedding.rad_func.net.6.bias', 'module.energy_block.scalar_mlp.0.bias', 'module.energy_block.so3_linear_1.bias', 'module.energy_block.so3_linear_2.bias', 'module.force_block.alpha_norm.bias', 'module.force_block.alpha_norm.weight', 'module.force_block.proj.bias', 'module.force_block.so2_conv_1.fc_m0.bias', 'module.force_block.so2_conv_1.rad_func.net.0.bias', 'module.force_block.so2_conv_1.rad_func.net.1.bias', 'module.force_block.so2_conv_1.rad_func.net.1.weight', 'module.force_block.so2_conv_1.rad_func.net.3.bias', 'module.force_block.so2_conv_1.rad_func.net.4.bias', 'module.force_block.so2_conv_1.rad_func.net.4.weight', 'module.force_block.so2_conv_1.rad_func.net.6.bias', 'module.force_block.so2_conv_2.fc_m0.bias', 'module.norm.affine_weight', 'module.norm.norm_l0.bias', 'module.norm.norm_l0.weight']
-Predicting on test.
-device 0:   0%|          | 0/12182 [00:00<?, ?it/s]device 0:   0%|          | 1/12182 [00:01<4:00:40,  1.19s/it]device 0:   0%|          | 2/12182 [00:01<2:10:10,  1.56it/s]device 0:   0%|          | 3/12182 [00:01<1:29:23,  2.27it/s]device 0:   0%|          | 4/12182 [00:01<1:10:53,  2.86it/s]device 0:   0%|          | 5/12182 [00:02<1:01:27,  3.30it/s]device 0:   0%|          | 6/12182 [00:02<54:18,  3.74it/s]  device 0:   0%|          | 7/12182 [00:02<49:42,  4.08it/s]device 0:   0%|          | 8/12182 [00:02<48:43,  4.16it/s]device 0:   0%|          | 9/12182 [00:02<45:53,  4.42it/s]device 0:   0%|          | 10/12182 [00:03<45:31,  4.46it/s]device 0:   0%|          | 11/12182 [00:03<44:04,  4.60it/s]device 0:   0%|          | 12/12182 [00:03<43:03,  4.71it/s]device 0:   0%|          | 13/12182 [00:03<42:58,  4.72it/s]device 0:   0%|          | 14/12182 [00:04<49:56,  4.06it/s]device 0:   0%|          | 15/12182 [00:04<47:45,  4.25it/s]device 0:   0%|          | 16/12182 [00:04<46:34,  4.35it/s]device 0:   0%|          | 17/12182 [00:04<44:41,  4.54it/s]device 0:   0%|          | 18/12182 [00:04<43:22,  4.67it/s]device 0:   0%|          | 19/12182 [00:05<42:37,  4.76it/s]device 0:   0%|          | 20/12182 [00:05<43:23,  4.67it/s]device 0:   0%|          | 21/12182 [00:05<45:10,  4.49it/s]device 0:   0%|          | 22/12182 [00:05<43:45,  4.63it/s]device 0:   0%|          | 23/12182 [00:05<43:12,  4.69it/s]device 0:   0%|          | 24/12182 [00:06<45:56,  4.41it/s]device 0:   0%|          | 25/12182 [00:06<45:19,  4.47it/s]device 0:   0%|          | 26/12182 [00:06<44:42,  4.53it/s]device 0:   0%|          | 27/12182 [00:06<43:59,  4.60it/s]device 0:   0%|          | 28/12182 [00:07<43:48,  4.62it/s]device 0:   0%|          | 29/12182 [00:07<44:01,  4.60it/s]device 0:   0%|          | 30/12182 [00:07<43:35,  4.65it/s]device 0:   0%|          | 31/12182 [00:07<43:36,  4.64it/s]device 0:   0%|          | 32/12182 [00:07<42:45,  4.74it/s]device 0:   0%|          | 33/12182 [00:08<42:14,  4.79it/s]device 0:   0%|          | 34/12182 [00:08<43:44,  4.63it/s]device 0:   0%|          | 35/12182 [00:08<43:17,  4.68it/s]device 0:   0%|          | 36/12182 [00:08<43:48,  4.62it/s]device 0:   0%|          | 37/12182 [00:08<43:42,  4.63it/s]device 0:   0%|          | 38/12182 [00:09<42:51,  4.72it/s]device 0:   0%|          | 39/12182 [00:09<43:17,  4.67it/s]device 0:   0%|          | 40/12182 [00:09<45:11,  4.48it/s]device 0:   0%|          | 41/12182 [00:09<47:01,  4.30it/s]device 0:   0%|          | 42/12182 [00:10<44:56,  4.50it/s]device 0:   0%|          | 43/12182 [00:10<44:38,  4.53it/s]device 0:   0%|          | 44/12182 [00:10<45:23,  4.46it/s]device 0:   0%|          | 45/12182 [00:11<1:40:19,  2.02it/s]device 0:   0%|          | 46/12182 [00:11<1:22:23,  2.46it/s]device 0:   0%|          | 47/12182 [00:12<1:10:36,  2.86it/s]device 0:   0%|          | 48/12182 [00:12<1:01:54,  3.27it/s]device 0:   0%|          | 49/12182 [00:12<55:49,  3.62it/s]  device 0:   0%|          | 50/12182 [00:12<53:49,  3.76it/s]device 0:   0%|          | 51/12182 [00:13<53:56,  3.75it/s]device 0:   0%|          | 52/12182 [00:13<50:37,  3.99it/s]device 0:   0%|          | 53/12182 [00:13<51:18,  3.94it/s]device 0:   0%|          | 54/12182 [00:13<48:13,  4.19it/s]device 0:   0%|          | 55/12182 [00:13<46:06,  4.38it/s]device 0:   0%|          | 56/12182 [00:14<45:44,  4.42it/s]device 0:   0%|          | 57/12182 [00:14<44:16,  4.56it/s]device 0:   0%|          | 58/12182 [00:14<43:18,  4.67it/s]device 0:   0%|          | 59/12182 [00:14<43:14,  4.67it/s]device 0:   0%|          | 60/12182 [00:14<42:51,  4.71it/s]device 0:   1%|          | 61/12182 [00:15<42:26,  4.76it/s]device 0:   1%|          | 62/12182 [00:15<42:57,  4.70it/s]device 0:   1%|          | 63/12182 [00:15<42:11,  4.79it/s]device 0:   1%|          | 64/12182 [00:15<42:07,  4.79it/s]device 0:   1%|          | 65/12182 [00:16<46:23,  4.35it/s]device 0:   1%|          | 66/12182 [00:16<46:46,  4.32it/s]device 0:   1%|          | 67/12182 [00:16<45:07,  4.48it/s]device 0:   1%|          | 68/12182 [00:16<44:19,  4.55it/s]device 0:   1%|          | 69/12182 [00:16<43:56,  4.59it/s]device 0:   1%|          | 70/12182 [00:17<45:36,  4.43it/s]device 0:   1%|          | 71/12182 [00:17<47:17,  4.27it/s]device 0:   1%|          | 72/12182 [00:17<45:59,  4.39it/s]device 0:   1%|          | 73/12182 [00:17<45:39,  4.42it/s]device 0:   1%|          | 74/12182 [00:18<44:10,  4.57it/s]device 0:   1%|          | 75/12182 [00:18<44:04,  4.58it/s]device 0:   1%|          | 76/12182 [00:18<43:05,  4.68it/s]device 0:   1%|          | 77/12182 [00:18<45:58,  4.39it/s]device 0:   1%|          | 78/12182 [00:18<44:37,  4.52it/s]device 0:   1%|          | 79/12182 [00:19<44:09,  4.57it/s]device 0:   1%|          | 80/12182 [00:19<46:38,  4.32it/s]device 0:   1%|          | 81/12182 [00:19<46:28,  4.34it/s]device 0:   1%|          | 82/12182 [00:19<45:17,  4.45it/s]device 0:   1%|          | 83/12182 [00:20<45:56,  4.39it/s]device 0:   1%|          | 84/12182 [00:20<44:29,  4.53it/s]device 0:   1%|          | 85/12182 [00:20<43:36,  4.62it/s]device 0:   1%|          | 86/12182 [00:20<43:27,  4.64it/s]device 0:   1%|          | 87/12182 [00:21<50:12,  4.01it/s]device 0:   1%|          | 88/12182 [00:21<49:31,  4.07it/s]device 0:   1%|          | 89/12182 [00:21<47:07,  4.28it/s]device 0:   1%|          | 90/12182 [00:21<46:13,  4.36it/s]device 0:   1%|          | 91/12182 [00:21<45:02,  4.47it/s]device 0:   1%|          | 92/12182 [00:22<45:52,  4.39it/s]device 0:   1%|          | 93/12182 [00:22<45:05,  4.47it/s]device 0:   1%|          | 94/12182 [00:22<43:49,  4.60it/s]device 0:   1%|          | 95/12182 [00:22<43:18,  4.65it/s]device 0:   1%|          | 96/12182 [00:23<43:32,  4.63it/s]device 0:   1%|          | 97/12182 [00:23<43:05,  4.67it/s]device 0:   1%|          | 98/12182 [00:23<42:18,  4.76it/s]device 0:   1%|          | 99/12182 [00:23<43:14,  4.66it/s]device 0:   1%|          | 100/12182 [00:23<43:33,  4.62it/s]device 0:   1%|          | 101/12182 [00:24<43:36,  4.62it/s]device 0:   1%|          | 102/12182 [00:24<42:48,  4.70it/s]device 0:   1%|          | 103/12182 [00:24<55:21,  3.64it/s]device 0:   1%|          | 104/12182 [00:24<50:50,  3.96it/s]device 0:   1%|          | 105/12182 [00:25<48:03,  4.19it/s]device 0:   1%|          | 106/12182 [00:25<47:10,  4.27it/s]device 0:   1%|          | 107/12182 [00:25<48:58,  4.11it/s]device 0:   1%|          | 108/12182 [00:25<46:40,  4.31it/s]device 0:   1%|          | 109/12182 [00:26<45:36,  4.41it/s]device 0:   1%|          | 110/12182 [00:26<47:24,  4.24it/s]device 0:   1%|          | 111/12182 [00:26<45:42,  4.40it/s]device 0:   1%|          | 112/12182 [00:26<44:29,  4.52it/s]device 0:   1%|          | 113/12182 [00:26<44:27,  4.52it/s]device 0:   1%|          | 114/12182 [00:27<43:17,  4.65it/s]device 0:   1%|          | 115/12182 [00:27<45:45,  4.39it/s]device 0:   1%|          | 116/12182 [00:27<45:21,  4.43it/s]device 0:   1%|          | 117/12182 [00:27<44:40,  4.50it/s]device 0:   1%|          | 118/12182 [00:28<44:42,  4.50it/s]device 0:   1%|          | 119/12182 [00:28<44:58,  4.47it/s]device 0:   1%|          | 120/12182 [00:28<43:53,  4.58it/s]device 0:   1%|          | 121/12182 [00:28<43:09,  4.66it/s]device 0:   1%|          | 122/12182 [00:28<42:22,  4.74it/s]device 0:   1%|          | 123/12182 [00:29<42:12,  4.76it/s]device 0:   1%|          | 124/12182 [00:29<42:46,  4.70it/s]device 0:   1%|          | 125/12182 [00:29<42:05,  4.77it/s]device 0:   1%|          | 126/12182 [00:29<41:37,  4.83it/s]device 0:   1%|          | 127/12182 [00:29<42:24,  4.74it/s]device 0:   1%|          | 128/12182 [00:30<41:48,  4.81it/s]device 0:   1%|          | 129/12182 [00:30<42:47,  4.70it/s]device 0:   1%|          | 130/12182 [00:30<44:12,  4.54it/s]device 0:   1%|          | 131/12182 [00:30<43:21,  4.63it/s]device 0:   1%|          | 132/12182 [00:31<42:51,  4.69it/s]device 0:   1%|          | 133/12182 [00:31<44:00,  4.56it/s]device 0:   1%|          | 134/12182 [00:31<43:28,  4.62it/s]device 0:   1%|          | 135/12182 [00:31<43:08,  4.65it/s]device 0:   1%|          | 136/12182 [00:31<42:27,  4.73it/s]device 0:   1%|          | 137/12182 [00:32<42:03,  4.77it/s]device 0:   1%|          | 138/12182 [00:32<42:07,  4.76it/s]device 0:   1%|          | 139/12182 [00:32<41:39,  4.82it/s]device 0:   1%|          | 140/12182 [00:32<41:53,  4.79it/s]device 0:   1%|          | 141/12182 [00:32<42:11,  4.76it/s]device 0:   1%|          | 142/12182 [00:33<42:30,  4.72it/s]device 0:   1%|          | 143/12182 [00:33<42:12,  4.75it/s]device 0:   1%|          | 144/12182 [00:33<42:06,  4.77it/s]device 0:   1%|          | 145/12182 [00:33<41:44,  4.81it/s]device 0:   1%|          | 146/12182 [00:34<45:00,  4.46it/s]device 0:   1%|          | 147/12182 [00:34<44:27,  4.51it/s]device 0:   1%|          | 148/12182 [00:34<43:43,  4.59it/s]device 0:   1%|          | 149/12182 [00:34<42:51,  4.68it/s]device 0:   1%|          | 150/12182 [00:34<42:08,  4.76it/s]device 0:   1%|          | 151/12182 [00:35<43:45,  4.58it/s]device 0:   1%|          | 152/12182 [00:35<44:11,  4.54it/s]device 0:   1%|▏         | 153/12182 [00:35<43:19,  4.63it/s]device 0:   1%|▏         | 154/12182 [00:35<42:50,  4.68it/s]device 0:   1%|▏         | 155/12182 [00:35<42:12,  4.75it/s]device 0:   1%|▏         | 156/12182 [00:36<41:55,  4.78it/s]device 0:   1%|▏         | 157/12182 [00:36<42:37,  4.70it/s]device 0:   1%|▏         | 158/12182 [00:36<43:02,  4.66it/s]device 0:   1%|▏         | 159/12182 [00:36<42:51,  4.68it/s]device 0:   1%|▏         | 160/12182 [00:36<42:26,  4.72it/s]device 0:   1%|▏         | 161/12182 [00:37<42:46,  4.68it/s]device 0:   1%|▏         | 162/12182 [00:37<42:51,  4.67it/s]device 0:   1%|▏         | 163/12182 [00:37<42:29,  4.71it/s]device 0:   1%|▏         | 164/12182 [00:37<44:00,  4.55it/s]device 0:   1%|▏         | 165/12182 [00:38<43:47,  4.57it/s]device 0:   1%|▏         | 166/12182 [00:38<42:57,  4.66it/s]device 0:   1%|▏         | 167/12182 [00:38<43:25,  4.61it/s]device 0:   1%|▏         | 168/12182 [00:38<44:35,  4.49it/s]device 0:   1%|▏         | 169/12182 [00:38<44:51,  4.46it/s]device 0:   1%|▏         | 170/12182 [00:39<44:15,  4.52it/s]device 0:   1%|▏         | 171/12182 [00:39<44:16,  4.52it/s]device 0:   1%|▏         | 172/12182 [00:39<43:26,  4.61it/s]device 0:   1%|▏         | 173/12182 [00:39<43:25,  4.61it/s]device 0:   1%|▏         | 174/12182 [00:40<43:31,  4.60it/s]device 0:   1%|▏         | 175/12182 [00:40<42:46,  4.68it/s]device 0:   1%|▏         | 176/12182 [00:40<42:11,  4.74it/s]device 0:   1%|▏         | 177/12182 [00:40<41:41,  4.80it/s]device 0:   1%|▏         | 178/12182 [00:40<41:14,  4.85it/s]device 0:   1%|▏         | 179/12182 [00:41<41:03,  4.87it/s]device 0:   1%|▏         | 180/12182 [00:41<40:57,  4.88it/s]device 0:   1%|▏         | 181/12182 [00:41<42:54,  4.66it/s]device 0:   1%|▏         | 182/12182 [00:41<44:04,  4.54it/s]device 0:   2%|▏         | 183/12182 [00:41<43:35,  4.59it/s]device 0:   2%|▏         | 184/12182 [00:42<42:51,  4.67it/s]device 0:   2%|▏         | 185/12182 [00:42<42:26,  4.71it/s]device 0:   2%|▏         | 186/12182 [00:42<42:01,  4.76it/s]device 0:   2%|▏         | 187/12182 [00:42<42:52,  4.66it/s]device 0:   2%|▏         | 188/12182 [00:42<42:14,  4.73it/s]device 0:   2%|▏         | 189/12182 [00:43<43:00,  4.65it/s]device 0:   2%|▏         | 190/12182 [00:43<42:09,  4.74it/s]device 0:   2%|▏         | 191/12182 [00:43<41:41,  4.79it/s]device 0:   2%|▏         | 192/12182 [00:43<43:20,  4.61it/s]device 0:   2%|▏         | 193/12182 [00:44<42:34,  4.69it/s]device 0:   2%|▏         | 194/12182 [00:44<42:45,  4.67it/s]device 0:   2%|▏         | 195/12182 [00:44<42:48,  4.67it/s]device 0:   2%|▏         | 196/12182 [00:44<42:19,  4.72it/s]device 0:   2%|▏         | 197/12182 [00:44<41:40,  4.79it/s]device 0:   2%|▏         | 198/12182 [00:45<41:28,  4.82it/s]device 0:   2%|▏         | 199/12182 [00:45<41:41,  4.79it/s]device 0:   2%|▏         | 200/12182 [00:45<41:31,  4.81it/s]device 0:   2%|▏         | 201/12182 [00:45<42:04,  4.75it/s]device 0:   2%|▏         | 202/12182 [00:45<41:32,  4.81it/s]device 0:   2%|▏         | 203/12182 [00:46<42:18,  4.72it/s]device 0:   2%|▏         | 204/12182 [00:46<43:53,  4.55it/s]device 0:   2%|▏         | 205/12182 [00:46<43:11,  4.62it/s]device 0:   2%|▏         | 206/12182 [00:46<42:43,  4.67it/s]device 0:   2%|▏         | 207/12182 [00:47<42:04,  4.74it/s]device 0:   2%|▏         | 208/12182 [00:47<41:28,  4.81it/s]device 0:   2%|▏         | 209/12182 [00:47<41:12,  4.84it/s]device 0:   2%|▏         | 210/12182 [00:47<54:25,  3.67it/s]device 0:   2%|▏         | 211/12182 [00:48<51:22,  3.88it/s]device 0:   2%|▏         | 212/12182 [00:48<49:06,  4.06it/s]device 0:   2%|▏         | 213/12182 [00:48<47:12,  4.23it/s]device 0:   2%|▏         | 214/12182 [00:48<45:24,  4.39it/s]device 0:   2%|▏         | 215/12182 [00:48<43:49,  4.55it/s]device 0:   2%|▏         | 216/12182 [00:49<44:46,  4.45it/s]device 0:   2%|▏         | 217/12182 [00:49<44:30,  4.48it/s]device 0:   2%|▏         | 218/12182 [00:49<45:55,  4.34it/s]device 0:   2%|▏         | 219/12182 [00:49<45:41,  4.36it/s]device 0:   2%|▏         | 220/12182 [00:50<45:31,  4.38it/s]device 0:   2%|▏         | 221/12182 [00:50<44:21,  4.49it/s]device 0:   2%|▏         | 222/12182 [00:50<43:14,  4.61it/s]device 0:   2%|▏         | 223/12182 [00:50<42:26,  4.70it/s]device 0:   2%|▏         | 224/12182 [00:50<41:50,  4.76it/s]device 0:   2%|▏         | 225/12182 [00:51<41:31,  4.80it/s]device 0:   2%|▏         | 226/12182 [00:51<41:12,  4.83it/s]device 0:   2%|▏         | 227/12182 [00:51<42:59,  4.63it/s]device 0:   2%|▏         | 228/12182 [00:51<43:40,  4.56it/s]device 0:   2%|▏         | 229/12182 [00:51<43:40,  4.56it/s]device 0:   2%|▏         | 230/12182 [00:52<43:45,  4.55it/s]device 0:   2%|▏         | 231/12182 [00:52<43:22,  4.59it/s]device 0:   2%|▏         | 232/12182 [00:52<42:56,  4.64it/s]device 0:   2%|▏         | 233/12182 [00:52<42:54,  4.64it/s]device 0:   2%|▏         | 234/12182 [00:53<42:05,  4.73it/s]device 0:   2%|▏         | 235/12182 [00:53<42:41,  4.66it/s]device 0:   2%|▏         | 236/12182 [00:53<45:37,  4.36it/s]device 0:   2%|▏         | 237/12182 [00:53<45:21,  4.39it/s]device 0:   2%|▏         | 238/12182 [00:53<46:00,  4.33it/s]device 0:   2%|▏         | 239/12182 [00:54<44:47,  4.44it/s]device 0:   2%|▏         | 240/12182 [00:54<44:14,  4.50it/s]device 0:   2%|▏         | 241/12182 [00:54<43:12,  4.61it/s]device 0:   2%|▏         | 242/12182 [00:54<42:34,  4.67it/s]device 0:   2%|▏         | 243/12182 [00:55<42:35,  4.67it/s]device 0:   2%|▏         | 244/12182 [00:55<42:11,  4.71it/s]device 0:   2%|▏         | 245/12182 [00:55<48:11,  4.13it/s]device 0:   2%|▏         | 246/12182 [00:55<46:07,  4.31it/s]device 0:   2%|▏         | 247/12182 [00:55<44:22,  4.48it/s]device 0:   2%|▏         | 248/12182 [00:56<43:41,  4.55it/s]device 0:   2%|▏         | 249/12182 [00:56<42:38,  4.66it/s]device 0:   2%|▏         | 250/12182 [00:56<42:52,  4.64it/s]device 0:   2%|▏         | 251/12182 [00:56<42:09,  4.72it/s]device 0:   2%|▏         | 252/12182 [00:57<42:14,  4.71it/s]device 0:   2%|▏         | 253/12182 [00:57<42:45,  4.65it/s]device 0:   2%|▏         | 254/12182 [00:57<41:57,  4.74it/s]device 0:   2%|▏         | 255/12182 [00:57<41:36,  4.78it/s]device 0:   2%|▏         | 256/12182 [00:58<1:03:22,  3.14it/s]device 0:   2%|▏         | 257/12182 [00:58<56:58,  3.49it/s]  device 0:   2%|▏         | 258/12182 [00:59<1:23:38,  2.38it/s]device 0:   2%|▏         | 259/12182 [00:59<1:12:46,  2.73it/s]device 0:   2%|▏         | 260/12182 [00:59<1:04:49,  3.07it/s]device 0:   2%|▏         | 261/12182 [00:59<57:30,  3.46it/s]  device 0:   2%|▏         | 262/12182 [01:00<52:41,  3.77it/s]device 0:   2%|▏         | 263/12182 [01:00<51:36,  3.85it/s]device 0:   2%|▏         | 264/12182 [01:00<51:47,  3.84it/s]device 0:   2%|▏         | 265/12182 [01:00<48:16,  4.11it/s]device 0:   2%|▏         | 266/12182 [01:00<46:05,  4.31it/s]device 0:   2%|▏         | 267/12182 [01:01<44:54,  4.42it/s]device 0:   2%|▏         | 268/12182 [01:01<43:40,  4.55it/s]device 0:   2%|▏         | 269/12182 [01:01<45:08,  4.40it/s]device 0:   2%|▏         | 270/12182 [01:01<45:26,  4.37it/s]device 0:   2%|▏         | 271/12182 [01:02<44:38,  4.45it/s]device 0:   2%|▏         | 272/12182 [01:03<1:35:32,  2.08it/s]device 0:   2%|▏         | 273/12182 [01:03<1:19:26,  2.50it/s]device 0:   2%|▏         | 274/12182 [01:03<1:08:57,  2.88it/s]device 0:   2%|▏         | 275/12182 [01:03<1:01:06,  3.25it/s]device 0:   2%|▏         | 276/12182 [01:04<55:15,  3.59it/s]  device 0:   2%|▏         | 277/12182 [01:04<50:57,  3.89it/s]device 0:   2%|▏         | 278/12182 [01:04<48:07,  4.12it/s]device 0:   2%|▏         | 279/12182 [01:04<46:49,  4.24it/s]device 0:   2%|▏         | 280/12182 [01:04<45:21,  4.37it/s]device 0:   2%|▏         | 281/12182 [01:05<44:06,  4.50it/s]device 0:   2%|▏         | 282/12182 [01:05<42:56,  4.62it/s]device 0:   2%|▏         | 283/12182 [01:05<42:11,  4.70it/s]device 0:   2%|▏         | 284/12182 [01:05<41:46,  4.75it/s]device 0:   2%|▏         | 285/12182 [01:05<41:36,  4.77it/s]device 0:   2%|▏         | 286/12182 [01:06<41:05,  4.83it/s]device 0:   2%|▏         | 287/12182 [01:06<41:52,  4.74it/s]device 0:   2%|▏         | 288/12182 [01:06<42:40,  4.64it/s]device 0:   2%|▏         | 289/12182 [01:06<42:11,  4.70it/s]device 0:   2%|▏         | 290/12182 [01:06<42:53,  4.62it/s]device 0:   2%|▏         | 291/12182 [01:07<43:04,  4.60it/s]device 0:   2%|▏         | 292/12182 [01:07<42:57,  4.61it/s]device 0:   2%|▏         | 293/12182 [01:07<44:07,  4.49it/s]device 0:   2%|▏         | 294/12182 [01:07<42:46,  4.63it/s]device 0:   2%|▏         | 295/12182 [01:08<42:26,  4.67it/s]device 0:   2%|▏         | 296/12182 [01:08<42:27,  4.66it/s]device 0:   2%|▏         | 297/12182 [01:08<41:50,  4.73it/s]device 0:   2%|▏         | 298/12182 [01:08<41:17,  4.80it/s]device 0:   2%|▏         | 299/12182 [01:08<41:12,  4.81it/s]device 0:   2%|▏         | 300/12182 [01:09<41:49,  4.73it/s]device 0:   2%|▏         | 301/12182 [01:09<42:17,  4.68it/s]device 0:   2%|▏         | 302/12182 [01:09<41:38,  4.76it/s]device 0:   2%|▏         | 303/12182 [01:09<41:47,  4.74it/s]device 0:   2%|▏         | 304/12182 [01:09<41:17,  4.79it/s]device 0:   3%|▎         | 305/12182 [01:10<40:50,  4.85it/s]device 0:   3%|▎         | 306/12182 [01:10<47:55,  4.13it/s]device 0:   3%|▎         | 307/12182 [01:10<45:44,  4.33it/s]device 0:   3%|▎         | 308/12182 [01:10<44:01,  4.49it/s]device 0:   3%|▎         | 309/12182 [01:11<43:49,  4.52it/s]device 0:   3%|▎         | 310/12182 [01:11<43:45,  4.52it/s]device 0:   3%|▎         | 311/12182 [01:11<45:08,  4.38it/s]device 0:   3%|▎         | 312/12182 [01:11<43:36,  4.54it/s]device 0:   3%|▎         | 313/12182 [01:11<43:53,  4.51it/s]device 0:   3%|▎         | 314/12182 [01:12<42:41,  4.63it/s]device 0:   3%|▎         | 315/12182 [01:12<41:55,  4.72it/s]device 0:   3%|▎         | 316/12182 [01:12<42:05,  4.70it/s]device 0:   3%|▎         | 317/12182 [01:12<42:31,  4.65it/s]device 0:   3%|▎         | 318/12182 [01:13<41:45,  4.73it/s]device 0:   3%|▎         | 319/12182 [01:13<42:16,  4.68it/s]device 0:   3%|▎         | 320/12182 [01:13<42:02,  4.70it/s]device 0:   3%|▎         | 321/12182 [01:13<55:47,  3.54it/s]device 0:   3%|▎         | 322/12182 [01:14<51:18,  3.85it/s]device 0:   3%|▎         | 323/12182 [01:14<49:16,  4.01it/s]device 0:   3%|▎         | 324/12182 [01:14<46:41,  4.23it/s]device 0:   3%|▎         | 325/12182 [01:14<44:59,  4.39it/s]device 0:   3%|▎         | 326/12182 [01:14<44:07,  4.48it/s]device 0:   3%|▎         | 327/12182 [01:15<44:16,  4.46it/s]device 0:   3%|▎         | 328/12182 [01:15<43:40,  4.52it/s]device 0:   3%|▎         | 329/12182 [01:15<43:11,  4.57it/s]device 0:   3%|▎         | 330/12182 [01:15<42:08,  4.69it/s]device 0:   3%|▎         | 331/12182 [01:16<42:13,  4.68it/s]device 0:   3%|▎         | 332/12182 [01:16<42:00,  4.70it/s]device 0:   3%|▎         | 333/12182 [01:16<42:50,  4.61it/s]device 0:   3%|▎         | 334/12182 [01:16<42:23,  4.66it/s]device 0:   3%|▎         | 335/12182 [01:16<42:08,  4.69it/s]device 0:   3%|▎         | 336/12182 [01:17<44:04,  4.48it/s]device 0:   3%|▎         | 337/12182 [01:17<43:20,  4.55it/s]device 0:   3%|▎         | 338/12182 [01:17<43:05,  4.58it/s]device 0:   3%|▎         | 339/12182 [01:17<44:05,  4.48it/s]device 0:   3%|▎         | 340/12182 [01:18<43:35,  4.53it/s]device 0:   3%|▎         | 341/12182 [01:18<48:25,  4.08it/s]device 0:   3%|▎         | 342/12182 [01:18<47:00,  4.20it/s]device 0:   3%|▎         | 343/12182 [01:18<44:52,  4.40it/s]device 0:   3%|▎         | 344/12182 [01:18<43:23,  4.55it/s]device 0:   3%|▎         | 345/12182 [01:19<47:52,  4.12it/s]device 0:   3%|▎         | 346/12182 [01:19<48:12,  4.09it/s]device 0:   3%|▎         | 347/12182 [01:19<46:33,  4.24it/s]device 0:   3%|▎         | 348/12182 [01:19<47:41,  4.14it/s]device 0:   3%|▎         | 349/12182 [01:20<45:24,  4.34it/s]device 0:   3%|▎         | 350/12182 [01:20<43:39,  4.52it/s]device 0:   3%|▎         | 351/12182 [01:20<44:36,  4.42it/s]device 0:   3%|▎         | 352/12182 [01:20<43:24,  4.54it/s]device 0:   3%|▎         | 353/12182 [01:21<42:22,  4.65it/s]device 0:   3%|▎         | 354/12182 [01:21<42:11,  4.67it/s]device 0:   3%|▎         | 355/12182 [01:21<41:43,  4.72it/s]device 0:   3%|▎         | 356/12182 [01:21<57:35,  3.42it/s]device 0:   3%|▎         | 357/12182 [01:22<52:22,  3.76it/s]device 0:   3%|▎         | 358/12182 [01:22<50:07,  3.93it/s]device 0:   3%|▎         | 359/12182 [01:22<47:02,  4.19it/s]device 0:   3%|▎         | 360/12182 [01:22<44:57,  4.38it/s]device 0:   3%|▎         | 361/12182 [01:22<43:56,  4.48it/s]device 0:   3%|▎         | 362/12182 [01:23<43:46,  4.50it/s]device 0:   3%|▎         | 363/12182 [01:23<45:40,  4.31it/s]device 0:   3%|▎         | 364/12182 [01:23<44:44,  4.40it/s]device 0:   3%|▎         | 365/12182 [01:23<43:30,  4.53it/s]device 0:   3%|▎         | 366/12182 [01:24<44:29,  4.43it/s]device 0:   3%|▎         | 367/12182 [01:24<43:49,  4.49it/s]device 0:   3%|▎         | 368/12182 [01:24<43:16,  4.55it/s]device 0:   3%|▎         | 369/12182 [01:24<42:16,  4.66it/s]device 0:   3%|▎         | 370/12182 [01:24<41:37,  4.73it/s]device 0:   3%|▎         | 371/12182 [01:25<41:06,  4.79it/s]device 0:   3%|▎         | 372/12182 [01:25<42:08,  4.67it/s]device 0:   3%|▎         | 373/12182 [01:25<41:41,  4.72it/s]device 0:   3%|▎         | 374/12182 [01:25<41:19,  4.76it/s]device 0:   3%|▎         | 375/12182 [01:25<41:02,  4.79it/s]device 0:   3%|▎         | 376/12182 [01:26<41:14,  4.77it/s]device 0:   3%|▎         | 377/12182 [01:26<40:55,  4.81it/s]device 0:   3%|▎         | 378/12182 [01:26<41:25,  4.75it/s]device 0:   3%|▎         | 379/12182 [01:26<41:57,  4.69it/s]device 0:   3%|▎         | 380/12182 [01:27<41:19,  4.76it/s]device 0:   3%|▎         | 381/12182 [01:27<41:07,  4.78it/s]device 0:   3%|▎         | 382/12182 [01:27<42:05,  4.67it/s]device 0:   3%|▎         | 383/12182 [01:27<41:27,  4.74it/s]device 0:   3%|▎         | 384/12182 [01:27<40:56,  4.80it/s]device 0:   3%|▎         | 385/12182 [01:28<41:22,  4.75it/s]device 0:   3%|▎         | 386/12182 [01:28<44:06,  4.46it/s]device 0:   3%|▎         | 387/12182 [01:28<44:50,  4.38it/s]device 0:   3%|▎         | 388/12182 [01:28<43:16,  4.54it/s]device 0:   3%|▎         | 389/12182 [01:28<43:18,  4.54it/s]device 0:   3%|▎         | 390/12182 [01:29<44:19,  4.43it/s]device 0:   3%|▎         | 391/12182 [01:29<44:00,  4.47it/s]device 0:   3%|▎         | 392/12182 [01:29<42:54,  4.58it/s]device 0:   3%|▎         | 393/12182 [01:29<42:35,  4.61it/s]device 0:   3%|▎         | 394/12182 [01:30<42:01,  4.67it/s]device 0:   3%|▎         | 395/12182 [01:30<41:24,  4.74it/s]device 0:   3%|▎         | 396/12182 [01:30<41:52,  4.69it/s]device 0:   3%|▎         | 397/12182 [01:30<43:18,  4.53it/s]device 0:   3%|▎         | 398/12182 [01:30<44:18,  4.43it/s]device 0:   3%|▎         | 399/12182 [01:31<44:05,  4.45it/s]device 0:   3%|▎         | 400/12182 [01:31<43:11,  4.55it/s]device 0:   3%|▎         | 401/12182 [01:31<45:18,  4.33it/s]device 0:   3%|▎         | 402/12182 [01:32<51:55,  3.78it/s]device 0:   3%|▎         | 403/12182 [01:32<48:54,  4.01it/s]device 0:   3%|▎         | 404/12182 [01:32<46:35,  4.21it/s]device 0:   3%|▎         | 405/12182 [01:32<45:18,  4.33it/s]device 0:   3%|▎         | 406/12182 [01:32<44:04,  4.45it/s]device 0:   3%|▎         | 407/12182 [01:33<42:45,  4.59it/s]device 0:   3%|▎         | 408/12182 [01:33<43:07,  4.55it/s]device 0:   3%|▎         | 409/12182 [01:33<42:11,  4.65it/s]device 0:   3%|▎         | 410/12182 [01:33<43:56,  4.47it/s]device 0:   3%|▎         | 411/12182 [01:33<43:25,  4.52it/s]device 0:   3%|▎         | 412/12182 [01:34<45:51,  4.28it/s]device 0:   3%|▎         | 413/12182 [01:34<45:58,  4.27it/s]device 0:   3%|▎         | 414/12182 [01:34<46:06,  4.25it/s]device 0:   3%|▎         | 415/12182 [01:34<44:13,  4.43it/s]device 0:   3%|▎         | 416/12182 [01:35<43:00,  4.56it/s]device 0:   3%|▎         | 417/12182 [01:35<43:06,  4.55it/s]device 0:   3%|▎         | 418/12182 [01:35<42:48,  4.58it/s]device 0:   3%|▎         | 419/12182 [01:35<42:22,  4.63it/s]device 0:   3%|▎         | 420/12182 [01:35<44:39,  4.39it/s]device 0:   3%|▎         | 421/12182 [01:36<45:50,  4.28it/s]device 0:   3%|▎         | 422/12182 [01:36<44:24,  4.41it/s]device 0:   3%|▎         | 423/12182 [01:36<43:36,  4.49it/s]device 0:   3%|▎         | 424/12182 [01:36<42:51,  4.57it/s]device 0:   3%|▎         | 425/12182 [01:37<42:38,  4.60it/s]device 0:   3%|▎         | 426/12182 [01:37<42:51,  4.57it/s]device 0:   4%|▎         | 427/12182 [01:37<43:39,  4.49it/s]device 0:   4%|▎         | 428/12182 [01:37<42:28,  4.61it/s]device 0:   4%|▎         | 429/12182 [01:37<42:10,  4.64it/s]device 0:   4%|▎         | 430/12182 [01:38<42:07,  4.65it/s]device 0:   4%|▎         | 431/12182 [01:38<41:41,  4.70it/s]device 0:   4%|▎         | 432/12182 [01:38<53:58,  3.63it/s]device 0:   4%|▎         | 433/12182 [01:39<49:53,  3.93it/s]device 0:   4%|▎         | 434/12182 [01:39<47:32,  4.12it/s]device 0:   4%|▎         | 435/12182 [01:39<47:11,  4.15it/s]device 0:   4%|▎         | 436/12182 [01:39<46:57,  4.17it/s]device 0:   4%|▎         | 437/12182 [01:39<45:02,  4.35it/s]device 0:   4%|▎         | 438/12182 [01:40<44:29,  4.40it/s]device 0:   4%|▎         | 439/12182 [01:40<43:05,  4.54it/s]device 0:   4%|▎         | 440/12182 [01:40<43:25,  4.51it/s]device 0:   4%|▎         | 441/12182 [01:40<42:21,  4.62it/s]device 0:   4%|▎         | 442/12182 [01:40<42:02,  4.65it/s]device 0:   4%|▎         | 443/12182 [01:41<41:33,  4.71it/s]device 0:   4%|▎         | 444/12182 [01:41<41:33,  4.71it/s]device 0:   4%|▎         | 445/12182 [01:41<42:26,  4.61it/s]device 0:   4%|▎         | 446/12182 [01:41<43:26,  4.50it/s]device 0:   4%|▎         | 447/12182 [01:42<42:30,  4.60it/s]device 0:   4%|▎         | 448/12182 [01:42<41:49,  4.68it/s]device 0:   4%|▎         | 449/12182 [01:42<41:44,  4.69it/s]device 0:   4%|▎         | 450/12182 [01:42<42:09,  4.64it/s]device 0:   4%|▎         | 451/12182 [01:42<45:57,  4.25it/s]device 0:   4%|▎         | 452/12182 [01:43<45:08,  4.33it/s]device 0:   4%|▎         | 453/12182 [01:43<43:46,  4.47it/s]device 0:   4%|▎         | 454/12182 [01:43<43:18,  4.51it/s]device 0:   4%|▎         | 455/12182 [01:43<42:10,  4.63it/s]device 0:   4%|▎         | 456/12182 [01:44<44:34,  4.38it/s]device 0:   4%|▍         | 457/12182 [01:44<43:51,  4.46it/s]device 0:   4%|▍         | 458/12182 [01:44<44:35,  4.38it/s]device 0:   4%|▍         | 459/12182 [01:44<44:27,  4.39it/s]device 0:   4%|▍         | 460/12182 [01:44<43:05,  4.53it/s]device 0:   4%|▍         | 461/12182 [01:45<43:54,  4.45it/s]device 0:   4%|▍         | 462/12182 [01:45<43:36,  4.48it/s]device 0:   4%|▍         | 463/12182 [01:45<42:41,  4.58it/s]device 0:   4%|▍         | 464/12182 [01:45<42:49,  4.56it/s]device 0:   4%|▍         | 465/12182 [01:46<47:20,  4.13it/s]device 0:   4%|▍         | 466/12182 [01:46<45:44,  4.27it/s]device 0:   4%|▍         | 467/12182 [01:46<43:55,  4.45it/s]device 0:   4%|▍         | 468/12182 [01:46<42:40,  4.57it/s]device 0:   4%|▍         | 469/12182 [01:46<41:57,  4.65it/s]device 0:   4%|▍         | 470/12182 [01:47<41:18,  4.73it/s]device 0:   4%|▍         | 471/12182 [01:47<42:51,  4.55it/s]device 0:   4%|▍         | 472/12182 [01:47<42:36,  4.58it/s]device 0:   4%|▍         | 473/12182 [01:47<43:05,  4.53it/s]device 0:   4%|▍         | 474/12182 [01:48<42:16,  4.62it/s]device 0:   4%|▍         | 475/12182 [01:48<44:58,  4.34it/s]device 0:   4%|▍         | 476/12182 [01:48<44:30,  4.38it/s]device 0:   4%|▍         | 477/12182 [01:48<43:47,  4.45it/s]device 0:   4%|▍         | 478/12182 [01:48<43:16,  4.51it/s]device 0:   4%|▍         | 479/12182 [01:49<42:08,  4.63it/s]device 0:   4%|▍         | 480/12182 [01:49<53:06,  3.67it/s]device 0:   4%|▍         | 481/12182 [01:49<49:05,  3.97it/s]device 0:   4%|▍         | 482/12182 [01:50<52:08,  3.74it/s]device 0:   4%|▍         | 483/12182 [01:50<48:23,  4.03it/s]device 0:   4%|▍         | 484/12182 [01:50<47:04,  4.14it/s]device 0:   4%|▍         | 485/12182 [01:50<50:27,  3.86it/s]device 0:   4%|▍         | 486/12182 [01:51<47:24,  4.11it/s]device 0:   4%|▍         | 487/12182 [01:51<45:21,  4.30it/s]device 0:   4%|▍         | 488/12182 [01:51<43:58,  4.43it/s]device 0:   4%|▍         | 489/12182 [01:51<42:46,  4.56it/s]device 0:   4%|▍         | 490/12182 [01:51<42:29,  4.59it/s]device 0:   4%|▍         | 491/12182 [01:52<45:12,  4.31it/s]device 0:   4%|▍         | 492/12182 [01:52<45:26,  4.29it/s]device 0:   4%|▍         | 493/12182 [01:52<44:00,  4.43it/s]device 0:   4%|▍         | 494/12182 [01:52<42:56,  4.54it/s]device 0:   4%|▍         | 495/12182 [01:52<42:04,  4.63it/s]device 0:   4%|▍         | 496/12182 [01:53<41:48,  4.66it/s]device 0:   4%|▍         | 497/12182 [01:53<44:40,  4.36it/s]device 0:   4%|▍         | 498/12182 [01:53<43:54,  4.43it/s]device 0:   4%|▍         | 499/12182 [01:53<42:34,  4.57it/s]device 0:   4%|▍         | 500/12182 [01:54<42:42,  4.56it/s]device 0:   4%|▍         | 501/12182 [01:54<42:00,  4.63it/s]device 0:   4%|▍         | 502/12182 [01:54<41:27,  4.70it/s]device 0:   4%|▍         | 503/12182 [01:54<41:07,  4.73it/s]device 0:   4%|▍         | 504/12182 [01:54<41:24,  4.70it/s]device 0:   4%|▍         | 505/12182 [01:55<40:58,  4.75it/s]device 0:   4%|▍         | 506/12182 [01:55<42:33,  4.57it/s]device 0:   4%|▍         | 507/12182 [01:55<41:56,  4.64it/s]device 0:   4%|▍         | 508/12182 [01:55<41:23,  4.70it/s]device 0:   4%|▍         | 509/12182 [01:56<41:17,  4.71it/s]device 0:   4%|▍         | 510/12182 [01:56<41:18,  4.71it/s]device 0:   4%|▍         | 511/12182 [01:56<40:56,  4.75it/s]device 0:   4%|▍         | 512/12182 [01:56<42:29,  4.58it/s]device 0:   4%|▍         | 513/12182 [01:56<41:31,  4.68it/s]device 0:   4%|▍         | 514/12182 [01:57<42:03,  4.62it/s]device 0:   4%|▍         | 515/12182 [01:57<41:19,  4.71it/s]device 0:   4%|▍         | 516/12182 [01:57<41:29,  4.69it/s]device 0:   4%|▍         | 517/12182 [01:57<42:51,  4.54it/s]device 0:   4%|▍         | 518/12182 [01:57<42:23,  4.59it/s]device 0:   4%|▍         | 519/12182 [01:58<42:54,  4.53it/s]device 0:   4%|▍         | 520/12182 [01:58<42:18,  4.59it/s]device 0:   4%|▍         | 521/12182 [01:58<41:28,  4.69it/s]device 0:   4%|▍         | 522/12182 [01:58<41:26,  4.69it/s]device 0:   4%|▍         | 523/12182 [01:59<41:06,  4.73it/s]device 0:   4%|▍         | 524/12182 [01:59<40:34,  4.79it/s]device 0:   4%|▍         | 525/12182 [01:59<41:06,  4.73it/s]device 0:   4%|▍         | 526/12182 [01:59<41:41,  4.66it/s]device 0:   4%|▍         | 527/12182 [01:59<41:14,  4.71it/s]device 0:   4%|▍         | 528/12182 [02:00<42:42,  4.55it/s]device 0:   4%|▍         | 529/12182 [02:00<41:56,  4.63it/s]device 0:   4%|▍         | 530/12182 [02:00<41:26,  4.69it/s]device 0:   4%|▍         | 531/12182 [02:00<41:39,  4.66it/s]device 0:   4%|▍         | 532/12182 [02:00<40:56,  4.74it/s]device 0:   4%|▍         | 533/12182 [02:01<40:32,  4.79it/s]device 0:   4%|▍         | 534/12182 [02:01<40:14,  4.82it/s]device 0:   4%|▍         | 535/12182 [02:01<40:26,  4.80it/s]device 0:   4%|▍         | 536/12182 [02:01<41:10,  4.71it/s]device 0:   4%|▍         | 537/12182 [02:01<41:20,  4.70it/s]device 0:   4%|▍         | 538/12182 [02:02<41:32,  4.67it/s]device 0:   4%|▍         | 539/12182 [02:02<41:04,  4.73it/s]device 0:   4%|▍         | 540/12182 [02:02<40:41,  4.77it/s]device 0:   4%|▍         | 541/12182 [02:02<40:33,  4.78it/s]device 0:   4%|▍         | 542/12182 [02:03<40:06,  4.84it/s]device 0:   4%|▍         | 543/12182 [02:03<41:22,  4.69it/s]device 0:   4%|▍         | 544/12182 [02:03<40:57,  4.74it/s]device 0:   4%|▍         | 545/12182 [02:03<41:15,  4.70it/s]device 0:   4%|▍         | 546/12182 [02:03<40:50,  4.75it/s]device 0:   4%|▍         | 547/12182 [02:04<54:40,  3.55it/s]device 0:   4%|▍         | 548/12182 [02:04<50:49,  3.82it/s]device 0:   5%|▍         | 549/12182 [02:04<48:25,  4.00it/s]device 0:   5%|▍         | 550/12182 [02:04<45:47,  4.23it/s]device 0:   5%|▍         | 551/12182 [02:05<44:24,  4.36it/s]device 0:   5%|▍         | 552/12182 [02:05<42:55,  4.52it/s]device 0:   5%|▍         | 553/12182 [02:05<42:57,  4.51it/s]device 0:   5%|▍         | 554/12182 [02:05<43:18,  4.47it/s]device 0:   5%|▍         | 555/12182 [02:06<43:13,  4.48it/s]device 0:   5%|▍         | 556/12182 [02:06<42:10,  4.59it/s]device 0:   5%|▍         | 557/12182 [02:06<41:15,  4.70it/s]device 0:   5%|▍         | 558/12182 [02:06<40:55,  4.73it/s]device 0:   5%|▍         | 559/12182 [02:06<42:26,  4.56it/s]device 0:   5%|▍         | 560/12182 [02:07<41:48,  4.63it/s]device 0:   5%|▍         | 561/12182 [02:07<42:25,  4.56it/s]device 0:   5%|▍         | 562/12182 [02:07<41:41,  4.65it/s]device 0:   5%|▍         | 563/12182 [02:07<41:05,  4.71it/s]device 0:   5%|▍         | 564/12182 [02:07<40:35,  4.77it/s]device 0:   5%|▍         | 565/12182 [02:08<40:10,  4.82it/s]device 0:   5%|▍         | 566/12182 [02:08<40:37,  4.77it/s]device 0:   5%|▍         | 567/12182 [02:08<40:13,  4.81it/s]device 0:   5%|▍         | 568/12182 [02:08<41:00,  4.72it/s]device 0:   5%|▍         | 569/12182 [02:09<40:29,  4.78it/s]device 0:   5%|▍         | 570/12182 [02:09<40:39,  4.76it/s]device 0:   5%|▍         | 571/12182 [02:09<40:56,  4.73it/s]device 0:   5%|▍         | 572/12182 [02:09<40:29,  4.78it/s]device 0:   5%|▍         | 573/12182 [02:09<40:47,  4.74it/s]device 0:   5%|▍         | 574/12182 [02:10<40:54,  4.73it/s]device 0:   5%|▍         | 575/12182 [02:10<41:04,  4.71it/s]device 0:   5%|▍         | 576/12182 [02:10<40:48,  4.74it/s]device 0:   5%|▍         | 577/12182 [02:10<40:39,  4.76it/s]device 0:   5%|▍         | 578/12182 [02:10<42:49,  4.52it/s]device 0:   5%|▍         | 579/12182 [02:11<41:46,  4.63it/s]device 0:   5%|▍         | 580/12182 [02:11<41:19,  4.68it/s]device 0:   5%|▍         | 581/12182 [02:11<40:35,  4.76it/s]device 0:   5%|▍         | 582/12182 [02:11<40:46,  4.74it/s]device 0:   5%|▍         | 583/12182 [02:11<41:18,  4.68it/s]device 0:   5%|▍         | 584/12182 [02:12<41:27,  4.66it/s]device 0:   5%|▍         | 585/12182 [02:12<41:00,  4.71it/s]device 0:   5%|▍         | 586/12182 [02:12<40:58,  4.72it/s]device 0:   5%|▍         | 587/12182 [02:12<41:13,  4.69it/s]device 0:   5%|▍         | 588/12182 [02:13<44:06,  4.38it/s]device 0:   5%|▍         | 589/12182 [02:13<42:50,  4.51it/s]device 0:   5%|▍         | 590/12182 [02:13<43:43,  4.42it/s]device 0:   5%|▍         | 591/12182 [02:13<42:38,  4.53it/s]device 0:   5%|▍         | 592/12182 [02:14<44:11,  4.37it/s]device 0:   5%|▍         | 593/12182 [02:14<42:42,  4.52it/s]device 0:   5%|▍         | 594/12182 [02:14<42:40,  4.52it/s]device 0:   5%|▍         | 595/12182 [02:14<42:26,  4.55it/s]device 0:   5%|▍         | 596/12182 [02:14<41:58,  4.60it/s]device 0:   5%|▍         | 597/12182 [02:15<41:13,  4.68it/s]device 0:   5%|▍         | 598/12182 [02:15<44:17,  4.36it/s]device 0:   5%|▍         | 599/12182 [02:15<43:30,  4.44it/s]device 0:   5%|▍         | 600/12182 [02:15<43:17,  4.46it/s]device 0:   5%|▍         | 601/12182 [02:15<43:05,  4.48it/s]device 0:   5%|▍         | 602/12182 [02:16<42:09,  4.58it/s]device 0:   5%|▍         | 603/12182 [02:16<43:16,  4.46it/s]device 0:   5%|▍         | 604/12182 [02:16<42:24,  4.55it/s]device 0:   5%|▍         | 605/12182 [02:16<41:46,  4.62it/s]device 0:   5%|▍         | 606/12182 [02:17<41:40,  4.63it/s]device 0:   5%|▍         | 607/12182 [02:17<41:11,  4.68it/s]device 0:   5%|▍         | 608/12182 [02:17<40:49,  4.72it/s]device 0:   5%|▍         | 609/12182 [02:17<40:24,  4.77it/s]device 0:   5%|▌         | 610/12182 [02:17<40:02,  4.82it/s]device 0:   5%|▌         | 611/12182 [02:18<41:42,  4.62it/s]device 0:   5%|▌         | 612/12182 [02:18<43:31,  4.43it/s]device 0:   5%|▌         | 613/12182 [02:18<48:04,  4.01it/s]device 0:   5%|▌         | 614/12182 [02:18<45:23,  4.25it/s]device 0:   5%|▌         | 615/12182 [02:19<44:12,  4.36it/s]device 0:   5%|▌         | 616/12182 [02:19<44:08,  4.37it/s]device 0:   5%|▌         | 617/12182 [02:19<44:35,  4.32it/s]device 0:   5%|▌         | 618/12182 [02:19<43:25,  4.44it/s]device 0:   5%|▌         | 619/12182 [02:19<42:24,  4.54it/s]device 0:   5%|▌         | 620/12182 [02:20<41:24,  4.65it/s]device 0:   5%|▌         | 621/12182 [02:20<45:14,  4.26it/s]device 0:   5%|▌         | 622/12182 [02:20<44:10,  4.36it/s]device 0:   5%|▌         | 623/12182 [02:20<42:57,  4.49it/s]device 0:   5%|▌         | 624/12182 [02:21<45:49,  4.20it/s]device 0:   5%|▌         | 625/12182 [02:21<43:55,  4.39it/s]device 0:   5%|▌         | 626/12182 [02:21<43:31,  4.43it/s]device 0:   5%|▌         | 627/12182 [02:21<42:46,  4.50it/s]device 0:   5%|▌         | 628/12182 [02:22<46:27,  4.15it/s]device 0:   5%|▌         | 629/12182 [02:22<49:16,  3.91it/s]device 0:   5%|▌         | 630/12182 [02:22<48:12,  3.99it/s]device 0:   5%|▌         | 631/12182 [02:22<46:32,  4.14it/s]device 0:   5%|▌         | 632/12182 [02:23<45:22,  4.24it/s]device 0:   5%|▌         | 633/12182 [02:23<45:02,  4.27it/s]device 0:   5%|▌         | 634/12182 [02:23<44:17,  4.34it/s]device 0:   5%|▌         | 635/12182 [02:23<42:44,  4.50it/s]device 0:   5%|▌         | 636/12182 [02:23<42:07,  4.57it/s]device 0:   5%|▌         | 637/12182 [02:24<44:19,  4.34it/s]device 0:   5%|▌         | 638/12182 [02:24<1:04:40,  2.97it/s]device 0:   5%|▌         | 639/12182 [02:24<57:27,  3.35it/s]  device 0:   5%|▌         | 640/12182 [02:25<52:35,  3.66it/s]device 0:   5%|▌         | 641/12182 [02:25<49:50,  3.86it/s]device 0:   5%|▌         | 642/12182 [02:25<48:28,  3.97it/s]device 0:   5%|▌         | 643/12182 [02:25<46:05,  4.17it/s]device 0:   5%|▌         | 644/12182 [02:26<45:44,  4.20it/s]device 0:   5%|▌         | 645/12182 [02:26<44:22,  4.33it/s]device 0:   5%|▌         | 646/12182 [02:26<46:11,  4.16it/s]device 0:   5%|▌         | 647/12182 [02:26<44:04,  4.36it/s]device 0:   5%|▌         | 648/12182 [02:26<43:01,  4.47it/s]device 0:   5%|▌         | 649/12182 [02:27<42:35,  4.51it/s]device 0:   5%|▌         | 650/12182 [02:27<42:35,  4.51it/s]device 0:   5%|▌         | 651/12182 [02:27<42:55,  4.48it/s]device 0:   5%|▌         | 652/12182 [02:27<44:48,  4.29it/s]device 0:   5%|▌         | 653/12182 [02:28<43:46,  4.39it/s]device 0:   5%|▌         | 654/12182 [02:28<43:48,  4.39it/s]device 0:   5%|▌         | 655/12182 [02:28<44:23,  4.33it/s]device 0:   5%|▌         | 656/12182 [02:28<42:47,  4.49it/s]device 0:   5%|▌         | 657/12182 [02:29<43:39,  4.40it/s]device 0:   5%|▌         | 658/12182 [02:29<42:24,  4.53it/s]device 0:   5%|▌         | 659/12182 [02:29<43:23,  4.43it/s]device 0:   5%|▌         | 660/12182 [02:29<50:36,  3.79it/s]device 0:   5%|▌         | 661/12182 [02:30<50:50,  3.78it/s]device 0:   5%|▌         | 662/12182 [02:30<1:03:46,  3.01it/s]device 0:   5%|▌         | 663/12182 [02:30<57:09,  3.36it/s]  device 0:   5%|▌         | 664/12182 [02:31<51:44,  3.71it/s]device 0:   5%|▌         | 665/12182 [02:31<48:04,  3.99it/s]device 0:   5%|▌         | 666/12182 [02:31<46:08,  4.16it/s]device 0:   5%|▌         | 667/12182 [02:31<46:19,  4.14it/s]device 0:   5%|▌         | 668/12182 [02:31<44:52,  4.28it/s]device 0:   5%|▌         | 669/12182 [02:32<45:00,  4.26it/s]device 0:   5%|▌         | 670/12182 [02:32<43:58,  4.36it/s]device 0:   6%|▌         | 671/12182 [02:32<44:25,  4.32it/s]device 0:   6%|▌         | 672/12182 [02:32<43:17,  4.43it/s]device 0:   6%|▌         | 673/12182 [02:33<44:03,  4.35it/s]device 0:   6%|▌         | 674/12182 [02:33<44:30,  4.31it/s]device 0:   6%|▌         | 675/12182 [02:33<43:57,  4.36it/s]device 0:   6%|▌         | 676/12182 [02:33<42:56,  4.47it/s]device 0:   6%|▌         | 677/12182 [02:33<42:02,  4.56it/s]device 0:   6%|▌         | 678/12182 [02:34<41:32,  4.62it/s]device 0:   6%|▌         | 679/12182 [02:34<41:30,  4.62it/s]device 0:   6%|▌         | 680/12182 [02:34<41:46,  4.59it/s]device 0:   6%|▌         | 681/12182 [02:34<41:12,  4.65it/s]device 0:   6%|▌         | 682/12182 [02:34<40:39,  4.71it/s]device 0:   6%|▌         | 683/12182 [02:35<40:34,  4.72it/s]device 0:   6%|▌         | 684/12182 [02:35<40:24,  4.74it/s]device 0:   6%|▌         | 685/12182 [02:35<41:00,  4.67it/s]device 0:   6%|▌         | 686/12182 [02:35<43:25,  4.41it/s]device 0:   6%|▌         | 687/12182 [02:36<42:11,  4.54it/s]device 0:   6%|▌         | 688/12182 [02:36<43:08,  4.44it/s]device 0:   6%|▌         | 689/12182 [02:36<42:56,  4.46it/s]device 0:   6%|▌         | 690/12182 [02:36<41:54,  4.57it/s]device 0:   6%|▌         | 691/12182 [02:36<41:35,  4.60it/s]device 0:   6%|▌         | 692/12182 [02:37<42:06,  4.55it/s]device 0:   6%|▌         | 693/12182 [02:37<41:10,  4.65it/s]device 0:   6%|▌         | 694/12182 [02:37<42:28,  4.51it/s]device 0:   6%|▌         | 695/12182 [02:37<43:46,  4.37it/s]device 0:   6%|▌         | 696/12182 [02:38<42:23,  4.52it/s]device 0:   6%|▌         | 697/12182 [02:38<41:32,  4.61it/s]device 0:   6%|▌         | 698/12182 [02:38<44:27,  4.31it/s]device 0:   6%|▌         | 699/12182 [02:38<43:52,  4.36it/s]device 0:   6%|▌         | 700/12182 [02:38<43:44,  4.37it/s]device 0:   6%|▌         | 701/12182 [02:39<44:02,  4.34it/s]device 0:   6%|▌         | 702/12182 [02:39<42:44,  4.48it/s]device 0:   6%|▌         | 703/12182 [02:39<44:09,  4.33it/s]device 0:   6%|▌         | 704/12182 [02:39<43:08,  4.43it/s]device 0:   6%|▌         | 705/12182 [02:40<43:50,  4.36it/s]device 0:   6%|▌         | 706/12182 [02:40<42:19,  4.52it/s]device 0:   6%|▌         | 707/12182 [02:40<43:55,  4.35it/s]device 0:   6%|▌         | 708/12182 [02:40<42:24,  4.51it/s]device 0:   6%|▌         | 709/12182 [02:41<42:25,  4.51it/s]device 0:   6%|▌         | 710/12182 [02:41<44:02,  4.34it/s]device 0:   6%|▌         | 711/12182 [02:41<44:33,  4.29it/s]device 0:   6%|▌         | 712/12182 [02:41<43:36,  4.38it/s]device 0:   6%|▌         | 713/12182 [02:41<42:12,  4.53it/s]device 0:   6%|▌         | 714/12182 [02:42<41:17,  4.63it/s]device 0:   6%|▌         | 715/12182 [02:42<41:10,  4.64it/s]device 0:   6%|▌         | 716/12182 [02:42<40:55,  4.67it/s]device 0:   6%|▌         | 717/12182 [02:42<41:20,  4.62it/s]device 0:   6%|▌         | 718/12182 [02:43<42:40,  4.48it/s]device 0:   6%|▌         | 719/12182 [02:43<42:08,  4.53it/s]device 0:   6%|▌         | 720/12182 [02:43<41:10,  4.64it/s]device 0:   6%|▌         | 721/12182 [02:43<40:48,  4.68it/s]device 0:   6%|▌         | 722/12182 [02:43<40:24,  4.73it/s]device 0:   6%|▌         | 723/12182 [02:44<41:03,  4.65it/s]device 0:   6%|▌         | 724/12182 [02:44<40:23,  4.73it/s]device 0:   6%|▌         | 725/12182 [02:44<40:50,  4.68it/s]device 0:   6%|▌         | 726/12182 [02:44<41:12,  4.63it/s]device 0:   6%|▌         | 727/12182 [02:44<41:33,  4.59it/s]device 0:   6%|▌         | 728/12182 [02:45<45:10,  4.23it/s]device 0:   6%|▌         | 729/12182 [02:45<43:24,  4.40it/s]device 0:   6%|▌         | 730/12182 [02:45<42:08,  4.53it/s]device 0:   6%|▌         | 731/12182 [02:45<42:08,  4.53it/s]device 0:   6%|▌         | 732/12182 [02:46<42:14,  4.52it/s]device 0:   6%|▌         | 733/12182 [02:46<41:53,  4.55it/s]device 0:   6%|▌         | 734/12182 [02:46<42:00,  4.54it/s]device 0:   6%|▌         | 735/12182 [02:46<44:44,  4.26it/s]device 0:   6%|▌         | 736/12182 [02:46<43:01,  4.43it/s]device 0:   6%|▌         | 737/12182 [02:47<42:46,  4.46it/s]device 0:   6%|▌         | 738/12182 [02:47<41:38,  4.58it/s]device 0:   6%|▌         | 739/12182 [02:47<41:52,  4.55it/s]device 0:   6%|▌         | 740/12182 [02:47<41:13,  4.63it/s]device 0:   6%|▌         | 741/12182 [02:48<41:33,  4.59it/s]device 0:   6%|▌         | 742/12182 [02:48<40:41,  4.69it/s]device 0:   6%|▌         | 743/12182 [02:48<41:12,  4.63it/s]device 0:   6%|▌         | 744/12182 [02:48<40:31,  4.70it/s]device 0:   6%|▌         | 745/12182 [02:48<42:00,  4.54it/s]device 0:   6%|▌         | 746/12182 [02:49<46:08,  4.13it/s]device 0:   6%|▌         | 747/12182 [02:49<44:30,  4.28it/s]device 0:   6%|▌         | 748/12182 [02:49<44:46,  4.26it/s]device 0:   6%|▌         | 749/12182 [02:49<43:05,  4.42it/s]device 0:   6%|▌         | 750/12182 [02:50<43:45,  4.36it/s]device 0:   6%|▌         | 751/12182 [02:50<43:04,  4.42it/s]device 0:   6%|▌         | 752/12182 [02:50<43:47,  4.35it/s]device 0:   6%|▌         | 753/12182 [02:50<45:19,  4.20it/s]device 0:   6%|▌         | 754/12182 [02:51<43:48,  4.35it/s]device 0:   6%|▌         | 755/12182 [02:51<43:04,  4.42it/s]device 0:   6%|▌         | 756/12182 [02:51<46:15,  4.12it/s]device 0:   6%|▌         | 757/12182 [02:51<45:00,  4.23it/s]device 0:   6%|▌         | 758/12182 [02:51<43:11,  4.41it/s]device 0:   6%|▌         | 759/12182 [02:52<42:26,  4.49it/s]device 0:   6%|▌         | 760/12182 [02:52<41:50,  4.55it/s]device 0:   6%|▌         | 761/12182 [02:52<41:43,  4.56it/s]device 0:   6%|▋         | 762/12182 [02:52<42:10,  4.51it/s]device 0:   6%|▋         | 763/12182 [02:53<41:12,  4.62it/s]device 0:   6%|▋         | 764/12182 [02:53<42:11,  4.51it/s]device 0:   6%|▋         | 765/12182 [02:53<42:18,  4.50it/s]device 0:   6%|▋         | 766/12182 [02:53<42:12,  4.51it/s]device 0:   6%|▋         | 767/12182 [02:53<43:08,  4.41it/s]device 0:   6%|▋         | 768/12182 [02:54<44:49,  4.24it/s]device 0:   6%|▋         | 769/12182 [02:54<43:01,  4.42it/s]device 0:   6%|▋         | 770/12182 [02:54<41:59,  4.53it/s]device 0:   6%|▋         | 771/12182 [02:54<41:08,  4.62it/s]device 0:   6%|▋         | 772/12182 [02:55<41:30,  4.58it/s]device 0:   6%|▋         | 773/12182 [02:55<41:23,  4.59it/s]device 0:   6%|▋         | 774/12182 [02:55<40:45,  4.66it/s]device 0:   6%|▋         | 775/12182 [02:55<40:08,  4.74it/s]device 0:   6%|▋         | 776/12182 [02:55<43:10,  4.40it/s]device 0:   6%|▋         | 777/12182 [02:56<57:41,  3.30it/s]device 0:   6%|▋         | 778/12182 [02:56<52:13,  3.64it/s]device 0:   6%|▋         | 779/12182 [02:56<48:29,  3.92it/s]device 0:   6%|▋         | 780/12182 [02:57<45:36,  4.17it/s]device 0:   6%|▋         | 781/12182 [02:57<43:38,  4.35it/s]device 0:   6%|▋         | 782/12182 [02:57<43:36,  4.36it/s]device 0:   6%|▋         | 783/12182 [02:57<42:24,  4.48it/s]device 0:   6%|▋         | 784/12182 [02:57<43:12,  4.40it/s]device 0:   6%|▋         | 785/12182 [02:58<43:16,  4.39it/s]device 0:   6%|▋         | 786/12182 [02:58<43:39,  4.35it/s]device 0:   6%|▋         | 787/12182 [02:58<55:54,  3.40it/s]device 0:   6%|▋         | 788/12182 [02:59<50:52,  3.73it/s]device 0:   6%|▋         | 789/12182 [02:59<48:07,  3.95it/s]device 0:   6%|▋         | 790/12182 [02:59<45:32,  4.17it/s]device 0:   6%|▋         | 791/12182 [02:59<43:44,  4.34it/s]device 0:   7%|▋         | 792/12182 [02:59<42:15,  4.49it/s]device 0:   7%|▋         | 793/12182 [03:00<41:47,  4.54it/s]device 0:   7%|▋         | 794/12182 [03:00<41:52,  4.53it/s]device 0:   7%|▋         | 795/12182 [03:00<41:13,  4.60it/s]device 0:   7%|▋         | 796/12182 [03:00<42:54,  4.42it/s]device 0:   7%|▋         | 797/12182 [03:00<42:21,  4.48it/s]device 0:   7%|▋         | 798/12182 [03:01<41:30,  4.57it/s]device 0:   7%|▋         | 799/12182 [03:01<40:50,  4.65it/s]device 0:   7%|▋         | 800/12182 [03:01<40:17,  4.71it/s]device 0:   7%|▋         | 801/12182 [03:01<43:13,  4.39it/s]device 0:   7%|▋         | 802/12182 [03:02<43:50,  4.33it/s]device 0:   7%|▋         | 803/12182 [03:02<42:46,  4.43it/s]device 0:   7%|▋         | 804/12182 [03:02<42:33,  4.45it/s]device 0:   7%|▋         | 805/12182 [03:02<44:01,  4.31it/s]device 0:   7%|▋         | 806/12182 [03:03<43:16,  4.38it/s]device 0:   7%|▋         | 807/12182 [03:03<42:05,  4.50it/s]device 0:   7%|▋         | 808/12182 [03:03<42:04,  4.51it/s]device 0:   7%|▋         | 809/12182 [03:03<41:19,  4.59it/s]device 0:   7%|▋         | 810/12182 [03:03<43:57,  4.31it/s]device 0:   7%|▋         | 811/12182 [03:04<43:07,  4.39it/s]device 0:   7%|▋         | 812/12182 [03:04<42:03,  4.51it/s]device 0:   7%|▋         | 813/12182 [03:04<41:43,  4.54it/s]device 0:   7%|▋         | 814/12182 [03:04<40:44,  4.65it/s]device 0:   7%|▋         | 815/12182 [03:04<40:34,  4.67it/s]device 0:   7%|▋         | 816/12182 [03:05<39:58,  4.74it/s]device 0:   7%|▋         | 817/12182 [03:05<39:52,  4.75it/s]device 0:   7%|▋         | 818/12182 [03:05<41:27,  4.57it/s]device 0:   7%|▋         | 819/12182 [03:05<42:32,  4.45it/s]device 0:   7%|▋         | 820/12182 [03:06<41:21,  4.58it/s]device 0:   7%|▋         | 821/12182 [03:06<41:15,  4.59it/s]device 0:   7%|▋         | 822/12182 [03:06<41:03,  4.61it/s]device 0:   7%|▋         | 823/12182 [03:06<42:16,  4.48it/s]device 0:   7%|▋         | 824/12182 [03:06<41:51,  4.52it/s]device 0:   7%|▋         | 825/12182 [03:07<41:55,  4.51it/s]device 0:   7%|▋         | 826/12182 [03:07<42:55,  4.41it/s]device 0:   7%|▋         | 827/12182 [03:07<43:34,  4.34it/s]device 0:   7%|▋         | 828/12182 [03:07<42:00,  4.50it/s]device 0:   7%|▋         | 829/12182 [03:08<41:44,  4.53it/s]device 0:   7%|▋         | 830/12182 [03:08<41:33,  4.55it/s]device 0:   7%|▋         | 831/12182 [03:08<41:24,  4.57it/s]device 0:   7%|▋         | 832/12182 [03:08<40:47,  4.64it/s]device 0:   7%|▋         | 833/12182 [03:08<41:32,  4.55it/s]device 0:   7%|▋         | 834/12182 [03:09<45:57,  4.11it/s]device 0:   7%|▋         | 835/12182 [03:09<45:41,  4.14it/s]device 0:   7%|▋         | 836/12182 [03:09<43:47,  4.32it/s]device 0:   7%|▋         | 837/12182 [03:09<42:54,  4.41it/s]device 0:   7%|▋         | 838/12182 [03:10<45:28,  4.16it/s]device 0:   7%|▋         | 839/12182 [03:10<43:27,  4.35it/s]device 0:   7%|▋         | 840/12182 [03:10<42:03,  4.50it/s]device 0:   7%|▋         | 841/12182 [03:10<40:54,  4.62it/s]device 0:   7%|▋         | 842/12182 [03:11<41:12,  4.59it/s]device 0:   7%|▋         | 843/12182 [03:11<40:27,  4.67it/s]device 0:   7%|▋         | 844/12182 [03:11<41:47,  4.52it/s]device 0:   7%|▋         | 845/12182 [03:11<41:33,  4.55it/s]device 0:   7%|▋         | 846/12182 [03:11<42:33,  4.44it/s]device 0:   7%|▋         | 847/12182 [03:12<41:31,  4.55it/s]device 0:   7%|▋         | 848/12182 [03:12<41:19,  4.57it/s]device 0:   7%|▋         | 849/12182 [03:12<40:47,  4.63it/s]device 0:   7%|▋         | 850/12182 [03:12<40:25,  4.67it/s]device 0:   7%|▋         | 851/12182 [03:12<39:58,  4.72it/s]device 0:   7%|▋         | 852/12182 [03:13<40:32,  4.66it/s]device 0:   7%|▋         | 853/12182 [03:13<40:11,  4.70it/s]device 0:   7%|▋         | 854/12182 [03:13<41:37,  4.54it/s]device 0:   7%|▋         | 855/12182 [03:13<40:48,  4.63it/s]device 0:   7%|▋         | 856/12182 [03:14<41:23,  4.56it/s]device 0:   7%|▋         | 857/12182 [03:14<40:31,  4.66it/s]device 0:   7%|▋         | 858/12182 [03:14<42:57,  4.39it/s]device 0:   7%|▋         | 859/12182 [03:14<41:49,  4.51it/s]device 0:   7%|▋         | 860/12182 [03:14<41:05,  4.59it/s]device 0:   7%|▋         | 861/12182 [03:15<43:58,  4.29it/s]device 0:   7%|▋         | 862/12182 [03:15<42:23,  4.45it/s]device 0:   7%|▋         | 863/12182 [03:15<41:36,  4.53it/s]device 0:   7%|▋         | 864/12182 [03:15<40:48,  4.62it/s]device 0:   7%|▋         | 865/12182 [03:16<41:47,  4.51it/s]device 0:   7%|▋         | 866/12182 [03:16<42:06,  4.48it/s]device 0:   7%|▋         | 867/12182 [03:16<41:03,  4.59it/s]device 0:   7%|▋         | 868/12182 [03:16<41:17,  4.57it/s]device 0:   7%|▋         | 869/12182 [03:16<40:31,  4.65it/s]device 0:   7%|▋         | 870/12182 [03:17<40:25,  4.66it/s]device 0:   7%|▋         | 871/12182 [03:17<39:57,  4.72it/s]device 0:   7%|▋         | 872/12182 [03:17<39:46,  4.74it/s]device 0:   7%|▋         | 873/12182 [03:17<40:35,  4.64it/s]device 0:   7%|▋         | 874/12182 [03:17<39:56,  4.72it/s]device 0:   7%|▋         | 875/12182 [03:18<40:16,  4.68it/s]device 0:   7%|▋         | 876/12182 [03:18<39:42,  4.74it/s]device 0:   7%|▋         | 877/12182 [03:18<39:23,  4.78it/s]device 0:   7%|▋         | 878/12182 [03:18<39:20,  4.79it/s]device 0:   7%|▋         | 879/12182 [03:19<39:06,  4.82it/s]device 0:   7%|▋         | 880/12182 [03:19<40:49,  4.61it/s]device 0:   7%|▋         | 881/12182 [03:19<40:21,  4.67it/s]device 0:   7%|▋         | 882/12182 [03:19<39:49,  4.73it/s]device 0:   7%|▋         | 883/12182 [03:19<39:50,  4.73it/s]device 0:   7%|▋         | 884/12182 [03:20<40:11,  4.69it/s]device 0:   7%|▋         | 885/12182 [03:20<40:58,  4.59it/s]device 0:   7%|▋         | 886/12182 [03:20<40:19,  4.67it/s]device 0:   7%|▋         | 887/12182 [03:20<40:28,  4.65it/s]device 0:   7%|▋         | 888/12182 [03:20<40:09,  4.69it/s]device 0:   7%|▋         | 889/12182 [03:21<40:12,  4.68it/s]device 0:   7%|▋         | 890/12182 [03:21<41:05,  4.58it/s]device 0:   7%|▋         | 891/12182 [03:21<40:18,  4.67it/s]device 0:   7%|▋         | 892/12182 [03:21<40:26,  4.65it/s]device 0:   7%|▋         | 893/12182 [03:22<40:55,  4.60it/s]device 0:   7%|▋         | 894/12182 [03:22<40:05,  4.69it/s]device 0:   7%|▋         | 895/12182 [03:22<40:19,  4.66it/s]device 0:   7%|▋         | 896/12182 [03:22<40:47,  4.61it/s]device 0:   7%|▋         | 897/12182 [03:23<54:42,  3.44it/s]device 0:   7%|▋         | 898/12182 [03:23<49:51,  3.77it/s]device 0:   7%|▋         | 899/12182 [03:23<47:45,  3.94it/s]device 0:   7%|▋         | 900/12182 [03:23<46:14,  4.07it/s]device 0:   7%|▋         | 901/12182 [03:24<45:50,  4.10it/s]device 0:   7%|▋         | 902/12182 [03:24<44:47,  4.20it/s]device 0:   7%|▋         | 903/12182 [03:24<42:53,  4.38it/s]device 0:   7%|▋         | 904/12182 [03:24<43:30,  4.32it/s]device 0:   7%|▋         | 905/12182 [03:24<45:15,  4.15it/s]device 0:   7%|▋         | 906/12182 [03:25<43:11,  4.35it/s]device 0:   7%|▋         | 907/12182 [03:25<41:50,  4.49it/s]device 0:   7%|▋         | 908/12182 [03:25<40:59,  4.58it/s]device 0:   7%|▋         | 909/12182 [03:25<42:11,  4.45it/s]device 0:   7%|▋         | 910/12182 [03:26<41:09,  4.56it/s]device 0:   7%|▋         | 911/12182 [03:26<40:19,  4.66it/s]device 0:   7%|▋         | 912/12182 [03:26<41:43,  4.50it/s]device 0:   7%|▋         | 913/12182 [03:26<41:04,  4.57it/s]device 0:   8%|▊         | 914/12182 [03:26<40:56,  4.59it/s]device 0:   8%|▊         | 915/12182 [03:27<40:54,  4.59it/s]device 0:   8%|▊         | 916/12182 [03:27<41:09,  4.56it/s]device 0:   8%|▊         | 917/12182 [03:27<40:29,  4.64it/s]device 0:   8%|▊         | 918/12182 [03:27<43:12,  4.35it/s]device 0:   8%|▊         | 919/12182 [03:28<46:06,  4.07it/s]device 0:   8%|▊         | 920/12182 [03:28<46:12,  4.06it/s]device 0:   8%|▊         | 921/12182 [03:28<44:09,  4.25it/s]device 0:   8%|▊         | 922/12182 [03:28<42:33,  4.41it/s]device 0:   8%|▊         | 923/12182 [03:29<42:19,  4.43it/s]device 0:   8%|▊         | 924/12182 [03:29<42:22,  4.43it/s]device 0:   8%|▊         | 925/12182 [03:29<42:11,  4.45it/s]device 0:   8%|▊         | 926/12182 [03:29<43:49,  4.28it/s]device 0:   8%|▊         | 927/12182 [03:29<46:00,  4.08it/s]device 0:   8%|▊         | 928/12182 [03:30<43:44,  4.29it/s]device 0:   8%|▊         | 929/12182 [03:30<45:08,  4.15it/s]device 0:   8%|▊         | 930/12182 [03:30<43:02,  4.36it/s]device 0:   8%|▊         | 931/12182 [03:30<45:58,  4.08it/s]device 0:   8%|▊         | 932/12182 [03:31<43:53,  4.27it/s]device 0:   8%|▊         | 933/12182 [03:31<44:10,  4.24it/s]device 0:   8%|▊         | 934/12182 [03:31<46:41,  4.02it/s]device 0:   8%|▊         | 935/12182 [03:31<44:17,  4.23it/s]device 0:   8%|▊         | 936/12182 [03:32<43:28,  4.31it/s]device 0:   8%|▊         | 937/12182 [03:32<41:57,  4.47it/s]device 0:   8%|▊         | 938/12182 [03:32<41:03,  4.56it/s]device 0:   8%|▊         | 939/12182 [03:32<40:31,  4.62it/s]device 0:   8%|▊         | 940/12182 [03:32<41:14,  4.54it/s]device 0:   8%|▊         | 941/12182 [03:33<40:29,  4.63it/s]device 0:   8%|▊         | 942/12182 [03:33<39:56,  4.69it/s]device 0:   8%|▊         | 943/12182 [03:33<39:35,  4.73it/s]device 0:   8%|▊         | 944/12182 [03:33<40:10,  4.66it/s]device 0:   8%|▊         | 945/12182 [03:33<39:52,  4.70it/s]device 0:   8%|▊         | 946/12182 [03:34<40:40,  4.60it/s]device 0:   8%|▊         | 947/12182 [03:34<39:56,  4.69it/s]device 0:   8%|▊         | 948/12182 [03:34<40:24,  4.63it/s]device 0:   8%|▊         | 949/12182 [03:34<41:05,  4.56it/s]device 0:   8%|▊         | 950/12182 [03:35<43:40,  4.29it/s]device 0:   8%|▊         | 951/12182 [03:35<42:15,  4.43it/s]device 0:   8%|▊         | 952/12182 [03:35<42:03,  4.45it/s]device 0:   8%|▊         | 953/12182 [03:35<42:09,  4.44it/s]device 0:   8%|▊         | 954/12182 [03:35<41:01,  4.56it/s]device 0:   8%|▊         | 955/12182 [03:36<1:00:23,  3.10it/s]device 0:   8%|▊         | 956/12182 [03:36<57:57,  3.23it/s]  device 0:   8%|▊         | 957/12182 [03:37<52:02,  3.60it/s]device 0:   8%|▊         | 958/12182 [03:37<53:32,  3.49it/s]device 0:   8%|▊         | 959/12182 [03:37<50:54,  3.67it/s]device 0:   8%|▊         | 960/12182 [03:37<48:47,  3.83it/s]device 0:   8%|▊         | 961/12182 [03:38<45:51,  4.08it/s]device 0:   8%|▊         | 962/12182 [03:38<53:57,  3.47it/s]device 0:   8%|▊         | 963/12182 [03:38<50:02,  3.74it/s]device 0:   8%|▊         | 964/12182 [03:38<48:53,  3.82it/s]device 0:   8%|▊         | 965/12182 [03:39<45:52,  4.07it/s]device 0:   8%|▊         | 966/12182 [03:39<43:48,  4.27it/s]device 0:   8%|▊         | 967/12182 [03:39<42:49,  4.36it/s]device 0:   8%|▊         | 968/12182 [03:39<42:26,  4.40it/s]device 0:   8%|▊         | 969/12182 [03:39<42:11,  4.43it/s]device 0:   8%|▊         | 970/12182 [03:40<41:59,  4.45it/s]device 0:   8%|▊         | 971/12182 [03:40<41:09,  4.54it/s]device 0:   8%|▊         | 972/12182 [03:40<43:36,  4.28it/s]device 0:   8%|▊         | 973/12182 [03:40<43:09,  4.33it/s]device 0:   8%|▊         | 974/12182 [03:41<41:37,  4.49it/s]device 0:   8%|▊         | 975/12182 [03:41<40:49,  4.57it/s]device 0:   8%|▊         | 976/12182 [03:41<40:43,  4.59it/s]device 0:   8%|▊         | 977/12182 [03:41<40:10,  4.65it/s]device 0:   8%|▊         | 978/12182 [03:41<41:28,  4.50it/s]device 0:   8%|▊         | 979/12182 [03:42<44:02,  4.24it/s]device 0:   8%|▊         | 980/12182 [03:42<42:21,  4.41it/s]device 0:   8%|▊         | 981/12182 [03:42<43:01,  4.34it/s]device 0:   8%|▊         | 982/12182 [03:43<48:35,  3.84it/s]device 0:   8%|▊         | 983/12182 [03:43<51:47,  3.60it/s]device 0:   8%|▊         | 984/12182 [03:43<47:53,  3.90it/s]device 0:   8%|▊         | 985/12182 [03:43<49:16,  3.79it/s]device 0:   8%|▊         | 986/12182 [03:44<46:38,  4.00it/s]device 0:   8%|▊         | 987/12182 [03:44<44:39,  4.18it/s]device 0:   8%|▊         | 988/12182 [03:44<43:08,  4.32it/s]device 0:   8%|▊         | 989/12182 [03:44<41:43,  4.47it/s]device 0:   8%|▊         | 990/12182 [03:44<40:54,  4.56it/s]device 0:   8%|▊         | 991/12182 [03:45<46:09,  4.04it/s]device 0:   8%|▊         | 992/12182 [03:45<44:00,  4.24it/s]device 0:   8%|▊         | 993/12182 [03:45<42:19,  4.41it/s]device 0:   8%|▊         | 994/12182 [03:45<45:22,  4.11it/s]device 0:   8%|▊         | 995/12182 [03:46<44:33,  4.18it/s]device 0:   8%|▊         | 996/12182 [03:46<42:52,  4.35it/s]device 0:   8%|▊         | 997/12182 [03:46<45:01,  4.14it/s]device 0:   8%|▊         | 998/12182 [03:46<43:08,  4.32it/s]device 0:   8%|▊         | 999/12182 [03:47<43:34,  4.28it/s]device 0:   8%|▊         | 1000/12182 [03:47<42:07,  4.42it/s]device 0:   8%|▊         | 1001/12182 [03:47<41:09,  4.53it/s]device 0:   8%|▊         | 1002/12182 [03:47<40:25,  4.61it/s]device 0:   8%|▊         | 1003/12182 [03:47<40:31,  4.60it/s]device 0:   8%|▊         | 1004/12182 [03:48<41:02,  4.54it/s]device 0:   8%|▊         | 1005/12182 [03:48<40:51,  4.56it/s]device 0:   8%|▊         | 1006/12182 [03:48<40:15,  4.63it/s]device 0:   8%|▊         | 1007/12182 [03:48<40:55,  4.55it/s]device 0:   8%|▊         | 1008/12182 [03:48<41:05,  4.53it/s]device 0:   8%|▊         | 1009/12182 [03:49<40:26,  4.61it/s]device 0:   8%|▊         | 1010/12182 [03:49<41:22,  4.50it/s]device 0:   8%|▊         | 1011/12182 [03:49<41:14,  4.51it/s]device 0:   8%|▊         | 1012/12182 [03:49<42:55,  4.34it/s]device 0:   8%|▊         | 1013/12182 [03:50<43:53,  4.24it/s]device 0:   8%|▊         | 1014/12182 [03:50<42:26,  4.39it/s]device 0:   8%|▊         | 1015/12182 [03:50<41:11,  4.52it/s]device 0:   8%|▊         | 1016/12182 [03:50<40:23,  4.61it/s]device 0:   8%|▊         | 1017/12182 [03:51<42:38,  4.36it/s]device 0:   8%|▊         | 1018/12182 [03:51<41:48,  4.45it/s]device 0:   8%|▊         | 1019/12182 [03:51<41:56,  4.44it/s]device 0:   8%|▊         | 1020/12182 [03:52<59:45,  3.11it/s]device 0:   8%|▊         | 1021/12182 [03:52<53:21,  3.49it/s]device 0:   8%|▊         | 1022/12182 [03:52<48:50,  3.81it/s]device 0:   8%|▊         | 1023/12182 [03:52<45:49,  4.06it/s]device 0:   8%|▊         | 1024/12182 [03:52<43:48,  4.25it/s]device 0:   8%|▊         | 1025/12182 [03:53<42:31,  4.37it/s]device 0:   8%|▊         | 1026/12182 [03:53<41:37,  4.47it/s]device 0:   8%|▊         | 1027/12182 [03:53<50:45,  3.66it/s]device 0:   8%|▊         | 1028/12182 [03:53<50:56,  3.65it/s]device 0:   8%|▊         | 1029/12182 [03:54<48:00,  3.87it/s]device 0:   8%|▊         | 1030/12182 [03:54<45:03,  4.12it/s]device 0:   8%|▊         | 1031/12182 [03:54<43:57,  4.23it/s]device 0:   8%|▊         | 1032/12182 [03:54<42:11,  4.40it/s]device 0:   8%|▊         | 1033/12182 [03:55<42:10,  4.41it/s]device 0:   8%|▊         | 1034/12182 [03:55<42:47,  4.34it/s]device 0:   8%|▊         | 1035/12182 [03:55<41:47,  4.45it/s]device 0:   9%|▊         | 1036/12182 [03:55<42:38,  4.36it/s]device 0:   9%|▊         | 1037/12182 [03:55<42:18,  4.39it/s]device 0:   9%|▊         | 1038/12182 [03:56<43:27,  4.27it/s]device 0:   9%|▊         | 1039/12182 [03:56<42:32,  4.37it/s]device 0:   9%|▊         | 1040/12182 [03:56<44:45,  4.15it/s]device 0:   9%|▊         | 1041/12182 [03:56<42:43,  4.35it/s]device 0:   9%|▊         | 1042/12182 [03:57<43:08,  4.30it/s]device 0:   9%|▊         | 1043/12182 [03:57<45:15,  4.10it/s]device 0:   9%|▊         | 1044/12182 [03:57<43:20,  4.28it/s]device 0:   9%|▊         | 1045/12182 [03:57<42:31,  4.37it/s]device 0:   9%|▊         | 1046/12182 [03:58<42:22,  4.38it/s]device 0:   9%|▊         | 1047/12182 [03:58<42:54,  4.33it/s]device 0:   9%|▊         | 1048/12182 [03:58<41:37,  4.46it/s]device 0:   9%|▊         | 1049/12182 [03:58<41:15,  4.50it/s]device 0:   9%|▊         | 1050/12182 [03:58<41:12,  4.50it/s]device 0:   9%|▊         | 1051/12182 [03:59<40:14,  4.61it/s]device 0:   9%|▊         | 1052/12182 [03:59<39:48,  4.66it/s]device 0:   9%|▊         | 1053/12182 [03:59<40:14,  4.61it/s]device 0:   9%|▊         | 1054/12182 [03:59<39:32,  4.69it/s]device 0:   9%|▊         | 1055/12182 [03:59<39:01,  4.75it/s]device 0:   9%|▊         | 1056/12182 [04:00<45:37,  4.06it/s]device 0:   9%|▊         | 1057/12182 [04:00<43:17,  4.28it/s]device 0:   9%|▊         | 1058/12182 [04:00<42:02,  4.41it/s]device 0:   9%|▊         | 1059/12182 [04:00<42:05,  4.40it/s]device 0:   9%|▊         | 1060/12182 [04:01<41:04,  4.51it/s]device 0:   9%|▊         | 1061/12182 [04:01<41:07,  4.51it/s]device 0:   9%|▊         | 1062/12182 [04:01<40:30,  4.58it/s]device 0:   9%|▊         | 1063/12182 [04:01<40:23,  4.59it/s]device 0:   9%|▊         | 1064/12182 [04:02<40:38,  4.56it/s]device 0:   9%|▊         | 1065/12182 [04:02<40:12,  4.61it/s]device 0:   9%|▉         | 1066/12182 [04:02<39:30,  4.69it/s]device 0:   9%|▉         | 1067/12182 [04:02<41:58,  4.41it/s]device 0:   9%|▉         | 1068/12182 [04:02<40:44,  4.55it/s]device 0:   9%|▉         | 1069/12182 [04:03<41:04,  4.51it/s]device 0:   9%|▉         | 1070/12182 [04:03<45:11,  4.10it/s]device 0:   9%|▉         | 1070/12182 [04:03<42:11,  4.39it/s]
-submitit ERROR (2025-03-20 08:42:47,282) - Submitted job triggered an exception
-2025-03-20 08:42:47 (ERROR): Submitted job triggered an exception
-Traceback (most recent call last):
-  File "/home/hyukjunlim03/anaconda3/envs/equiformer_v2/lib/python3.8/runpy.py", line 194, in _run_module_as_main
-    return _run_code(code, main_globals, None,
-  File "/home/hyukjunlim03/anaconda3/envs/equiformer_v2/lib/python3.8/runpy.py", line 87, in _run_code
-    exec(code, run_globals)
-  File "/home/hyukjunlim03/anaconda3/envs/equiformer_v2/lib/python3.8/site-packages/submitit/core/_submit.py", line 11, in <module>
-    submitit_main()
-  File "/home/hyukjunlim03/anaconda3/envs/equiformer_v2/lib/python3.8/site-packages/submitit/core/submission.py", line 72, in submitit_main
-    process_job(args.folder)
-  File "/home/hyukjunlim03/anaconda3/envs/equiformer_v2/lib/python3.8/site-packages/submitit/core/submission.py", line 65, in process_job
-    raise error
-  File "/home/hyukjunlim03/anaconda3/envs/equiformer_v2/lib/python3.8/site-packages/submitit/core/submission.py", line 54, in process_job
-    result = delayed.result()
-  File "/home/hyukjunlim03/anaconda3/envs/equiformer_v2/lib/python3.8/site-packages/submitit/core/utils.py", line 133, in result
-    self._result = self.function(*self.args, **self.kwargs)
-  File "main_oc20.py", line 73, in __call__
-    self.task.run()
-  File "/home/hyukjunlim03/ccel/equiformer_v2/fairchem/ocpmodels/tasks/task.py", line 67, in run
-    self.trainer.predict(
-  File "/home/hyukjunlim03/anaconda3/envs/equiformer_v2/lib/python3.8/site-packages/torch/autograd/grad_mode.py", line 27, in decorate_context
-    return func(*args, **kwargs)
-  File "/home/hyukjunlim03/ccel/equiformer_v2/oc20/trainer/forces_trainer_v2.py", line 200, in predict
-    out = self._forward(batch_list)
-  File "/home/hyukjunlim03/ccel/equiformer_v2/oc20/trainer/forces_trainer_v2.py", line 487, in _forward
-    out_energy, out_forces, latent_rep = self.model(batch_list)
-  File "/home/hyukjunlim03/anaconda3/envs/equiformer_v2/lib/python3.8/site-packages/torch/nn/modules/module.py", line 1194, in _call_impl
-    return forward_call(*input, **kwargs)
-  File "/home/hyukjunlim03/ccel/equiformer_v2/fairchem/ocpmodels/common/data_parallel.py", line 61, in forward
-    return self.module(
-  File "/home/hyukjunlim03/anaconda3/envs/equiformer_v2/lib/python3.8/site-packages/torch/nn/modules/module.py", line 1194, in _call_impl
-    return forward_call(*input, **kwargs)
-  File "/home/hyukjunlim03/ccel/equiformer_v2/fairchem/ocpmodels/common/utils.py", line 132, in cls_method
-    return f(self, *args, **kwargs)
-  File "/home/hyukjunlim03/anaconda3/envs/equiformer_v2/lib/python3.8/site-packages/torch/autograd/grad_mode.py", line 27, in decorate_context
-    return func(*args, **kwargs)
-  File "/home/hyukjunlim03/ccel/equiformer_v2/nets/equiformer_v2/equiformer_v2_oc20.py", line 442, in forward
-    x = self.blocks[i](
-  File "/home/hyukjunlim03/anaconda3/envs/equiformer_v2/lib/python3.8/site-packages/torch/nn/modules/module.py", line 1194, in _call_impl
-    return forward_call(*input, **kwargs)
-  File "/home/hyukjunlim03/ccel/equiformer_v2/nets/equiformer_v2/transformer_block.py", line 596, in forward
-    output_embedding = self.ga(output_embedding,
-  File "/home/hyukjunlim03/anaconda3/envs/equiformer_v2/lib/python3.8/site-packages/torch/nn/modules/module.py", line 1194, in _call_impl
-    return forward_call(*input, **kwargs)
-  File "/home/hyukjunlim03/ccel/equiformer_v2/nets/equiformer_v2/transformer_block.py", line 293, in forward
-    x_message.embedding = self.s2_act(x_0_gating, x_message.embedding, self.SO3_grid)
-  File "/home/hyukjunlim03/anaconda3/envs/equiformer_v2/lib/python3.8/site-packages/torch/nn/modules/module.py", line 1194, in _call_impl
-    return forward_call(*input, **kwargs)
-  File "/home/hyukjunlim03/ccel/equiformer_v2/nets/equiformer_v2/activation.py", line 185, in forward
-    output_tensors = self.s2_act(input_tensors, SO3_grid)
-  File "/home/hyukjunlim03/anaconda3/envs/equiformer_v2/lib/python3.8/site-packages/torch/nn/modules/module.py", line 1194, in _call_impl
-    return forward_call(*input, **kwargs)
-  File "/home/hyukjunlim03/ccel/equiformer_v2/nets/equiformer_v2/activation.py", line 167, in forward
-    outputs = torch.einsum("bai, zbac -> zic", from_grid_mat, x_grid)
-  File "/home/hyukjunlim03/anaconda3/envs/equiformer_v2/lib/python3.8/site-packages/torch/functional.py", line 378, in einsum
-    return _VF.einsum(equation, operands)  # type: ignore[attr-defined]
-torch.cuda.OutOfMemoryError: CUDA out of memory. Tried to allocate 158.00 MiB (GPU 0; 23.67 GiB total capacity; 22.46 GiB already allocated; 34.25 MiB free; 22.74 GiB reserved in total by PyTorch) If reserved memory is >> allocated memory try setting max_split_size_mb to avoid fragmentation.  See documentation for Memory Management and PYTORCH_CUDA_ALLOC_CONF
-srun: error: n011: task 0: Exited with exit code 1

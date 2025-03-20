@@ -39,7 +39,7 @@ After downloading, place the datasets under `datasets/oc20/` by using `ln -s`:
     cd datasets
     mkdir oc20
     cd oc20
-    ln -s ../../fairchem/data/s2ef s2ef
+    ln -s ../../fairchem/data/Oabs Oabs
 ```
 
 
@@ -52,6 +52,7 @@ After downloading, place the datasets under `datasets/oc20/` by using `ln -s`:
     
     ```bash
         sh scripts/train/oc20/s2ef/equiformer_v2/31M_exp.sh
+        sh scripts/train/oc20/s2ef/equiformer_v2/153M_exp.sh
     ```
 
 ## Checkpoints ##
