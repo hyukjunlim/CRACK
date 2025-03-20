@@ -477,27 +477,27 @@ class EquiformerV2_OC20(BaseModel):
         else:
             return energy, forces, latent_rep
 
-    def embedding_pooling(self, embeddings: np.ndarray) -> np.ndarray:
+    def embedding_pooling(self, embeddings: torch.Tensor) -> torch.Tensor:
         """
         Pool embeddings with awareness of frequency bands using weighted averaging.
         Handles batched input embeddings.
         
         Args:
-            embeddings (np.ndarray): Input embedding array of shape (N, 25, 128) where:
+            embeddings (torch.Tensor): Input embedding tensor of shape (N, 25, 128) where:
                 - N is the number of samples
                 - 25 channels contain frequency band information organized as [0e, 1o, 2e, 3o, 4e]
                 - 128 is the embedding dimension
                 The channels are distributed as [1, 3, 5, 7, 9] channels per band.
             
         Returns:
-            np.ndarray: Normalized global embeddings of shape (N, 128)
+            torch.Tensor: Normalized global embeddings of shape (N, 128)
             
         Raises:
             ValueError: If embedding shape is incorrect or doesn't match expected dimensions
         """
         # Input validation
-        if not isinstance(embeddings, np.ndarray):
-            raise ValueError("Input must be a numpy array")
+        if not isinstance(embeddings, torch.Tensor):
+            raise ValueError("Input must be a torch.Tensor")
         if len(embeddings.shape) != 3 or embeddings.shape[1:] != (25, 128):
             raise ValueError(f"Expected shape (N, 25, 128), got {embeddings.shape}")
         
@@ -506,9 +506,11 @@ class EquiformerV2_OC20(BaseModel):
         if sum(channel_sizes) != embeddings.shape[1]:
             raise ValueError("Channel sizes don't match input dimensions")
         
-        # Initialize output array
+        # Initialize output tensor
         batch_size = embeddings.shape[0]
-        global_embeddings = np.zeros((batch_size, embeddings.shape[2]), dtype=embeddings.dtype)
+        global_embeddings = torch.zeros((batch_size, embeddings.shape[2]), 
+                                      dtype=embeddings.dtype,
+                                      device=embeddings.device)
         
         # Process each frequency band with weighted averaging
         channel_idx = 0
@@ -516,12 +518,14 @@ class EquiformerV2_OC20(BaseModel):
             end_idx = channel_idx + size
             band_channels = embeddings[:, channel_idx:end_idx]
             # Use weighted average based on band size
-            global_embeddings += np.mean(band_channels, axis=1) / len(channel_sizes)
+            global_embeddings += torch.mean(band_channels, dim=1) / len(channel_sizes)
             channel_idx = end_idx
         
         # Normalize each embedding (with epsilon to prevent division by zero)
-        norms = np.linalg.norm(global_embeddings, axis=1, keepdims=True)
-        global_embeddings = np.where(norms > 1e-12, global_embeddings / norms, global_embeddings)
+        norms = torch.norm(global_embeddings, dim=1, keepdim=True)
+        global_embeddings = torch.where(norms > 1e-12, 
+                                      global_embeddings / norms, 
+                                      global_embeddings)
         
         return global_embeddings
 
