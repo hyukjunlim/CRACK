@@ -1,4 +1,4 @@
-datasets
-models/
-logs
-__pycache__
+/datasets/
+/models/
+/logs/
+__pycache__/
