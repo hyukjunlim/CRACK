@@ -1,4 +1,4 @@
 datasets
-models
+models/
 logs
 __pycache__
