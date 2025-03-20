@@ -302,7 +302,7 @@ for mode in modes:
     if mode == 25:
         filename = 'save_logs/9066/s2ef_predictions.npz' # 31M
     elif mode == 128:
-        filename = 'logs/2305701/s2ef_predictions.npz' # 153M
+        filename = 'logs/2316385/s2ef_predictions.npz' # 153M
     
     # Load and reshape data
     data = np.load(filename)
@@ -336,3 +336,4 @@ for mode in modes:
     #fig4 = analyze_embedding_clusters(latents, energy)
     #fig4.savefig(f'visuals/{mode}/catalyst_cluster_analysis.png', dpi=300, bbox_inches='tight')
     #plt.close(fig4)
+
