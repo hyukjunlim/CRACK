@@ -1,844 +1,0 @@
-amp: true
-cmd:
-  checkpoint_dir: models/oc20/s2ef/2M/equiformer_v2/N@12_L@6_M@2/bs@64_lr@2e-4_wd@1e-3_epochs@12_warmup-epochs@0.1_g@1x1/checkpoints/2025-03-20-15-38-56
-  commit: 13437bd
-  identifier: ''
-  logs_dir: models/oc20/s2ef/2M/equiformer_v2/N@12_L@6_M@2/bs@64_lr@2e-4_wd@1e-3_epochs@12_warmup-epochs@0.1_g@1x1/logs/wandb/2025-03-20-15-38-56
-  print_every: 200
-  results_dir: models/oc20/s2ef/2M/equiformer_v2/N@12_L@6_M@2/bs@64_lr@2e-4_wd@1e-3_epochs@12_warmup-epochs@0.1_g@1x1/results/2025-03-20-15-38-56
-  seed: 0
-  timestamp_id: 2025-03-20-15-38-56
-dataset:
-  grad_target_mean: 0.0
-  grad_target_std: 2.887317180633545
-  normalize_labels: true
-  src: datasets/oc20/s2ef/200k/train/
-  target_mean: -0.7554450631141663
-  target_std: 2.887317180633545
-gpus: 1
-logger: wandb
-model: equiformer_v2
-model_attributes:
-  alpha_drop: 0.1
-  attn_activation: silu
-  attn_alpha_channels: 64
-  attn_hidden_channels: 64
-  attn_value_channels: 16
-  distance_function: gaussian
-  drop_path_rate: 0.1
-  edge_channels: 128
-  ffn_activation: silu
-  ffn_hidden_channels: 128
-  grid_resolution: 18
-  lmax_list:
-  - 4
-  max_neighbors: 20
-  max_num_elements: 90
-  max_radius: 12.0
-  mmax_list:
-  - 2
-  norm_type: layer_norm_sh
-  num_distance_basis: 512
-  num_heads: 8
-  num_layers: 8
-  num_sphere_samples: 128
-  otf_graph: true
-  proj_drop: 0.0
-  regress_forces: true
-  share_atom_edge_embedding: false
-  sphere_channels: 128
-  use_atom_edge_embedding: true
-  use_attn_renorm: true
-  use_gate_act: false
-  use_grid_mlp: true
-  use_pbc: true
-  use_s2_act_attn: false
-  use_sep_s2_act: true
-  weight_init: uniform
-noddp: false
-optim:
-  batch_size: 8
-  clip_grad_norm: 100
-  ema_decay: 0.999
-  energy_coefficient: 4
-  eval_batch_size: 8
-  eval_every: 10000
-  force_coefficient: 100
-  grad_accumulation_steps: 1
-  load_balancing: atoms
-  loss_energy: mae
-  loss_force: l2mae
-  lr_initial: 0.0004
-  max_epochs: 3
-  num_workers: 8
-  optimizer: AdamW
-  optimizer_params:
-    weight_decay: 0.001
-  scheduler: LambdaLR
-  scheduler_params:
-    lambda_type: cosine
-    lr_min_factor: 0.01
-    warmup_epochs: 0.01
-    warmup_factor: 0.2
-slurm:
-  cpus_per_task: 9
-  folder: /home/hyukjunlim/ccel/equiformerv2/logs/%j
-  gpus_per_node: 1
-  mem_gb: 80
-  name: ''
-  nodes: 1
-  tasks_per_node: 1
-  timeout_min: 4320
-task:
-  dataset: trajectory_lmdb_v2
-  eval_on_free_atoms: true
-  grad_input: atomic forces
-  labels:
-  - potential energy
-  primary_metric: forces_mae
-  train_on_free_atoms: true
-test_dataset:
-  src: datasets/oc20/Oabs
-val_dataset: null
-
-wandb: Using wandb-core as the SDK backend.  Please refer to https://wandb.me/wandb-core for more information.
-wandb: Currently logged in as: hyukjunlim (hyukjunlim-seoul-national-university) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
-wandb: Tracking run with wandb version 0.19.8
-wandb: Run data is saved locally in models/oc20/s2ef/2M/equiformer_v2/N@12_L@6_M@2/bs@64_lr@2e-4_wd@1e-3_epochs@12_warmup-epochs@0.1_g@1x1/logs/wandb/2025-03-20-15-38-56/wandb/run-20250320_153856-2025-03-20-15-38-56
-wandb: Run `wandb offline` to turn off syncing.
-wandb: Syncing run 2025-03-20-15-38-56
-wandb: ⭐️ View project at https://wandb.ai/hyukjunlim-seoul-national-university/equiformerv2
-wandb: 🚀 View run at https://wandb.ai/hyukjunlim-seoul-national-university/equiformerv2/runs/2025-03-20-15-38-56
-Loading dataset: trajectory_lmdb_v2
-Loading model: equiformer_v2
-EquiformerV2_OC20(
-  (sphere_embedding): Embedding(90, 128)
-  (distance_expansion): GaussianSmearing()
-  (SO3_rotation): ModuleList(
-    (0): SO3_Rotation(
-      (mapping): CoefficientMappingModule(lmax_list=[4], mmax_list=[4])
-    )
-  )
-  (mappingReduced): CoefficientMappingModule(lmax_list=[4], mmax_list=[2])
-  (SO3_grid): (4, 4)
-  (edge_degree_embedding): EdgeDegreeEmbedding(
-    (SO3_rotation): ModuleList(
-      (0): SO3_Rotation(
-        (mapping): CoefficientMappingModule(lmax_list=[4], mmax_list=[4])
-      )
-    )
-    (mappingReduced): CoefficientMappingModule(lmax_list=[4], mmax_list=[2])
-    (source_embedding): Embedding(90, 128)
-    (target_embedding): Embedding(90, 128)
-    (rad_func): RadialFunction(
-      (net): Sequential(
-        (0): Linear(in_features=856, out_features=128, bias=True)
-        (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-        (2): SiLU()
-        (3): Linear(in_features=128, out_features=128, bias=True)
-        (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-        (5): SiLU()
-        (6): Linear(in_features=128, out_features=640, bias=True)
-      )
-    )
-  )
-  (blocks): ModuleList(
-    (0): TransBlockV2(
-      (norm_1): EquivariantLayerNormArraySphericalHarmonics(lmax=4, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ga): SO2EquivariantGraphAttention(
-        (SO3_rotation): ModuleList(
-          (0): SO3_Rotation(
-            (mapping): CoefficientMappingModule(lmax_list=[4], mmax_list=[4])
-          )
-        )
-        (mappingReduced): CoefficientMappingModule(lmax_list=[4], mmax_list=[2])
-        (SO3_grid): (4, 4)
-        (source_embedding): Embedding(90, 128)
-        (target_embedding): Embedding(90, 128)
-        (so2_conv_1): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[4], mmax_list=[2])
-          (fc_m0): Linear(in_features=1280, out_features=896, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=1024, out_features=512, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=768, out_features=384, bias=False)
-            )
-          )
-          (rad_func): RadialFunction(
-            (net): Sequential(
-              (0): Linear(in_features=856, out_features=128, bias=True)
-              (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (2): SiLU()
-              (3): Linear(in_features=128, out_features=128, bias=True)
-              (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (5): SiLU()
-              (6): Linear(in_features=128, out_features=3072, bias=True)
-            )
-          )
-        )
-        (alpha_norm): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
-        (alpha_act): SmoothLeakyReLU(negative_slope=0.2)
-        (alpha_dropout): Dropout(p=0.1, inplace=False)
-        (s2_act): SeparableS2Activation(
-          (scalar_act): SiLU()
-          (s2_act): S2Activation(
-            (act): SiLU()
-          )
-        )
-        (so2_conv_2): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[4], mmax_list=[2])
-          (fc_m0): Linear(in_features=320, out_features=640, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=256, out_features=1024, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=192, out_features=768, bias=False)
-            )
-          )
-        )
-        (proj): SO3_LinearV2(in_features=128, out_features=128, lmax=4)
-      )
-      (drop_path): GraphDropPath(drop_prob=0.1)
-      (norm_2): EquivariantLayerNormArraySphericalHarmonics(lmax=4, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ffn): FeedForwardNetwork(
-        (SO3_grid): (4, 4)
-        (so3_linear_1): SO3_LinearV2(in_features=128, out_features=128, lmax=4)
-        (scalar_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=True)
-          (1): SiLU()
-        )
-        (grid_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=False)
-          (1): SiLU()
-          (2): Linear(in_features=128, out_features=128, bias=False)
-          (3): SiLU()
-          (4): Linear(in_features=128, out_features=128, bias=False)
-        )
-        (so3_linear_2): SO3_LinearV2(in_features=128, out_features=128, lmax=4)
-      )
-    )
-    (1): TransBlockV2(
-      (norm_1): EquivariantLayerNormArraySphericalHarmonics(lmax=4, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ga): SO2EquivariantGraphAttention(
-        (SO3_rotation): ModuleList(
-          (0): SO3_Rotation(
-            (mapping): CoefficientMappingModule(lmax_list=[4], mmax_list=[4])
-          )
-        )
-        (mappingReduced): CoefficientMappingModule(lmax_list=[4], mmax_list=[2])
-        (SO3_grid): (4, 4)
-        (source_embedding): Embedding(90, 128)
-        (target_embedding): Embedding(90, 128)
-        (so2_conv_1): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[4], mmax_list=[2])
-          (fc_m0): Linear(in_features=1280, out_features=896, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=1024, out_features=512, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=768, out_features=384, bias=False)
-            )
-          )
-          (rad_func): RadialFunction(
-            (net): Sequential(
-              (0): Linear(in_features=856, out_features=128, bias=True)
-              (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (2): SiLU()
-              (3): Linear(in_features=128, out_features=128, bias=True)
-              (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (5): SiLU()
-              (6): Linear(in_features=128, out_features=3072, bias=True)
-            )
-          )
-        )
-        (alpha_norm): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
-        (alpha_act): SmoothLeakyReLU(negative_slope=0.2)
-        (alpha_dropout): Dropout(p=0.1, inplace=False)
-        (s2_act): SeparableS2Activation(
-          (scalar_act): SiLU()
-          (s2_act): S2Activation(
-            (act): SiLU()
-          )
-        )
-        (so2_conv_2): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[4], mmax_list=[2])
-          (fc_m0): Linear(in_features=320, out_features=640, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=256, out_features=1024, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=192, out_features=768, bias=False)
-            )
-          )
-        )
-        (proj): SO3_LinearV2(in_features=128, out_features=128, lmax=4)
-      )
-      (drop_path): GraphDropPath(drop_prob=0.1)
-      (norm_2): EquivariantLayerNormArraySphericalHarmonics(lmax=4, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ffn): FeedForwardNetwork(
-        (SO3_grid): (4, 4)
-        (so3_linear_1): SO3_LinearV2(in_features=128, out_features=128, lmax=4)
-        (scalar_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=True)
-          (1): SiLU()
-        )
-        (grid_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=False)
-          (1): SiLU()
-          (2): Linear(in_features=128, out_features=128, bias=False)
-          (3): SiLU()
-          (4): Linear(in_features=128, out_features=128, bias=False)
-        )
-        (so3_linear_2): SO3_LinearV2(in_features=128, out_features=128, lmax=4)
-      )
-    )
-    (2): TransBlockV2(
-      (norm_1): EquivariantLayerNormArraySphericalHarmonics(lmax=4, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ga): SO2EquivariantGraphAttention(
-        (SO3_rotation): ModuleList(
-          (0): SO3_Rotation(
-            (mapping): CoefficientMappingModule(lmax_list=[4], mmax_list=[4])
-          )
-        )
-        (mappingReduced): CoefficientMappingModule(lmax_list=[4], mmax_list=[2])
-        (SO3_grid): (4, 4)
-        (source_embedding): Embedding(90, 128)
-        (target_embedding): Embedding(90, 128)
-        (so2_conv_1): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[4], mmax_list=[2])
-          (fc_m0): Linear(in_features=1280, out_features=896, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=1024, out_features=512, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=768, out_features=384, bias=False)
-            )
-          )
-          (rad_func): RadialFunction(
-            (net): Sequential(
-              (0): Linear(in_features=856, out_features=128, bias=True)
-              (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (2): SiLU()
-              (3): Linear(in_features=128, out_features=128, bias=True)
-              (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (5): SiLU()
-              (6): Linear(in_features=128, out_features=3072, bias=True)
-            )
-          )
-        )
-        (alpha_norm): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
-        (alpha_act): SmoothLeakyReLU(negative_slope=0.2)
-        (alpha_dropout): Dropout(p=0.1, inplace=False)
-        (s2_act): SeparableS2Activation(
-          (scalar_act): SiLU()
-          (s2_act): S2Activation(
-            (act): SiLU()
-          )
-        )
-        (so2_conv_2): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[4], mmax_list=[2])
-          (fc_m0): Linear(in_features=320, out_features=640, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=256, out_features=1024, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=192, out_features=768, bias=False)
-            )
-          )
-        )
-        (proj): SO3_LinearV2(in_features=128, out_features=128, lmax=4)
-      )
-      (drop_path): GraphDropPath(drop_prob=0.1)
-      (norm_2): EquivariantLayerNormArraySphericalHarmonics(lmax=4, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ffn): FeedForwardNetwork(
-        (SO3_grid): (4, 4)
-        (so3_linear_1): SO3_LinearV2(in_features=128, out_features=128, lmax=4)
-        (scalar_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=True)
-          (1): SiLU()
-        )
-        (grid_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=False)
-          (1): SiLU()
-          (2): Linear(in_features=128, out_features=128, bias=False)
-          (3): SiLU()
-          (4): Linear(in_features=128, out_features=128, bias=False)
-        )
-        (so3_linear_2): SO3_LinearV2(in_features=128, out_features=128, lmax=4)
-      )
-    )
-    (3): TransBlockV2(
-      (norm_1): EquivariantLayerNormArraySphericalHarmonics(lmax=4, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ga): SO2EquivariantGraphAttention(
-        (SO3_rotation): ModuleList(
-          (0): SO3_Rotation(
-            (mapping): CoefficientMappingModule(lmax_list=[4], mmax_list=[4])
-          )
-        )
-        (mappingReduced): CoefficientMappingModule(lmax_list=[4], mmax_list=[2])
-        (SO3_grid): (4, 4)
-        (source_embedding): Embedding(90, 128)
-        (target_embedding): Embedding(90, 128)
-        (so2_conv_1): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[4], mmax_list=[2])
-          (fc_m0): Linear(in_features=1280, out_features=896, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=1024, out_features=512, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=768, out_features=384, bias=False)
-            )
-          )
-          (rad_func): RadialFunction(
-            (net): Sequential(
-              (0): Linear(in_features=856, out_features=128, bias=True)
-              (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (2): SiLU()
-              (3): Linear(in_features=128, out_features=128, bias=True)
-              (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (5): SiLU()
-              (6): Linear(in_features=128, out_features=3072, bias=True)
-            )
-          )
-        )
-        (alpha_norm): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
-        (alpha_act): SmoothLeakyReLU(negative_slope=0.2)
-        (alpha_dropout): Dropout(p=0.1, inplace=False)
-        (s2_act): SeparableS2Activation(
-          (scalar_act): SiLU()
-          (s2_act): S2Activation(
-            (act): SiLU()
-          )
-        )
-        (so2_conv_2): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[4], mmax_list=[2])
-          (fc_m0): Linear(in_features=320, out_features=640, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=256, out_features=1024, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=192, out_features=768, bias=False)
-            )
-          )
-        )
-        (proj): SO3_LinearV2(in_features=128, out_features=128, lmax=4)
-      )
-      (drop_path): GraphDropPath(drop_prob=0.1)
-      (norm_2): EquivariantLayerNormArraySphericalHarmonics(lmax=4, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ffn): FeedForwardNetwork(
-        (SO3_grid): (4, 4)
-        (so3_linear_1): SO3_LinearV2(in_features=128, out_features=128, lmax=4)
-        (scalar_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=True)
-          (1): SiLU()
-        )
-        (grid_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=False)
-          (1): SiLU()
-          (2): Linear(in_features=128, out_features=128, bias=False)
-          (3): SiLU()
-          (4): Linear(in_features=128, out_features=128, bias=False)
-        )
-        (so3_linear_2): SO3_LinearV2(in_features=128, out_features=128, lmax=4)
-      )
-    )
-    (4): TransBlockV2(
-      (norm_1): EquivariantLayerNormArraySphericalHarmonics(lmax=4, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ga): SO2EquivariantGraphAttention(
-        (SO3_rotation): ModuleList(
-          (0): SO3_Rotation(
-            (mapping): CoefficientMappingModule(lmax_list=[4], mmax_list=[4])
-          )
-        )
-        (mappingReduced): CoefficientMappingModule(lmax_list=[4], mmax_list=[2])
-        (SO3_grid): (4, 4)
-        (source_embedding): Embedding(90, 128)
-        (target_embedding): Embedding(90, 128)
-        (so2_conv_1): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[4], mmax_list=[2])
-          (fc_m0): Linear(in_features=1280, out_features=896, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=1024, out_features=512, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=768, out_features=384, bias=False)
-            )
-          )
-          (rad_func): RadialFunction(
-            (net): Sequential(
-              (0): Linear(in_features=856, out_features=128, bias=True)
-              (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (2): SiLU()
-              (3): Linear(in_features=128, out_features=128, bias=True)
-              (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (5): SiLU()
-              (6): Linear(in_features=128, out_features=3072, bias=True)
-            )
-          )
-        )
-        (alpha_norm): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
-        (alpha_act): SmoothLeakyReLU(negative_slope=0.2)
-        (alpha_dropout): Dropout(p=0.1, inplace=False)
-        (s2_act): SeparableS2Activation(
-          (scalar_act): SiLU()
-          (s2_act): S2Activation(
-            (act): SiLU()
-          )
-        )
-        (so2_conv_2): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[4], mmax_list=[2])
-          (fc_m0): Linear(in_features=320, out_features=640, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=256, out_features=1024, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=192, out_features=768, bias=False)
-            )
-          )
-        )
-        (proj): SO3_LinearV2(in_features=128, out_features=128, lmax=4)
-      )
-      (drop_path): GraphDropPath(drop_prob=0.1)
-      (norm_2): EquivariantLayerNormArraySphericalHarmonics(lmax=4, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ffn): FeedForwardNetwork(
-        (SO3_grid): (4, 4)
-        (so3_linear_1): SO3_LinearV2(in_features=128, out_features=128, lmax=4)
-        (scalar_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=True)
-          (1): SiLU()
-        )
-        (grid_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=False)
-          (1): SiLU()
-          (2): Linear(in_features=128, out_features=128, bias=False)
-          (3): SiLU()
-          (4): Linear(in_features=128, out_features=128, bias=False)
-        )
-        (so3_linear_2): SO3_LinearV2(in_features=128, out_features=128, lmax=4)
-      )
-    )
-    (5): TransBlockV2(
-      (norm_1): EquivariantLayerNormArraySphericalHarmonics(lmax=4, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ga): SO2EquivariantGraphAttention(
-        (SO3_rotation): ModuleList(
-          (0): SO3_Rotation(
-            (mapping): CoefficientMappingModule(lmax_list=[4], mmax_list=[4])
-          )
-        )
-        (mappingReduced): CoefficientMappingModule(lmax_list=[4], mmax_list=[2])
-        (SO3_grid): (4, 4)
-        (source_embedding): Embedding(90, 128)
-        (target_embedding): Embedding(90, 128)
-        (so2_conv_1): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[4], mmax_list=[2])
-          (fc_m0): Linear(in_features=1280, out_features=896, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=1024, out_features=512, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=768, out_features=384, bias=False)
-            )
-          )
-          (rad_func): RadialFunction(
-            (net): Sequential(
-              (0): Linear(in_features=856, out_features=128, bias=True)
-              (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (2): SiLU()
-              (3): Linear(in_features=128, out_features=128, bias=True)
-              (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (5): SiLU()
-              (6): Linear(in_features=128, out_features=3072, bias=True)
-            )
-          )
-        )
-        (alpha_norm): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
-        (alpha_act): SmoothLeakyReLU(negative_slope=0.2)
-        (alpha_dropout): Dropout(p=0.1, inplace=False)
-        (s2_act): SeparableS2Activation(
-          (scalar_act): SiLU()
-          (s2_act): S2Activation(
-            (act): SiLU()
-          )
-        )
-        (so2_conv_2): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[4], mmax_list=[2])
-          (fc_m0): Linear(in_features=320, out_features=640, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=256, out_features=1024, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=192, out_features=768, bias=False)
-            )
-          )
-        )
-        (proj): SO3_LinearV2(in_features=128, out_features=128, lmax=4)
-      )
-      (drop_path): GraphDropPath(drop_prob=0.1)
-      (norm_2): EquivariantLayerNormArraySphericalHarmonics(lmax=4, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ffn): FeedForwardNetwork(
-        (SO3_grid): (4, 4)
-        (so3_linear_1): SO3_LinearV2(in_features=128, out_features=128, lmax=4)
-        (scalar_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=True)
-          (1): SiLU()
-        )
-        (grid_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=False)
-          (1): SiLU()
-          (2): Linear(in_features=128, out_features=128, bias=False)
-          (3): SiLU()
-          (4): Linear(in_features=128, out_features=128, bias=False)
-        )
-        (so3_linear_2): SO3_LinearV2(in_features=128, out_features=128, lmax=4)
-      )
-    )
-    (6): TransBlockV2(
-      (norm_1): EquivariantLayerNormArraySphericalHarmonics(lmax=4, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ga): SO2EquivariantGraphAttention(
-        (SO3_rotation): ModuleList(
-          (0): SO3_Rotation(
-            (mapping): CoefficientMappingModule(lmax_list=[4], mmax_list=[4])
-          )
-        )
-        (mappingReduced): CoefficientMappingModule(lmax_list=[4], mmax_list=[2])
-        (SO3_grid): (4, 4)
-        (source_embedding): Embedding(90, 128)
-        (target_embedding): Embedding(90, 128)
-        (so2_conv_1): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[4], mmax_list=[2])
-          (fc_m0): Linear(in_features=1280, out_features=896, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=1024, out_features=512, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=768, out_features=384, bias=False)
-            )
-          )
-          (rad_func): RadialFunction(
-            (net): Sequential(
-              (0): Linear(in_features=856, out_features=128, bias=True)
-              (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (2): SiLU()
-              (3): Linear(in_features=128, out_features=128, bias=True)
-              (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (5): SiLU()
-              (6): Linear(in_features=128, out_features=3072, bias=True)
-            )
-          )
-        )
-        (alpha_norm): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
-        (alpha_act): SmoothLeakyReLU(negative_slope=0.2)
-        (alpha_dropout): Dropout(p=0.1, inplace=False)
-        (s2_act): SeparableS2Activation(
-          (scalar_act): SiLU()
-          (s2_act): S2Activation(
-            (act): SiLU()
-          )
-        )
-        (so2_conv_2): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[4], mmax_list=[2])
-          (fc_m0): Linear(in_features=320, out_features=640, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=256, out_features=1024, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=192, out_features=768, bias=False)
-            )
-          )
-        )
-        (proj): SO3_LinearV2(in_features=128, out_features=128, lmax=4)
-      )
-      (drop_path): GraphDropPath(drop_prob=0.1)
-      (norm_2): EquivariantLayerNormArraySphericalHarmonics(lmax=4, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ffn): FeedForwardNetwork(
-        (SO3_grid): (4, 4)
-        (so3_linear_1): SO3_LinearV2(in_features=128, out_features=128, lmax=4)
-        (scalar_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=True)
-          (1): SiLU()
-        )
-        (grid_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=False)
-          (1): SiLU()
-          (2): Linear(in_features=128, out_features=128, bias=False)
-          (3): SiLU()
-          (4): Linear(in_features=128, out_features=128, bias=False)
-        )
-        (so3_linear_2): SO3_LinearV2(in_features=128, out_features=128, lmax=4)
-      )
-    )
-    (7): TransBlockV2(
-      (norm_1): EquivariantLayerNormArraySphericalHarmonics(lmax=4, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ga): SO2EquivariantGraphAttention(
-        (SO3_rotation): ModuleList(
-          (0): SO3_Rotation(
-            (mapping): CoefficientMappingModule(lmax_list=[4], mmax_list=[4])
-          )
-        )
-        (mappingReduced): CoefficientMappingModule(lmax_list=[4], mmax_list=[2])
-        (SO3_grid): (4, 4)
-        (source_embedding): Embedding(90, 128)
-        (target_embedding): Embedding(90, 128)
-        (so2_conv_1): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[4], mmax_list=[2])
-          (fc_m0): Linear(in_features=1280, out_features=896, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=1024, out_features=512, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=768, out_features=384, bias=False)
-            )
-          )
-          (rad_func): RadialFunction(
-            (net): Sequential(
-              (0): Linear(in_features=856, out_features=128, bias=True)
-              (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (2): SiLU()
-              (3): Linear(in_features=128, out_features=128, bias=True)
-              (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-              (5): SiLU()
-              (6): Linear(in_features=128, out_features=3072, bias=True)
-            )
-          )
-        )
-        (alpha_norm): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
-        (alpha_act): SmoothLeakyReLU(negative_slope=0.2)
-        (alpha_dropout): Dropout(p=0.1, inplace=False)
-        (s2_act): SeparableS2Activation(
-          (scalar_act): SiLU()
-          (s2_act): S2Activation(
-            (act): SiLU()
-          )
-        )
-        (so2_conv_2): SO2_Convolution(
-          (mappingReduced): CoefficientMappingModule(lmax_list=[4], mmax_list=[2])
-          (fc_m0): Linear(in_features=320, out_features=640, bias=True)
-          (so2_m_conv): ModuleList(
-            (0): SO2_m_Convolution(
-              (fc): Linear(in_features=256, out_features=1024, bias=False)
-            )
-            (1): SO2_m_Convolution(
-              (fc): Linear(in_features=192, out_features=768, bias=False)
-            )
-          )
-        )
-        (proj): SO3_LinearV2(in_features=128, out_features=128, lmax=4)
-      )
-      (drop_path): GraphDropPath(drop_prob=0.1)
-      (norm_2): EquivariantLayerNormArraySphericalHarmonics(lmax=4, num_channels=128, eps=1e-05, std_balance_degrees=True)
-      (ffn): FeedForwardNetwork(
-        (SO3_grid): (4, 4)
-        (so3_linear_1): SO3_LinearV2(in_features=128, out_features=128, lmax=4)
-        (scalar_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=True)
-          (1): SiLU()
-        )
-        (grid_mlp): Sequential(
-          (0): Linear(in_features=128, out_features=128, bias=False)
-          (1): SiLU()
-          (2): Linear(in_features=128, out_features=128, bias=False)
-          (3): SiLU()
-          (4): Linear(in_features=128, out_features=128, bias=False)
-        )
-        (so3_linear_2): SO3_LinearV2(in_features=128, out_features=128, lmax=4)
-      )
-    )
-  )
-  (norm): EquivariantLayerNormArraySphericalHarmonics(lmax=4, num_channels=128, eps=1e-05, std_balance_degrees=True)
-  (energy_block): FeedForwardNetwork(
-    (SO3_grid): (4, 4)
-    (so3_linear_1): SO3_LinearV2(in_features=128, out_features=128, lmax=4)
-    (scalar_mlp): Sequential(
-      (0): Linear(in_features=128, out_features=128, bias=True)
-      (1): SiLU()
-    )
-    (grid_mlp): Sequential(
-      (0): Linear(in_features=128, out_features=128, bias=False)
-      (1): SiLU()
-      (2): Linear(in_features=128, out_features=128, bias=False)
-      (3): SiLU()
-      (4): Linear(in_features=128, out_features=128, bias=False)
-    )
-    (so3_linear_2): SO3_LinearV2(in_features=128, out_features=1, lmax=4)
-  )
-  (force_block): SO2EquivariantGraphAttention(
-    (SO3_rotation): ModuleList(
-      (0): SO3_Rotation(
-        (mapping): CoefficientMappingModule(lmax_list=[4], mmax_list=[4])
-      )
-    )
-    (mappingReduced): CoefficientMappingModule(lmax_list=[4], mmax_list=[2])
-    (SO3_grid): (4, 4)
-    (source_embedding): Embedding(90, 128)
-    (target_embedding): Embedding(90, 128)
-    (so2_conv_1): SO2_Convolution(
-      (mappingReduced): CoefficientMappingModule(lmax_list=[4], mmax_list=[2])
-      (fc_m0): Linear(in_features=1280, out_features=896, bias=True)
-      (so2_m_conv): ModuleList(
-        (0): SO2_m_Convolution(
-          (fc): Linear(in_features=1024, out_features=512, bias=False)
-        )
-        (1): SO2_m_Convolution(
-          (fc): Linear(in_features=768, out_features=384, bias=False)
-        )
-      )
-      (rad_func): RadialFunction(
-        (net): Sequential(
-          (0): Linear(in_features=856, out_features=128, bias=True)
-          (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-          (2): SiLU()
-          (3): Linear(in_features=128, out_features=128, bias=True)
-          (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
-          (5): SiLU()
-          (6): Linear(in_features=128, out_features=3072, bias=True)
-        )
-      )
-    )
-    (alpha_norm): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
-    (alpha_act): SmoothLeakyReLU(negative_slope=0.2)
-    (s2_act): SeparableS2Activation(
-      (scalar_act): SiLU()
-      (s2_act): S2Activation(
-        (act): SiLU()
-      )
-    )
-    (so2_conv_2): SO2_Convolution(
-      (mappingReduced): CoefficientMappingModule(lmax_list=[4], mmax_list=[2])
-      (fc_m0): Linear(in_features=320, out_features=640, bias=True)
-      (so2_m_conv): ModuleList(
-        (0): SO2_m_Convolution(
-          (fc): Linear(in_features=256, out_features=1024, bias=False)
-        )
-        (1): SO2_m_Convolution(
-          (fc): Linear(in_features=192, out_features=768, bias=False)
-        )
-      )
-    )
-    (proj): SO3_LinearV2(in_features=128, out_features=1, lmax=4)
-  )
-)
-Loaded EquiformerV2_OC20 with 31058690 parameters.
-Parameters without weight decay:
-['module.blocks.0.ffn.scalar_mlp.0.bias', 'module.blocks.0.ffn.so3_linear_1.bias', 'module.blocks.0.ffn.so3_linear_2.bias', 'module.blocks.0.ga.alpha_norm.bias', 'module.blocks.0.ga.alpha_norm.weight', 'module.blocks.0.ga.proj.bias', 'module.blocks.0.ga.so2_conv_1.fc_m0.bias', 'module.blocks.0.ga.so2_conv_1.rad_func.net.0.bias', 'module.blocks.0.ga.so2_conv_1.rad_func.net.1.bias', 'module.blocks.0.ga.so2_conv_1.rad_func.net.1.weight', 'module.blocks.0.ga.so2_conv_1.rad_func.net.3.bias', 'module.blocks.0.ga.so2_conv_1.rad_func.net.4.bias', 'module.blocks.0.ga.so2_conv_1.rad_func.net.4.weight', 'module.blocks.0.ga.so2_conv_1.rad_func.net.6.bias', 'module.blocks.0.ga.so2_conv_2.fc_m0.bias', 'module.blocks.0.norm_1.affine_weight', 'module.blocks.0.norm_1.norm_l0.bias', 'module.blocks.0.norm_1.norm_l0.weight', 'module.blocks.0.norm_2.affine_weight', 'module.blocks.0.norm_2.norm_l0.bias', 'module.blocks.0.norm_2.norm_l0.weight', 'module.blocks.1.ffn.scalar_mlp.0.bias', 'module.blocks.1.ffn.so3_linear_1.bias', 'module.blocks.1.ffn.so3_linear_2.bias', 'module.blocks.1.ga.alpha_norm.bias', 'module.blocks.1.ga.alpha_norm.weight', 'module.blocks.1.ga.proj.bias', 'module.blocks.1.ga.so2_conv_1.fc_m0.bias', 'module.blocks.1.ga.so2_conv_1.rad_func.net.0.bias', 'module.blocks.1.ga.so2_conv_1.rad_func.net.1.bias', 'module.blocks.1.ga.so2_conv_1.rad_func.net.1.weight', 'module.blocks.1.ga.so2_conv_1.rad_func.net.3.bias', 'module.blocks.1.ga.so2_conv_1.rad_func.net.4.bias', 'module.blocks.1.ga.so2_conv_1.rad_func.net.4.weight', 'module.blocks.1.ga.so2_conv_1.rad_func.net.6.bias', 'module.blocks.1.ga.so2_conv_2.fc_m0.bias', 'module.blocks.1.norm_1.affine_weight', 'module.blocks.1.norm_1.norm_l0.bias', 'module.blocks.1.norm_1.norm_l0.weight', 'module.blocks.1.norm_2.affine_weight', 'module.blocks.1.norm_2.norm_l0.bias', 'module.blocks.1.norm_2.norm_l0.weight', 'module.blocks.2.ffn.scalar_mlp.0.bias', 'module.blocks.2.ffn.so3_linear_1.bias', 'module.blocks.2.ffn.so3_linear_2.bias', 'module.blocks.2.ga.alpha_norm.bias', 'module.blocks.2.ga.alpha_norm.weight', 'module.blocks.2.ga.proj.bias', 'module.blocks.2.ga.so2_conv_1.fc_m0.bias', 'module.blocks.2.ga.so2_conv_1.rad_func.net.0.bias', 'module.blocks.2.ga.so2_conv_1.rad_func.net.1.bias', 'module.blocks.2.ga.so2_conv_1.rad_func.net.1.weight', 'module.blocks.2.ga.so2_conv_1.rad_func.net.3.bias', 'module.blocks.2.ga.so2_conv_1.rad_func.net.4.bias', 'module.blocks.2.ga.so2_conv_1.rad_func.net.4.weight', 'module.blocks.2.ga.so2_conv_1.rad_func.net.6.bias', 'module.blocks.2.ga.so2_conv_2.fc_m0.bias', 'module.blocks.2.norm_1.affine_weight', 'module.blocks.2.norm_1.norm_l0.bias', 'module.blocks.2.norm_1.norm_l0.weight', 'module.blocks.2.norm_2.affine_weight', 'module.blocks.2.norm_2.norm_l0.bias', 'module.blocks.2.norm_2.norm_l0.weight', 'module.blocks.3.ffn.scalar_mlp.0.bias', 'module.blocks.3.ffn.so3_linear_1.bias', 'module.blocks.3.ffn.so3_linear_2.bias', 'module.blocks.3.ga.alpha_norm.bias', 'module.blocks.3.ga.alpha_norm.weight', 'module.blocks.3.ga.proj.bias', 'module.blocks.3.ga.so2_conv_1.fc_m0.bias', 'module.blocks.3.ga.so2_conv_1.rad_func.net.0.bias', 'module.blocks.3.ga.so2_conv_1.rad_func.net.1.bias', 'module.blocks.3.ga.so2_conv_1.rad_func.net.1.weight', 'module.blocks.3.ga.so2_conv_1.rad_func.net.3.bias', 'module.blocks.3.ga.so2_conv_1.rad_func.net.4.bias', 'module.blocks.3.ga.so2_conv_1.rad_func.net.4.weight', 'module.blocks.3.ga.so2_conv_1.rad_func.net.6.bias', 'module.blocks.3.ga.so2_conv_2.fc_m0.bias', 'module.blocks.3.norm_1.affine_weight', 'module.blocks.3.norm_1.norm_l0.bias', 'module.blocks.3.norm_1.norm_l0.weight', 'module.blocks.3.norm_2.affine_weight', 'module.blocks.3.norm_2.norm_l0.bias', 'module.blocks.3.norm_2.norm_l0.weight', 'module.blocks.4.ffn.scalar_mlp.0.bias', 'module.blocks.4.ffn.so3_linear_1.bias', 'module.blocks.4.ffn.so3_linear_2.bias', 'module.blocks.4.ga.alpha_norm.bias', 'module.blocks.4.ga.alpha_norm.weight', 'module.blocks.4.ga.proj.bias', 'module.blocks.4.ga.so2_conv_1.fc_m0.bias', 'module.blocks.4.ga.so2_conv_1.rad_func.net.0.bias', 'module.blocks.4.ga.so2_conv_1.rad_func.net.1.bias', 'module.blocks.4.ga.so2_conv_1.rad_func.net.1.weight', 'module.blocks.4.ga.so2_conv_1.rad_func.net.3.bias', 'module.blocks.4.ga.so2_conv_1.rad_func.net.4.bias', 'module.blocks.4.ga.so2_conv_1.rad_func.net.4.weight', 'module.blocks.4.ga.so2_conv_1.rad_func.net.6.bias', 'module.blocks.4.ga.so2_conv_2.fc_m0.bias', 'module.blocks.4.norm_1.affine_weight', 'module.blocks.4.norm_1.norm_l0.bias', 'module.blocks.4.norm_1.norm_l0.weight', 'module.blocks.4.norm_2.affine_weight', 'module.blocks.4.norm_2.norm_l0.bias', 'module.blocks.4.norm_2.norm_l0.weight', 'module.blocks.5.ffn.scalar_mlp.0.bias', 'module.blocks.5.ffn.so3_linear_1.bias', 'module.blocks.5.ffn.so3_linear_2.bias', 'module.blocks.5.ga.alpha_norm.bias', 'module.blocks.5.ga.alpha_norm.weight', 'module.blocks.5.ga.proj.bias', 'module.blocks.5.ga.so2_conv_1.fc_m0.bias', 'module.blocks.5.ga.so2_conv_1.rad_func.net.0.bias', 'module.blocks.5.ga.so2_conv_1.rad_func.net.1.bias', 'module.blocks.5.ga.so2_conv_1.rad_func.net.1.weight', 'module.blocks.5.ga.so2_conv_1.rad_func.net.3.bias', 'module.blocks.5.ga.so2_conv_1.rad_func.net.4.bias', 'module.blocks.5.ga.so2_conv_1.rad_func.net.4.weight', 'module.blocks.5.ga.so2_conv_1.rad_func.net.6.bias', 'module.blocks.5.ga.so2_conv_2.fc_m0.bias', 'module.blocks.5.norm_1.affine_weight', 'module.blocks.5.norm_1.norm_l0.bias', 'module.blocks.5.norm_1.norm_l0.weight', 'module.blocks.5.norm_2.affine_weight', 'module.blocks.5.norm_2.norm_l0.bias', 'module.blocks.5.norm_2.norm_l0.weight', 'module.blocks.6.ffn.scalar_mlp.0.bias', 'module.blocks.6.ffn.so3_linear_1.bias', 'module.blocks.6.ffn.so3_linear_2.bias', 'module.blocks.6.ga.alpha_norm.bias', 'module.blocks.6.ga.alpha_norm.weight', 'module.blocks.6.ga.proj.bias', 'module.blocks.6.ga.so2_conv_1.fc_m0.bias', 'module.blocks.6.ga.so2_conv_1.rad_func.net.0.bias', 'module.blocks.6.ga.so2_conv_1.rad_func.net.1.bias', 'module.blocks.6.ga.so2_conv_1.rad_func.net.1.weight', 'module.blocks.6.ga.so2_conv_1.rad_func.net.3.bias', 'module.blocks.6.ga.so2_conv_1.rad_func.net.4.bias', 'module.blocks.6.ga.so2_conv_1.rad_func.net.4.weight', 'module.blocks.6.ga.so2_conv_1.rad_func.net.6.bias', 'module.blocks.6.ga.so2_conv_2.fc_m0.bias', 'module.blocks.6.norm_1.affine_weight', 'module.blocks.6.norm_1.norm_l0.bias', 'module.blocks.6.norm_1.norm_l0.weight', 'module.blocks.6.norm_2.affine_weight', 'module.blocks.6.norm_2.norm_l0.bias', 'module.blocks.6.norm_2.norm_l0.weight', 'module.blocks.7.ffn.scalar_mlp.0.bias', 'module.blocks.7.ffn.so3_linear_1.bias', 'module.blocks.7.ffn.so3_linear_2.bias', 'module.blocks.7.ga.alpha_norm.bias', 'module.blocks.7.ga.alpha_norm.weight', 'module.blocks.7.ga.proj.bias', 'module.blocks.7.ga.so2_conv_1.fc_m0.bias', 'module.blocks.7.ga.so2_conv_1.rad_func.net.0.bias', 'module.blocks.7.ga.so2_conv_1.rad_func.net.1.bias', 'module.blocks.7.ga.so2_conv_1.rad_func.net.1.weight', 'module.blocks.7.ga.so2_conv_1.rad_func.net.3.bias', 'module.blocks.7.ga.so2_conv_1.rad_func.net.4.bias', 'module.blocks.7.ga.so2_conv_1.rad_func.net.4.weight', 'module.blocks.7.ga.so2_conv_1.rad_func.net.6.bias', 'module.blocks.7.ga.so2_conv_2.fc_m0.bias', 'module.blocks.7.norm_1.affine_weight', 'module.blocks.7.norm_1.norm_l0.bias', 'module.blocks.7.norm_1.norm_l0.weight', 'module.blocks.7.norm_2.affine_weight', 'module.blocks.7.norm_2.norm_l0.bias', 'module.blocks.7.norm_2.norm_l0.weight', 'module.edge_degree_embedding.rad_func.net.0.bias', 'module.edge_degree_embedding.rad_func.net.1.bias', 'module.edge_degree_embedding.rad_func.net.1.weight', 'module.edge_degree_embedding.rad_func.net.3.bias', 'module.edge_degree_embedding.rad_func.net.4.bias', 'module.edge_degree_embedding.rad_func.net.4.weight', 'module.edge_degree_embedding.rad_func.net.6.bias', 'module.energy_block.scalar_mlp.0.bias', 'module.energy_block.so3_linear_1.bias', 'module.energy_block.so3_linear_2.bias', 'module.force_block.alpha_norm.bias', 'module.force_block.alpha_norm.weight', 'module.force_block.proj.bias', 'module.force_block.so2_conv_1.fc_m0.bias', 'module.force_block.so2_conv_1.rad_func.net.0.bias', 'module.force_block.so2_conv_1.rad_func.net.1.bias', 'module.force_block.so2_conv_1.rad_func.net.1.weight', 'module.force_block.so2_conv_1.rad_func.net.3.bias', 'module.force_block.so2_conv_1.rad_func.net.4.bias', 'module.force_block.so2_conv_1.rad_func.net.4.weight', 'module.force_block.so2_conv_1.rad_func.net.6.bias', 'module.force_block.so2_conv_2.fc_m0.bias', 'module.norm.affine_weight', 'module.norm.norm_l0.bias', 'module.norm.norm_l0.weight']
-Predicting on test.
-device 0:   0%|          | 0/1523 [00:00<?, ?it/s]device 0:   0%|          | 1/1523 [00:01<31:58,  1.26s/it]device 0:   0%|          | 2/1523 [00:01<15:31,  1.63it/s]device 0:   0%|          | 3/1523 [00:01<09:59,  2.54it/s]device 0:   0%|          | 4/1523 [00:01<07:54,  3.20it/s]device 0:   0%|          | 5/1523 [00:01<06:19,  4.00it/s]device 0:   0%|          | 6/1523 [00:02<05:23,  4.69it/s]device 0:   0%|          | 7/1523 [00:02<04:56,  5.12it/s]device 0:   1%|          | 8/1523 [00:02<04:35,  5.50it/s]device 0:   1%|          | 9/1523 [00:02<04:41,  5.37it/s]device 0:   1%|          | 10/1523 [00:02<04:37,  5.46it/s]device 0:   1%|          | 11/1523 [00:02<04:49,  5.23it/s]device 0:   1%|          | 12/1523 [00:03<04:26,  5.67it/s]device 0:   1%|          | 13/1523 [00:03<04:27,  5.65it/s]device 0:   1%|          | 14/1523 [00:03<04:10,  6.02it/s]device 0:   1%|          | 15/1523 [00:03<04:13,  5.95it/s]device 0:   1%|          | 16/1523 [00:03<04:16,  5.87it/s]device 0:   1%|          | 17/1523 [00:03<04:16,  5.86it/s]device 0:   1%|          | 18/1523 [00:04<04:09,  6.04it/s]device 0:   1%|          | 19/1523 [00:04<04:10,  6.01it/s]device 0:   1%|▏         | 20/1523 [00:04<03:54,  6.41it/s]device 0:   1%|▏         | 21/1523 [00:04<04:00,  6.26it/s]device 0:   1%|▏         | 22/1523 [00:04<04:08,  6.04it/s]device 0:   2%|▏         | 23/1523 [00:04<04:04,  6.13it/s]device 0:   2%|▏         | 24/1523 [00:05<04:01,  6.21it/s]device 0:   2%|▏         | 25/1523 [00:05<03:49,  6.53it/s]device 0:   2%|▏         | 26/1523 [00:05<03:43,  6.69it/s]device 0:   2%|▏         | 27/1523 [00:05<03:34,  6.97it/s]device 0:   2%|▏         | 28/1523 [00:05<03:53,  6.39it/s]device 0:   2%|▏         | 29/1523 [00:05<03:55,  6.34it/s]device 0:   2%|▏         | 30/1523 [00:05<03:55,  6.35it/s]device 0:   2%|▏         | 31/1523 [00:06<03:59,  6.24it/s]device 0:   2%|▏         | 32/1523 [00:06<04:59,  4.97it/s]device 0:   2%|▏         | 33/1523 [00:06<05:05,  4.88it/s]device 0:   2%|▏         | 34/1523 [00:06<04:34,  5.42it/s]device 0:   2%|▏         | 35/1523 [00:06<04:24,  5.64it/s]device 0:   2%|▏         | 36/1523 [00:07<04:16,  5.80it/s]device 0:   2%|▏         | 37/1523 [00:07<04:08,  5.98it/s]device 0:   2%|▏         | 38/1523 [00:07<03:55,  6.32it/s]device 0:   3%|▎         | 39/1523 [00:07<04:24,  5.62it/s]device 0:   3%|▎         | 40/1523 [00:07<04:20,  5.69it/s]device 0:   3%|▎         | 41/1523 [00:07<04:30,  5.48it/s]device 0:   3%|▎         | 42/1523 [00:08<04:40,  5.28it/s]device 0:   3%|▎         | 43/1523 [00:08<04:29,  5.50it/s]device 0:   3%|▎         | 44/1523 [00:08<04:32,  5.44it/s]device 0:   3%|▎         | 45/1523 [00:08<04:10,  5.90it/s]device 0:   3%|▎         | 46/1523 [00:08<04:02,  6.09it/s]device 0:   3%|▎         | 47/1523 [00:08<04:04,  6.03it/s]device 0:   3%|▎         | 48/1523 [00:09<04:12,  5.84it/s]device 0:   3%|▎         | 49/1523 [00:09<04:19,  5.67it/s]device 0:   3%|▎         | 50/1523 [00:09<04:24,  5.57it/s]device 0:   3%|▎         | 51/1523 [00:09<04:15,  5.76it/s]device 0:   3%|▎         | 52/1523 [00:09<04:00,  6.13it/s]device 0:   3%|▎         | 53/1523 [00:09<03:58,  6.15it/s]device 0:   4%|▎         | 54/1523 [00:10<03:59,  6.14it/s]device 0:   4%|▎         | 55/1523 [00:10<03:39,  6.68it/s]device 0:   4%|▎         | 56/1523 [00:10<03:28,  7.05it/s]device 0:   4%|▎         | 57/1523 [00:10<03:26,  7.11it/s]device 0:   4%|▍         | 58/1523 [00:10<03:19,  7.33it/s]device 0:   4%|▍         | 59/1523 [00:10<03:16,  7.45it/s]device 0:   4%|▍         | 60/1523 [00:10<03:12,  7.61it/s]device 0:   4%|▍         | 61/1523 [00:11<03:21,  7.27it/s]device 0:   4%|▍         | 62/1523 [00:11<03:18,  7.36it/s]device 0:   4%|▍         | 63/1523 [00:11<03:30,  6.92it/s]device 0:   4%|▍         | 64/1523 [00:11<03:23,  7.17it/s]device 0:   4%|▍         | 65/1523 [00:11<03:30,  6.91it/s]device 0:   4%|▍         | 66/1523 [00:11<03:18,  7.33it/s]device 0:   4%|▍         | 67/1523 [00:11<03:18,  7.34it/s]device 0:   4%|▍         | 68/1523 [00:12<03:16,  7.41it/s]device 0:   5%|▍         | 69/1523 [00:12<03:38,  6.65it/s]device 0:   5%|▍         | 70/1523 [00:12<03:28,  6.96it/s]device 0:   5%|▍         | 71/1523 [00:12<03:42,  6.53it/s]device 0:   5%|▍         | 72/1523 [00:12<03:39,  6.60it/s]device 0:   5%|▍         | 73/1523 [00:12<03:22,  7.16it/s]device 0:   5%|▍         | 74/1523 [00:12<03:15,  7.40it/s]device 0:   5%|▍         | 75/1523 [00:13<03:18,  7.29it/s]device 0:   5%|▍         | 76/1523 [00:13<03:12,  7.53it/s]device 0:   5%|▌         | 77/1523 [00:13<03:11,  7.56it/s]device 0:   5%|▌         | 78/1523 [00:13<03:25,  7.02it/s]device 0:   5%|▌         | 79/1523 [00:13<03:18,  7.28it/s]device 0:   5%|▌         | 80/1523 [00:13<03:11,  7.55it/s]device 0:   5%|▌         | 81/1523 [00:13<03:13,  7.45it/s]device 0:   5%|▌         | 82/1523 [00:13<03:24,  7.05it/s]device 0:   5%|▌         | 83/1523 [00:14<03:44,  6.41it/s]device 0:   6%|▌         | 84/1523 [00:14<03:31,  6.81it/s]device 0:   6%|▌         | 85/1523 [00:14<03:28,  6.91it/s]device 0:   6%|▌         | 86/1523 [00:14<03:20,  7.16it/s]device 0:   6%|▌         | 87/1523 [00:14<03:15,  7.36it/s]device 0:   6%|▌         | 88/1523 [00:14<03:26,  6.95it/s]device 0:   6%|▌         | 89/1523 [00:14<03:13,  7.41it/s]device 0:   6%|▌         | 90/1523 [00:15<03:10,  7.52it/s]device 0:   6%|▌         | 91/1523 [00:15<03:01,  7.90it/s]device 0:   6%|▌         | 92/1523 [00:15<03:10,  7.50it/s]device 0:   6%|▌         | 93/1523 [00:15<03:13,  7.39it/s]device 0:   6%|▌         | 94/1523 [00:15<03:24,  6.98it/s]device 0:   6%|▌         | 95/1523 [00:15<03:18,  7.21it/s]device 0:   6%|▋         | 96/1523 [00:15<03:23,  7.01it/s]device 0:   6%|▋         | 97/1523 [00:16<03:31,  6.75it/s]device 0:   6%|▋         | 98/1523 [00:16<03:41,  6.42it/s]device 0:   7%|▋         | 99/1523 [00:16<03:25,  6.94it/s]device 0:   7%|▋         | 100/1523 [00:16<03:21,  7.06it/s]device 0:   7%|▋         | 101/1523 [00:16<03:18,  7.17it/s]device 0:   7%|▋         | 102/1523 [00:16<03:18,  7.15it/s]device 0:   7%|▋         | 103/1523 [00:17<03:38,  6.49it/s]device 0:   7%|▋         | 104/1523 [00:17<03:36,  6.57it/s]device 0:   7%|▋         | 105/1523 [00:17<03:40,  6.42it/s]device 0:   7%|▋         | 106/1523 [00:17<03:30,  6.72it/s]device 0:   7%|▋         | 107/1523 [00:17<03:34,  6.59it/s]device 0:   7%|▋         | 108/1523 [00:17<03:35,  6.55it/s]device 0:   7%|▋         | 109/1523 [00:17<03:24,  6.92it/s]device 0:   7%|▋         | 110/1523 [00:18<03:14,  7.28it/s]device 0:   7%|▋         | 111/1523 [00:18<03:03,  7.68it/s]device 0:   7%|▋         | 112/1523 [00:18<03:23,  6.94it/s]device 0:   7%|▋         | 113/1523 [00:18<03:23,  6.93it/s]device 0:   7%|▋         | 114/1523 [00:18<03:19,  7.07it/s]device 0:   8%|▊         | 115/1523 [00:18<03:12,  7.32it/s]device 0:   8%|▊         | 116/1523 [00:18<03:08,  7.46it/s]device 0:   8%|▊         | 117/1523 [00:18<02:56,  7.98it/s]device 0:   8%|▊         | 118/1523 [00:19<02:57,  7.91it/s]device 0:   8%|▊         | 119/1523 [00:19<03:00,  7.76it/s]device 0:   8%|▊         | 120/1523 [00:19<03:18,  7.07it/s]device 0:   8%|▊         | 121/1523 [00:19<03:16,  7.14it/s]device 0:   8%|▊         | 122/1523 [00:19<04:06,  5.68it/s]device 0:   8%|▊         | 123/1523 [00:19<03:40,  6.34it/s]device 0:   8%|▊         | 124/1523 [00:20<03:28,  6.70it/s]device 0:   8%|▊         | 125/1523 [00:20<03:24,  6.82it/s]device 0:   8%|▊         | 126/1523 [00:20<03:46,  6.17it/s]device 0:   8%|▊         | 127/1523 [00:20<03:35,  6.49it/s]device 0:   8%|▊         | 128/1523 [00:20<03:40,  6.34it/s]device 0:   8%|▊         | 129/1523 [00:20<03:43,  6.24it/s]device 0:   9%|▊         | 130/1523 [00:21<03:53,  5.95it/s]device 0:   9%|▊         | 131/1523 [00:21<03:38,  6.36it/s]device 0:   9%|▊         | 132/1523 [00:21<03:30,  6.61it/s]device 0:   9%|▊         | 133/1523 [00:21<03:45,  6.16it/s]device 0:   9%|▉         | 134/1523 [00:21<03:28,  6.65it/s]device 0:   9%|▉         | 135/1523 [00:21<03:25,  6.75it/s]device 0:   9%|▉         | 136/1523 [00:21<03:32,  6.53it/s]device 0:   9%|▉         | 137/1523 [00:22<03:51,  5.99it/s]device 0:   9%|▉         | 138/1523 [00:22<03:34,  6.45it/s]device 0:   9%|▉         | 139/1523 [00:22<03:14,  7.12it/s]device 0:   9%|▉         | 140/1523 [00:22<03:08,  7.34it/s]device 0:   9%|▉         | 141/1523 [00:22<03:07,  7.37it/s]device 0:   9%|▉         | 142/1523 [00:22<03:26,  6.68it/s]device 0:   9%|▉         | 143/1523 [00:22<03:36,  6.38it/s]device 0:   9%|▉         | 144/1523 [00:23<03:15,  7.07it/s]device 0:  10%|▉         | 145/1523 [00:23<03:29,  6.57it/s]device 0:  10%|▉         | 146/1523 [00:23<03:34,  6.42it/s]device 0:  10%|▉         | 147/1523 [00:23<03:20,  6.88it/s]device 0:  10%|▉         | 148/1523 [00:23<03:07,  7.34it/s]device 0:  10%|▉         | 149/1523 [00:23<03:06,  7.37it/s]device 0:  10%|▉         | 150/1523 [00:23<03:12,  7.14it/s]device 0:  10%|▉         | 151/1523 [00:24<03:21,  6.80it/s]device 0:  10%|▉         | 152/1523 [00:24<03:22,  6.76it/s]device 0:  10%|█         | 153/1523 [00:24<03:27,  6.60it/s]device 0:  10%|█         | 154/1523 [00:24<03:21,  6.80it/s]device 0:  10%|█         | 155/1523 [00:24<03:12,  7.12it/s]device 0:  10%|█         | 156/1523 [00:24<03:13,  7.07it/s]device 0:  10%|█         | 157/1523 [00:24<03:13,  7.06it/s]device 0:  10%|█         | 158/1523 [00:25<03:09,  7.22it/s]device 0:  10%|█         | 159/1523 [00:25<03:13,  7.05it/s]device 0:  11%|█         | 160/1523 [00:25<03:08,  7.23it/s]device 0:  11%|█         | 161/1523 [00:25<03:15,  6.96it/s]device 0:  11%|█         | 162/1523 [00:25<03:21,  6.76it/s]device 0:  11%|█         | 163/1523 [00:25<03:35,  6.32it/s]device 0:  11%|█         | 164/1523 [00:25<03:26,  6.58it/s]device 0:  11%|█         | 165/1523 [00:26<03:20,  6.76it/s]device 0:  11%|█         | 166/1523 [00:26<03:23,  6.66it/s]device 0:  11%|█         | 167/1523 [00:26<03:08,  7.18it/s]device 0:  11%|█         | 168/1523 [00:26<03:12,  7.04it/s]device 0:  11%|█         | 169/1523 [00:26<03:21,  6.72it/s]device 0:  11%|█         | 170/1523 [00:26<03:34,  6.31it/s]device 0:  11%|█         | 171/1523 [00:27<03:34,  6.30it/s]device 0:  11%|█▏        | 172/1523 [00:27<03:52,  5.82it/s]device 0:  11%|█▏        | 173/1523 [00:27<03:59,  5.63it/s]device 0:  11%|█▏        | 174/1523 [00:27<03:35,  6.27it/s]device 0:  11%|█▏        | 175/1523 [00:27<03:19,  6.74it/s]device 0:  12%|█▏        | 176/1523 [00:27<03:27,  6.50it/s]device 0:  12%|█▏        | 177/1523 [00:27<03:08,  7.14it/s]device 0:  12%|█▏        | 178/1523 [00:28<02:57,  7.58it/s]device 0:  12%|█▏        | 179/1523 [00:28<03:19,  6.73it/s]device 0:  12%|█▏        | 180/1523 [00:28<03:22,  6.63it/s]device 0:  12%|█▏        | 181/1523 [00:28<03:11,  7.01it/s]device 0:  12%|█▏        | 182/1523 [00:28<02:57,  7.55it/s]device 0:  12%|█▏        | 183/1523 [00:29<05:02,  4.42it/s]device 0:  12%|█▏        | 184/1523 [00:29<04:36,  4.84it/s]device 0:  12%|█▏        | 185/1523 [00:29<04:11,  5.33it/s]device 0:  12%|█▏        | 186/1523 [00:29<03:47,  5.87it/s]device 0:  12%|█▏        | 187/1523 [00:29<03:33,  6.24it/s]device 0:  12%|█▏        | 188/1523 [00:29<03:27,  6.42it/s]device 0:  12%|█▏        | 189/1523 [00:29<03:22,  6.59it/s]device 0:  12%|█▏        | 190/1523 [00:30<03:32,  6.26it/s]device 0:  13%|█▎        | 191/1523 [00:30<03:25,  6.47it/s]device 0:  13%|█▎        | 192/1523 [00:30<03:16,  6.79it/s]device 0:  13%|█▎        | 193/1523 [00:30<03:10,  6.97it/s]device 0:  13%|█▎        | 194/1523 [00:30<03:17,  6.73it/s]device 0:  13%|█▎        | 195/1523 [00:30<03:15,  6.81it/s]device 0:  13%|█▎        | 196/1523 [00:30<03:11,  6.91it/s]device 0:  13%|█▎        | 197/1523 [00:31<03:27,  6.38it/s]device 0:  13%|█▎        | 198/1523 [00:31<03:20,  6.62it/s]device 0:  13%|█▎        | 199/1523 [00:31<03:16,  6.72it/s]device 0:  13%|█▎        | 200/1523 [00:31<03:18,  6.68it/s]device 0:  13%|█▎        | 201/1523 [00:31<03:13,  6.82it/s]device 0:  13%|█▎        | 202/1523 [00:31<03:14,  6.78it/s]device 0:  13%|█▎        | 203/1523 [00:32<03:28,  6.34it/s]device 0:  13%|█▎        | 204/1523 [00:32<03:18,  6.66it/s]device 0:  13%|█▎        | 205/1523 [00:32<03:16,  6.70it/s]device 0:  14%|█▎        | 206/1523 [00:32<03:17,  6.68it/s]device 0:  14%|█▎        | 207/1523 [00:32<03:05,  7.08it/s]device 0:  14%|█▎        | 208/1523 [00:32<03:02,  7.20it/s]device 0:  14%|█▎        | 209/1523 [00:32<02:58,  7.34it/s]device 0:  14%|█▍        | 210/1523 [00:33<02:57,  7.38it/s]device 0:  14%|█▍        | 211/1523 [00:33<02:54,  7.50it/s]device 0:  14%|█▍        | 212/1523 [00:33<02:54,  7.50it/s]device 0:  14%|█▍        | 213/1523 [00:33<02:50,  7.69it/s]device 0:  14%|█▍        | 214/1523 [00:33<03:11,  6.84it/s]device 0:  14%|█▍        | 215/1523 [00:33<02:54,  7.49it/s]device 0:  14%|█▍        | 216/1523 [00:33<03:12,  6.80it/s]device 0:  14%|█▍        | 217/1523 [00:34<03:11,  6.82it/s]device 0:  14%|█▍        | 218/1523 [00:34<03:04,  7.08it/s]device 0:  14%|█▍        | 219/1523 [00:34<03:00,  7.21it/s]device 0:  14%|█▍        | 220/1523 [00:34<02:51,  7.60it/s]device 0:  15%|█▍        | 221/1523 [00:34<02:57,  7.32it/s]device 0:  15%|█▍        | 222/1523 [00:34<03:00,  7.21it/s]device 0:  15%|█▍        | 223/1523 [00:34<03:04,  7.06it/s]device 0:  15%|█▍        | 224/1523 [00:34<02:53,  7.49it/s]device 0:  15%|█▍        | 225/1523 [00:35<03:09,  6.84it/s]device 0:  15%|█▍        | 226/1523 [00:35<03:07,  6.90it/s]device 0:  15%|█▍        | 227/1523 [00:35<02:59,  7.23it/s]device 0:  15%|█▍        | 228/1523 [00:35<02:44,  7.86it/s]device 0:  15%|█▌        | 229/1523 [00:35<03:03,  7.05it/s]device 0:  15%|█▌        | 230/1523 [00:35<03:06,  6.92it/s]device 0:  15%|█▌        | 231/1523 [00:35<03:09,  6.82it/s]device 0:  15%|█▌        | 232/1523 [00:36<03:29,  6.16it/s]device 0:  15%|█▌        | 233/1523 [00:36<03:19,  6.48it/s]device 0:  15%|█▌        | 234/1523 [00:36<03:09,  6.79it/s]device 0:  15%|█▌        | 235/1523 [00:36<02:54,  7.36it/s]device 0:  15%|█▌        | 236/1523 [00:36<03:22,  6.35it/s]device 0:  16%|█▌        | 237/1523 [00:36<03:17,  6.52it/s]device 0:  16%|█▌        | 238/1523 [00:37<03:09,  6.79it/s]device 0:  16%|█▌        | 239/1523 [00:37<03:02,  7.02it/s]device 0:  16%|█▌        | 240/1523 [00:37<03:19,  6.43it/s]device 0:  16%|█▌        | 241/1523 [00:37<03:13,  6.63it/s]device 0:  16%|█▌        | 242/1523 [00:37<03:18,  6.45it/s]device 0:  16%|█▌        | 243/1523 [00:37<03:39,  5.82it/s]device 0:  16%|█▌        | 244/1523 [00:37<03:27,  6.16it/s]device 0:  16%|█▌        | 245/1523 [00:38<03:28,  6.12it/s]device 0:  16%|█▌        | 246/1523 [00:38<03:30,  6.08it/s]device 0:  16%|█▌        | 247/1523 [00:38<03:14,  6.56it/s]device 0:  16%|█▋        | 248/1523 [00:38<03:12,  6.62it/s]device 0:  16%|█▋        | 249/1523 [00:38<03:11,  6.66it/s]device 0:  16%|█▋        | 250/1523 [00:38<03:04,  6.89it/s]device 0:  16%|█▋        | 251/1523 [00:39<03:04,  6.90it/s]device 0:  17%|█▋        | 252/1523 [00:39<03:15,  6.51it/s]device 0:  17%|█▋        | 253/1523 [00:39<03:22,  6.27it/s]device 0:  17%|█▋        | 254/1523 [00:39<03:30,  6.04it/s]device 0:  17%|█▋        | 255/1523 [00:39<03:29,  6.05it/s]device 0:  17%|█▋        | 256/1523 [00:39<03:18,  6.39it/s]device 0:  17%|█▋        | 257/1523 [00:39<03:10,  6.65it/s]device 0:  17%|█▋        | 258/1523 [00:40<03:16,  6.44it/s]device 0:  17%|█▋        | 259/1523 [00:40<03:01,  6.98it/s]device 0:  17%|█▋        | 260/1523 [00:40<02:54,  7.22it/s]device 0:  17%|█▋        | 261/1523 [00:40<03:00,  6.99it/s]device 0:  17%|█▋        | 262/1523 [00:40<02:52,  7.31it/s]device 0:  17%|█▋        | 263/1523 [00:40<03:03,  6.88it/s]device 0:  17%|█▋        | 264/1523 [00:41<03:18,  6.36it/s]device 0:  17%|█▋        | 265/1523 [00:41<03:35,  5.85it/s]device 0:  17%|█▋        | 266/1523 [00:41<03:29,  6.01it/s]device 0:  18%|█▊        | 267/1523 [00:41<03:33,  5.87it/s]device 0:  18%|█▊        | 268/1523 [00:41<03:25,  6.11it/s]device 0:  18%|█▊        | 269/1523 [00:41<03:22,  6.20it/s]device 0:  18%|█▊        | 270/1523 [00:41<03:14,  6.45it/s]device 0:  18%|█▊        | 271/1523 [00:42<03:12,  6.50it/s]device 0:  18%|█▊        | 272/1523 [00:42<03:16,  6.36it/s]device 0:  18%|█▊        | 273/1523 [00:42<03:27,  6.02it/s]device 0:  18%|█▊        | 274/1523 [00:42<03:35,  5.79it/s]device 0:  18%|█▊        | 275/1523 [00:42<03:43,  5.58it/s]device 0:  18%|█▊        | 276/1523 [00:43<03:57,  5.25it/s]device 0:  18%|█▊        | 277/1523 [00:43<03:46,  5.50it/s]device 0:  18%|█▊        | 278/1523 [00:43<03:30,  5.91it/s]device 0:  18%|█▊        | 279/1523 [00:43<03:47,  5.47it/s]device 0:  18%|█▊        | 280/1523 [00:43<03:37,  5.71it/s]device 0:  18%|█▊        | 281/1523 [00:43<03:43,  5.57it/s]device 0:  19%|█▊        | 282/1523 [00:44<03:31,  5.85it/s]device 0:  19%|█▊        | 283/1523 [00:44<03:37,  5.69it/s]device 0:  19%|█▊        | 284/1523 [00:44<03:25,  6.03it/s]device 0:  19%|█▊        | 285/1523 [00:44<03:27,  5.96it/s]device 0:  19%|█▉        | 286/1523 [00:44<03:33,  5.81it/s]device 0:  19%|█▉        | 287/1523 [00:44<03:31,  5.83it/s]device 0:  19%|█▉        | 288/1523 [00:45<03:35,  5.74it/s]device 0:  19%|█▉        | 289/1523 [00:45<03:29,  5.89it/s]device 0:  19%|█▉        | 290/1523 [00:45<03:28,  5.91it/s]device 0:  19%|█▉        | 291/1523 [00:45<03:15,  6.29it/s]device 0:  19%|█▉        | 292/1523 [00:45<03:01,  6.79it/s]device 0:  19%|█▉        | 293/1523 [00:45<02:57,  6.93it/s]device 0:  19%|█▉        | 294/1523 [00:46<03:03,  6.71it/s]device 0:  19%|█▉        | 295/1523 [00:46<03:01,  6.77it/s]device 0:  19%|█▉        | 296/1523 [00:46<03:19,  6.14it/s]device 0:  20%|█▉        | 297/1523 [00:46<03:23,  6.02it/s]device 0:  20%|█▉        | 298/1523 [00:46<03:21,  6.07it/s]device 0:  20%|█▉        | 299/1523 [00:46<03:05,  6.60it/s]device 0:  20%|█▉        | 300/1523 [00:47<03:26,  5.91it/s]device 0:  20%|█▉        | 302/1523 [00:47<02:52,  7.06it/s]device 0:  20%|█▉        | 303/1523 [00:47<02:52,  7.09it/s]device 0:  20%|█▉        | 304/1523 [00:47<02:56,  6.92it/s]device 0:  20%|██        | 305/1523 [00:47<03:06,  6.52it/s]device 0:  20%|██        | 306/1523 [00:47<03:00,  6.74it/s]device 0:  20%|██        | 307/1523 [00:48<03:04,  6.61it/s]device 0:  20%|██        | 308/1523 [00:48<02:58,  6.80it/s]device 0:  20%|██        | 309/1523 [00:48<02:51,  7.07it/s]device 0:  20%|██        | 310/1523 [00:48<02:53,  6.98it/s]device 0:  20%|██        | 311/1523 [00:48<02:49,  7.14it/s]device 0:  20%|██        | 312/1523 [00:48<02:49,  7.13it/s]device 0:  21%|██        | 313/1523 [00:48<02:38,  7.62it/s]device 0:  21%|██        | 314/1523 [00:48<02:37,  7.69it/s]device 0:  21%|██        | 315/1523 [00:49<02:43,  7.39it/s]device 0:  21%|██        | 316/1523 [00:49<02:41,  7.48it/s]device 0:  21%|██        | 317/1523 [00:49<02:39,  7.57it/s]device 0:  21%|██        | 318/1523 [00:49<02:46,  7.23it/s]device 0:  21%|██        | 319/1523 [00:49<02:47,  7.20it/s]device 0:  21%|██        | 320/1523 [00:49<02:44,  7.32it/s]device 0:  21%|██        | 321/1523 [00:49<02:57,  6.77it/s]device 0:  21%|██        | 322/1523 [00:50<02:47,  7.17it/s]device 0:  21%|██        | 323/1523 [00:50<02:42,  7.37it/s]device 0:  21%|██▏       | 324/1523 [00:50<02:43,  7.35it/s]device 0:  21%|██▏       | 325/1523 [00:50<02:34,  7.74it/s]device 0:  21%|██▏       | 326/1523 [00:50<02:42,  7.35it/s]device 0:  21%|██▏       | 327/1523 [00:50<02:35,  7.68it/s]device 0:  22%|██▏       | 328/1523 [00:50<02:32,  7.83it/s]device 0:  22%|██▏       | 329/1523 [00:51<02:53,  6.90it/s]device 0:  22%|██▏       | 330/1523 [00:51<02:46,  7.16it/s]device 0:  22%|██▏       | 331/1523 [00:51<02:51,  6.96it/s]device 0:  22%|██▏       | 332/1523 [00:51<02:45,  7.19it/s]device 0:  22%|██▏       | 333/1523 [00:51<02:58,  6.67it/s]device 0:  22%|██▏       | 334/1523 [00:51<02:46,  7.14it/s]device 0:  22%|██▏       | 335/1523 [00:51<03:08,  6.30it/s]device 0:  22%|██▏       | 336/1523 [00:52<02:57,  6.68it/s]device 0:  22%|██▏       | 337/1523 [00:52<02:59,  6.61it/s]device 0:  22%|██▏       | 338/1523 [00:52<02:46,  7.10it/s]device 0:  22%|██▏       | 339/1523 [00:52<02:49,  7.00it/s]device 0:  22%|██▏       | 340/1523 [00:52<02:48,  7.01it/s]device 0:  22%|██▏       | 341/1523 [00:52<02:45,  7.15it/s]device 0:  22%|██▏       | 342/1523 [00:52<02:57,  6.67it/s]device 0:  23%|██▎       | 343/1523 [00:53<02:59,  6.58it/s]device 0:  23%|██▎       | 344/1523 [00:53<03:07,  6.28it/s]device 0:  23%|██▎       | 345/1523 [00:53<03:00,  6.53it/s]device 0:  23%|██▎       | 346/1523 [00:53<02:45,  7.09it/s]device 0:  23%|██▎       | 347/1523 [00:53<02:46,  7.07it/s]device 0:  23%|██▎       | 348/1523 [00:53<03:02,  6.45it/s]device 0:  23%|██▎       | 349/1523 [00:54<03:51,  5.08it/s]device 0:  23%|██▎       | 350/1523 [00:54<03:22,  5.80it/s]device 0:  23%|██▎       | 351/1523 [00:54<03:08,  6.23it/s]device 0:  23%|██▎       | 352/1523 [00:54<02:52,  6.80it/s]device 0:  23%|██▎       | 353/1523 [00:54<02:45,  7.06it/s]device 0:  23%|██▎       | 354/1523 [00:54<02:42,  7.18it/s]device 0:  23%|██▎       | 355/1523 [00:54<02:53,  6.72it/s]device 0:  23%|██▎       | 356/1523 [00:55<02:48,  6.93it/s]device 0:  23%|██▎       | 357/1523 [00:55<02:44,  7.09it/s]device 0:  24%|██▎       | 358/1523 [00:55<02:41,  7.21it/s]device 0:  24%|██▎       | 359/1523 [00:55<02:41,  7.23it/s]device 0:  24%|██▎       | 360/1523 [00:55<02:49,  6.85it/s]device 0:  24%|██▎       | 361/1523 [00:55<02:42,  7.13it/s]device 0:  24%|██▍       | 362/1523 [00:55<02:44,  7.08it/s]device 0:  24%|██▍       | 363/1523 [00:56<02:33,  7.54it/s]device 0:  24%|██▍       | 364/1523 [00:56<02:30,  7.72it/s]device 0:  24%|██▍       | 365/1523 [00:56<02:31,  7.67it/s]device 0:  24%|██▍       | 366/1523 [00:56<02:22,  8.13it/s]device 0:  24%|██▍       | 367/1523 [00:56<02:33,  7.54it/s]device 0:  24%|██▍       | 368/1523 [00:56<02:35,  7.44it/s]device 0:  24%|██▍       | 369/1523 [00:56<02:35,  7.41it/s]device 0:  24%|██▍       | 370/1523 [00:56<02:36,  7.38it/s]device 0:  24%|██▍       | 371/1523 [00:57<02:26,  7.86it/s]device 0:  24%|██▍       | 372/1523 [00:57<02:28,  7.77it/s]device 0:  24%|██▍       | 373/1523 [00:57<02:33,  7.49it/s]device 0:  25%|██▍       | 374/1523 [00:57<02:32,  7.53it/s]device 0:  25%|██▍       | 375/1523 [00:57<02:43,  7.02it/s]device 0:  25%|██▍       | 376/1523 [00:57<02:37,  7.27it/s]device 0:  25%|██▍       | 377/1523 [00:57<02:38,  7.22it/s]device 0:  25%|██▍       | 378/1523 [00:58<02:40,  7.12it/s]device 0:  25%|██▍       | 379/1523 [00:58<02:50,  6.71it/s]device 0:  25%|██▍       | 380/1523 [00:58<02:53,  6.61it/s]device 0:  25%|██▌       | 381/1523 [00:58<02:49,  6.73it/s]device 0:  25%|██▌       | 382/1523 [00:58<02:42,  7.01it/s]device 0:  25%|██▌       | 383/1523 [00:58<02:39,  7.15it/s]device 0:  25%|██▌       | 384/1523 [00:58<02:37,  7.25it/s]device 0:  25%|██▌       | 385/1523 [00:59<02:42,  7.02it/s]device 0:  25%|██▌       | 386/1523 [00:59<02:36,  7.24it/s]device 0:  25%|██▌       | 387/1523 [00:59<02:53,  6.54it/s]device 0:  25%|██▌       | 388/1523 [00:59<02:48,  6.72it/s]device 0:  26%|██▌       | 389/1523 [00:59<02:52,  6.57it/s]device 0:  26%|██▌       | 390/1523 [00:59<02:44,  6.87it/s]device 0:  26%|██▌       | 391/1523 [00:59<02:41,  7.01it/s]device 0:  26%|██▌       | 392/1523 [01:00<02:39,  7.09it/s]device 0:  26%|██▌       | 393/1523 [01:00<02:33,  7.35it/s]device 0:  26%|██▌       | 394/1523 [01:00<02:42,  6.93it/s]device 0:  26%|██▌       | 395/1523 [01:00<02:42,  6.93it/s]device 0:  26%|██▌       | 396/1523 [01:00<02:54,  6.47it/s]device 0:  26%|██▌       | 397/1523 [01:00<02:46,  6.78it/s]device 0:  26%|██▌       | 398/1523 [01:00<02:44,  6.86it/s]device 0:  26%|██▋       | 400/1523 [01:01<02:32,  7.37it/s]device 0:  26%|██▋       | 401/1523 [01:01<02:40,  7.01it/s]device 0:  26%|██▋       | 402/1523 [01:01<02:42,  6.89it/s]device 0:  26%|██▋       | 403/1523 [01:01<02:32,  7.34it/s]device 0:  27%|██▋       | 404/1523 [01:01<02:35,  7.20it/s]device 0:  27%|██▋       | 405/1523 [01:01<02:36,  7.14it/s]device 0:  27%|██▋       | 406/1523 [01:02<02:40,  6.96it/s]device 0:  27%|██▋       | 407/1523 [01:02<02:43,  6.81it/s]device 0:  27%|██▋       | 408/1523 [01:02<02:38,  7.04it/s]device 0:  27%|██▋       | 409/1523 [01:02<02:27,  7.55it/s]device 0:  27%|██▋       | 410/1523 [01:02<02:27,  7.57it/s]device 0:  27%|██▋       | 411/1523 [01:02<02:29,  7.44it/s]device 0:  27%|██▋       | 412/1523 [01:02<02:35,  7.13it/s]device 0:  27%|██▋       | 413/1523 [01:03<02:58,  6.23it/s]device 0:  27%|██▋       | 414/1523 [01:03<02:51,  6.47it/s]device 0:  27%|██▋       | 415/1523 [01:03<02:50,  6.49it/s]device 0:  27%|██▋       | 416/1523 [01:03<02:39,  6.94it/s]device 0:  27%|██▋       | 418/1523 [01:03<02:37,  7.02it/s]device 0:  28%|██▊       | 419/1523 [01:03<02:31,  7.28it/s]device 0:  28%|██▊       | 420/1523 [01:04<02:28,  7.44it/s]device 0:  28%|██▊       | 421/1523 [01:04<02:29,  7.36it/s]device 0:  28%|██▊       | 422/1523 [01:04<02:28,  7.39it/s]device 0:  28%|██▊       | 423/1523 [01:04<02:44,  6.68it/s]device 0:  28%|██▊       | 424/1523 [01:04<02:38,  6.94it/s]device 0:  28%|██▊       | 425/1523 [01:04<02:42,  6.74it/s]device 0:  28%|██▊       | 426/1523 [01:04<02:41,  6.78it/s]device 0:  28%|██▊       | 427/1523 [01:05<02:37,  6.94it/s]device 0:  28%|██▊       | 428/1523 [01:05<02:50,  6.42it/s]device 0:  28%|██▊       | 429/1523 [01:05<02:45,  6.59it/s]device 0:  28%|██▊       | 430/1523 [01:05<02:46,  6.56it/s]device 0:  28%|██▊       | 431/1523 [01:05<02:29,  7.31it/s]device 0:  28%|██▊       | 432/1523 [01:05<02:34,  7.07it/s]device 0:  28%|██▊       | 433/1523 [01:05<02:39,  6.83it/s]device 0:  28%|██▊       | 434/1523 [01:06<02:30,  7.24it/s]device 0:  29%|██▊       | 435/1523 [01:06<02:39,  6.80it/s]device 0:  29%|██▊       | 436/1523 [01:06<02:28,  7.33it/s]device 0:  29%|██▊       | 437/1523 [01:06<02:37,  6.89it/s]device 0:  29%|██▉       | 438/1523 [01:06<02:36,  6.95it/s]device 0:  29%|██▉       | 439/1523 [01:06<02:38,  6.85it/s]device 0:  29%|██▉       | 440/1523 [01:06<02:35,  6.97it/s]device 0:  29%|██▉       | 441/1523 [01:07<02:34,  7.02it/s]device 0:  29%|██▉       | 442/1523 [01:07<02:41,  6.67it/s]device 0:  29%|██▉       | 443/1523 [01:07<02:47,  6.44it/s]device 0:  29%|██▉       | 444/1523 [01:07<02:47,  6.44it/s]device 0:  29%|██▉       | 445/1523 [01:07<02:52,  6.25it/s]device 0:  29%|██▉       | 446/1523 [01:07<02:35,  6.92it/s]device 0:  29%|██▉       | 447/1523 [01:08<02:37,  6.83it/s]device 0:  29%|██▉       | 448/1523 [01:08<02:43,  6.59it/s]device 0:  29%|██▉       | 449/1523 [01:08<02:37,  6.83it/s]device 0:  30%|██▉       | 450/1523 [01:08<02:46,  6.45it/s]device 0:  30%|██▉       | 451/1523 [01:08<03:00,  5.92it/s]device 0:  30%|██▉       | 452/1523 [01:08<02:49,  6.31it/s]device 0:  30%|██▉       | 453/1523 [01:08<02:50,  6.28it/s]device 0:  30%|██▉       | 454/1523 [01:09<02:47,  6.37it/s]device 0:  30%|██▉       | 455/1523 [01:09<02:38,  6.73it/s]device 0:  30%|██▉       | 456/1523 [01:09<02:44,  6.49it/s]device 0:  30%|███       | 457/1523 [01:09<02:42,  6.54it/s]device 0:  30%|███       | 458/1523 [01:09<02:46,  6.38it/s]device 0:  30%|███       | 459/1523 [01:09<02:33,  6.93it/s]device 0:  30%|███       | 460/1523 [01:10<02:39,  6.66it/s]device 0:  30%|███       | 461/1523 [01:10<02:34,  6.88it/s]device 0:  30%|███       | 462/1523 [01:10<02:32,  6.98it/s]device 0:  30%|███       | 463/1523 [01:10<02:44,  6.44it/s]device 0:  30%|███       | 464/1523 [01:10<02:47,  6.32it/s]device 0:  31%|███       | 465/1523 [01:10<02:51,  6.16it/s]device 0:  31%|███       | 466/1523 [01:10<02:41,  6.53it/s]device 0:  31%|███       | 467/1523 [01:11<02:35,  6.79it/s]device 0:  31%|███       | 468/1523 [01:11<02:28,  7.12it/s]device 0:  31%|███       | 470/1523 [01:11<02:16,  7.69it/s]device 0:  31%|███       | 471/1523 [01:11<02:25,  7.25it/s]device 0:  31%|███       | 472/1523 [01:11<02:30,  7.00it/s]device 0:  31%|███       | 473/1523 [01:11<02:19,  7.51it/s]device 0:  31%|███       | 474/1523 [01:12<02:27,  7.09it/s]device 0:  31%|███       | 475/1523 [01:12<02:29,  7.00it/s]device 0:  31%|███▏      | 476/1523 [01:12<02:23,  7.28it/s]device 0:  31%|███▏      | 477/1523 [01:12<02:34,  6.76it/s]device 0:  31%|███▏      | 478/1523 [01:12<02:44,  6.36it/s]device 0:  31%|███▏      | 479/1523 [01:12<02:33,  6.81it/s]device 0:  32%|███▏      | 480/1523 [01:12<02:34,  6.76it/s]device 0:  32%|███▏      | 481/1523 [01:13<02:27,  7.05it/s]device 0:  32%|███▏      | 482/1523 [01:13<03:34,  4.85it/s]device 0:  32%|███▏      | 483/1523 [01:13<03:15,  5.33it/s]device 0:  32%|███▏      | 484/1523 [01:13<03:13,  5.36it/s]device 0:  32%|███▏      | 485/1523 [01:14<03:38,  4.75it/s]device 0:  32%|███▏      | 486/1523 [01:14<03:28,  4.98it/s]device 0:  32%|███▏      | 487/1523 [01:14<03:23,  5.09it/s]device 0:  32%|███▏      | 488/1523 [01:14<03:24,  5.06it/s]device 0:  32%|███▏      | 489/1523 [01:14<02:56,  5.85it/s]device 0:  32%|███▏      | 490/1523 [01:14<02:42,  6.36it/s]device 0:  32%|███▏      | 491/1523 [01:14<02:44,  6.28it/s]device 0:  32%|███▏      | 492/1523 [01:15<02:37,  6.55it/s]device 0:  32%|███▏      | 493/1523 [01:15<02:28,  6.95it/s]device 0:  32%|███▏      | 494/1523 [01:15<02:36,  6.57it/s]device 0:  33%|███▎      | 495/1523 [01:15<02:26,  7.03it/s]device 0:  33%|███▎      | 496/1523 [01:15<02:20,  7.29it/s]device 0:  33%|███▎      | 497/1523 [01:15<02:17,  7.45it/s]device 0:  33%|███▎      | 498/1523 [01:15<02:08,  7.99it/s]device 0:  33%|███▎      | 499/1523 [01:16<02:08,  7.96it/s]device 0:  33%|███▎      | 500/1523 [01:16<02:12,  7.72it/s]device 0:  33%|███▎      | 501/1523 [01:16<02:13,  7.66it/s]device 0:  33%|███▎      | 502/1523 [01:16<02:15,  7.52it/s]device 0:  33%|███▎      | 503/1523 [01:16<02:26,  6.98it/s]device 0:  33%|███▎      | 504/1523 [01:16<02:45,  6.17it/s]device 0:  33%|███▎      | 505/1523 [01:16<02:40,  6.34it/s]device 0:  33%|███▎      | 506/1523 [01:17<02:41,  6.29it/s]device 0:  33%|███▎      | 507/1523 [01:17<02:35,  6.54it/s]device 0:  33%|███▎      | 508/1523 [01:17<02:43,  6.19it/s]device 0:  33%|███▎      | 509/1523 [01:17<02:36,  6.49it/s]device 0:  33%|███▎      | 510/1523 [01:17<02:34,  6.57it/s]device 0:  34%|███▎      | 511/1523 [01:17<02:56,  5.74it/s]device 0:  34%|███▎      | 512/1523 [01:18<02:53,  5.84it/s]device 0:  34%|███▎      | 513/1523 [01:18<02:43,  6.19it/s]device 0:  34%|███▎      | 514/1523 [01:18<02:36,  6.44it/s]device 0:  34%|███▍      | 515/1523 [01:18<02:32,  6.61it/s]device 0:  34%|███▍      | 516/1523 [01:18<02:50,  5.92it/s]device 0:  34%|███▍      | 517/1523 [01:18<03:06,  5.39it/s]device 0:  34%|███▍      | 518/1523 [01:19<02:57,  5.67it/s]device 0:  34%|███▍      | 519/1523 [01:19<02:51,  5.85it/s]device 0:  34%|███▍      | 520/1523 [01:19<02:36,  6.41it/s]device 0:  34%|███▍      | 521/1523 [01:19<02:49,  5.92it/s]device 0:  34%|███▍      | 522/1523 [01:19<02:42,  6.17it/s]device 0:  34%|███▍      | 523/1523 [01:19<02:49,  5.89it/s]device 0:  34%|███▍      | 524/1523 [01:20<02:46,  6.00it/s]device 0:  34%|███▍      | 525/1523 [01:20<02:37,  6.33it/s]device 0:  35%|███▍      | 526/1523 [01:20<02:34,  6.45it/s]device 0:  35%|███▍      | 527/1523 [01:20<02:48,  5.90it/s]device 0:  35%|███▍      | 528/1523 [01:20<02:46,  5.97it/s]device 0:  35%|███▍      | 529/1523 [01:20<02:55,  5.65it/s]device 0:  35%|███▍      | 530/1523 [01:21<02:58,  5.57it/s]device 0:  35%|███▍      | 531/1523 [01:21<02:57,  5.60it/s]device 0:  35%|███▍      | 532/1523 [01:21<02:56,  5.62it/s]device 0:  35%|███▍      | 533/1523 [01:21<02:48,  5.86it/s]device 0:  35%|███▌      | 534/1523 [01:21<02:47,  5.92it/s]device 0:  35%|███▌      | 535/1523 [01:21<02:37,  6.26it/s]device 0:  35%|███▌      | 536/1523 [01:22<02:57,  5.57it/s]device 0:  35%|███▌      | 537/1523 [01:22<03:02,  5.42it/s]device 0:  35%|███▌      | 538/1523 [01:22<03:08,  5.23it/s]device 0:  35%|███▌      | 539/1523 [01:22<03:08,  5.21it/s]device 0:  35%|███▌      | 540/1523 [01:22<03:00,  5.45it/s]device 0:  36%|███▌      | 541/1523 [01:23<03:09,  5.19it/s]device 0:  36%|███▌      | 542/1523 [01:23<03:03,  5.34it/s]device 0:  36%|███▌      | 543/1523 [01:23<02:55,  5.59it/s]device 0:  36%|███▌      | 544/1523 [01:23<02:55,  5.58it/s]device 0:  36%|███▌      | 545/1523 [01:23<02:58,  5.49it/s]device 0:  36%|███▌      | 546/1523 [01:23<02:51,  5.68it/s]device 0:  36%|███▌      | 547/1523 [01:24<02:48,  5.78it/s]device 0:  36%|███▌      | 548/1523 [01:24<02:44,  5.91it/s]device 0:  36%|███▌      | 549/1523 [01:24<02:32,  6.37it/s]device 0:  36%|███▌      | 550/1523 [01:24<02:41,  6.04it/s]device 0:  36%|███▌      | 551/1523 [01:24<02:47,  5.80it/s]device 0:  36%|███▌      | 552/1523 [01:25<03:01,  5.34it/s]device 0:  36%|███▋      | 553/1523 [01:25<02:55,  5.52it/s]device 0:  36%|███▋      | 554/1523 [01:25<02:47,  5.80it/s]device 0:  36%|███▋      | 555/1523 [01:25<02:44,  5.88it/s]device 0:  37%|███▋      | 556/1523 [01:25<02:29,  6.49it/s]device 0:  37%|███▋      | 557/1523 [01:25<02:33,  6.31it/s]device 0:  37%|███▋      | 558/1523 [01:25<02:35,  6.22it/s]device 0:  37%|███▋      | 559/1523 [01:26<02:36,  6.15it/s]device 0:  37%|███▋      | 560/1523 [01:26<02:28,  6.49it/s]device 0:  37%|███▋      | 561/1523 [01:26<02:17,  7.00it/s]device 0:  37%|███▋      | 562/1523 [01:26<02:20,  6.85it/s]device 0:  37%|███▋      | 563/1523 [01:26<02:23,  6.67it/s]device 0:  37%|███▋      | 564/1523 [01:26<02:15,  7.10it/s]device 0:  37%|███▋      | 565/1523 [01:26<02:14,  7.11it/s]device 0:  37%|███▋      | 566/1523 [01:27<02:49,  5.65it/s]device 0:  37%|███▋      | 567/1523 [01:27<02:37,  6.07it/s]device 0:  37%|███▋      | 568/1523 [01:27<02:40,  5.97it/s]device 0:  37%|███▋      | 569/1523 [01:27<02:45,  5.77it/s]device 0:  37%|███▋      | 570/1523 [01:27<02:45,  5.77it/s]device 0:  37%|███▋      | 571/1523 [01:28<02:32,  6.23it/s]device 0:  38%|███▊      | 572/1523 [01:28<02:27,  6.47it/s]device 0:  38%|███▊      | 573/1523 [01:28<02:35,  6.13it/s]device 0:  38%|███▊      | 574/1523 [01:28<02:36,  6.08it/s]device 0:  38%|███▊      | 575/1523 [01:28<02:33,  6.19it/s]device 0:  38%|███▊      | 576/1523 [01:28<02:39,  5.92it/s]device 0:  38%|███▊      | 577/1523 [01:29<02:38,  5.95it/s]device 0:  38%|███▊      | 578/1523 [01:29<02:47,  5.63it/s]device 0:  38%|███▊      | 579/1523 [01:29<02:27,  6.41it/s]device 0:  38%|███▊      | 580/1523 [01:29<02:25,  6.50it/s]device 0:  38%|███▊      | 581/1523 [01:29<02:22,  6.59it/s]device 0:  38%|███▊      | 582/1523 [01:29<02:22,  6.60it/s]device 0:  38%|███▊      | 583/1523 [01:29<02:18,  6.80it/s]device 0:  38%|███▊      | 584/1523 [01:30<02:21,  6.64it/s]device 0:  38%|███▊      | 585/1523 [01:30<02:33,  6.12it/s]device 0:  38%|███▊      | 586/1523 [01:30<02:26,  6.38it/s]device 0:  39%|███▊      | 587/1523 [01:30<02:20,  6.66it/s]device 0:  39%|███▊      | 588/1523 [01:30<02:16,  6.83it/s]device 0:  39%|███▊      | 589/1523 [01:30<02:15,  6.88it/s]device 0:  39%|███▊      | 590/1523 [01:30<02:12,  7.06it/s]device 0:  39%|███▉      | 591/1523 [01:31<02:14,  6.93it/s]device 0:  39%|███▉      | 592/1523 [01:31<02:17,  6.76it/s]device 0:  39%|███▉      | 593/1523 [01:31<02:15,  6.88it/s]device 0:  39%|███▉      | 594/1523 [01:31<02:26,  6.34it/s]device 0:  39%|███▉      | 595/1523 [01:31<02:27,  6.31it/s]device 0:  39%|███▉      | 596/1523 [01:31<02:27,  6.29it/s]device 0:  39%|███▉      | 597/1523 [01:32<02:19,  6.66it/s]device 0:  39%|███▉      | 598/1523 [01:32<02:18,  6.69it/s]device 0:  39%|███▉      | 599/1523 [01:32<02:17,  6.73it/s]device 0:  39%|███▉      | 600/1523 [01:32<02:07,  7.25it/s]device 0:  39%|███▉      | 601/1523 [01:32<02:16,  6.77it/s]device 0:  40%|███▉      | 602/1523 [01:32<02:12,  6.95it/s]device 0:  40%|███▉      | 603/1523 [01:32<02:06,  7.26it/s]device 0:  40%|███▉      | 604/1523 [01:33<02:06,  7.26it/s]device 0:  40%|███▉      | 605/1523 [01:33<02:00,  7.63it/s]device 0:  40%|███▉      | 606/1523 [01:33<02:01,  7.53it/s]device 0:  40%|███▉      | 607/1523 [01:33<01:59,  7.63it/s]device 0:  40%|███▉      | 608/1523 [01:33<02:03,  7.38it/s]device 0:  40%|███▉      | 609/1523 [01:33<02:03,  7.43it/s]device 0:  40%|████      | 610/1523 [01:33<02:05,  7.26it/s]device 0:  40%|████      | 611/1523 [01:33<02:09,  7.06it/s]device 0:  40%|████      | 612/1523 [01:34<02:08,  7.09it/s]device 0:  40%|████      | 613/1523 [01:34<02:17,  6.61it/s]device 0:  40%|████      | 614/1523 [01:34<02:16,  6.65it/s]device 0:  40%|████      | 615/1523 [01:34<02:17,  6.61it/s]device 0:  40%|████      | 616/1523 [01:34<02:06,  7.20it/s]device 0:  41%|████      | 617/1523 [01:34<02:15,  6.69it/s]device 0:  41%|████      | 618/1523 [01:35<02:14,  6.73it/s]device 0:  41%|████      | 619/1523 [01:35<02:14,  6.71it/s]device 0:  41%|████      | 620/1523 [01:35<02:08,  7.01it/s]device 0:  41%|████      | 621/1523 [01:35<02:03,  7.31it/s]device 0:  41%|████      | 622/1523 [01:35<02:15,  6.63it/s]device 0:  41%|████      | 623/1523 [01:35<02:20,  6.41it/s]device 0:  41%|████      | 624/1523 [01:35<02:22,  6.32it/s]device 0:  41%|████      | 625/1523 [01:36<02:17,  6.51it/s]device 0:  41%|████      | 626/1523 [01:36<02:15,  6.64it/s]device 0:  41%|████      | 627/1523 [01:36<02:16,  6.58it/s]device 0:  41%|████      | 628/1523 [01:36<02:10,  6.87it/s]device 0:  41%|████▏     | 629/1523 [01:36<02:02,  7.28it/s]device 0:  41%|████▏     | 630/1523 [01:36<02:04,  7.17it/s]device 0:  41%|████▏     | 631/1523 [01:36<02:13,  6.70it/s]device 0:  41%|████▏     | 632/1523 [01:37<02:03,  7.20it/s]device 0:  42%|████▏     | 633/1523 [01:37<02:02,  7.28it/s]device 0:  42%|████▏     | 634/1523 [01:37<01:59,  7.41it/s]device 0:  42%|████▏     | 635/1523 [01:37<02:02,  7.25it/s]device 0:  42%|████▏     | 636/1523 [01:37<02:14,  6.62it/s]device 0:  42%|████▏     | 637/1523 [01:37<02:27,  6.00it/s]device 0:  42%|████▏     | 638/1523 [01:37<02:22,  6.21it/s]device 0:  42%|████▏     | 639/1523 [01:38<02:21,  6.25it/s]device 0:  42%|████▏     | 640/1523 [01:38<02:18,  6.38it/s]device 0:  42%|████▏     | 641/1523 [01:38<02:14,  6.56it/s]device 0:  42%|████▏     | 642/1523 [01:38<02:15,  6.48it/s]device 0:  42%|████▏     | 643/1523 [01:38<02:19,  6.33it/s]device 0:  42%|████▏     | 644/1523 [01:38<02:08,  6.83it/s]device 0:  42%|████▏     | 645/1523 [01:39<02:02,  7.16it/s]device 0:  42%|████▏     | 646/1523 [01:39<01:59,  7.36it/s]device 0:  42%|████▏     | 647/1523 [01:39<02:04,  7.04it/s]device 0:  43%|████▎     | 648/1523 [01:39<02:09,  6.77it/s]device 0:  43%|████▎     | 649/1523 [01:39<02:09,  6.76it/s]device 0:  43%|████▎     | 650/1523 [01:39<02:16,  6.39it/s]device 0:  43%|████▎     | 651/1523 [01:40<03:22,  4.30it/s]device 0:  43%|████▎     | 652/1523 [01:40<03:16,  4.42it/s]device 0:  43%|████▎     | 653/1523 [01:40<03:11,  4.54it/s]device 0:  43%|████▎     | 654/1523 [01:40<02:50,  5.09it/s]device 0:  43%|████▎     | 655/1523 [01:40<02:35,  5.59it/s]device 0:  43%|████▎     | 656/1523 [01:41<02:23,  6.03it/s]device 0:  43%|████▎     | 657/1523 [01:41<02:16,  6.33it/s]device 0:  43%|████▎     | 658/1523 [01:41<02:13,  6.47it/s]device 0:  43%|████▎     | 659/1523 [01:41<02:11,  6.55it/s]device 0:  43%|████▎     | 660/1523 [01:41<02:09,  6.67it/s]device 0:  43%|████▎     | 661/1523 [01:41<02:09,  6.65it/s]device 0:  43%|████▎     | 662/1523 [01:41<01:58,  7.28it/s]device 0:  44%|████▎     | 663/1523 [01:41<01:57,  7.31it/s]device 0:  44%|████▎     | 664/1523 [01:42<02:00,  7.14it/s]device 0:  44%|████▎     | 665/1523 [01:42<01:56,  7.36it/s]device 0:  44%|████▎     | 666/1523 [01:42<01:56,  7.37it/s]device 0:  44%|████▍     | 667/1523 [01:42<01:58,  7.22it/s]device 0:  44%|████▍     | 668/1523 [01:42<02:03,  6.94it/s]device 0:  44%|████▍     | 669/1523 [01:42<02:11,  6.49it/s]device 0:  44%|████▍     | 670/1523 [01:42<02:00,  7.07it/s]device 0:  44%|████▍     | 671/1523 [01:43<01:58,  7.17it/s]device 0:  44%|████▍     | 672/1523 [01:43<02:05,  6.76it/s]device 0:  44%|████▍     | 673/1523 [01:43<02:08,  6.60it/s]device 0:  44%|████▍     | 674/1523 [01:43<02:15,  6.26it/s]device 0:  44%|████▍     | 675/1523 [01:43<02:15,  6.26it/s]device 0:  44%|████▍     | 676/1523 [01:43<02:12,  6.42it/s]device 0:  44%|████▍     | 677/1523 [01:44<02:12,  6.38it/s]device 0:  45%|████▍     | 678/1523 [01:44<02:11,  6.43it/s]device 0:  45%|████▍     | 679/1523 [01:44<02:01,  6.95it/s]device 0:  45%|████▍     | 680/1523 [01:44<01:59,  7.05it/s]device 0:  45%|████▍     | 681/1523 [01:44<01:56,  7.20it/s]device 0:  45%|████▍     | 682/1523 [01:44<02:03,  6.83it/s]device 0:  45%|████▍     | 683/1523 [01:44<02:08,  6.55it/s]device 0:  45%|████▍     | 684/1523 [01:45<02:08,  6.54it/s]device 0:  45%|████▍     | 685/1523 [01:45<01:58,  7.06it/s]device 0:  45%|████▌     | 686/1523 [01:45<02:01,  6.86it/s]device 0:  45%|████▌     | 687/1523 [01:45<02:12,  6.29it/s]device 0:  45%|████▌     | 688/1523 [01:45<02:06,  6.58it/s]device 0:  45%|████▌     | 689/1523 [01:45<01:57,  7.11it/s]device 0:  45%|████▌     | 690/1523 [01:46<02:07,  6.52it/s]device 0:  45%|████▌     | 691/1523 [01:46<02:14,  6.21it/s]device 0:  45%|████▌     | 692/1523 [01:46<02:14,  6.16it/s]device 0:  46%|████▌     | 693/1523 [01:46<02:10,  6.38it/s]device 0:  46%|████▌     | 694/1523 [01:46<02:13,  6.23it/s]device 0:  46%|████▌     | 695/1523 [01:46<02:09,  6.37it/s]device 0:  46%|████▌     | 696/1523 [01:46<02:09,  6.40it/s]device 0:  46%|████▌     | 697/1523 [01:47<02:09,  6.39it/s]device 0:  46%|████▌     | 698/1523 [01:47<02:03,  6.68it/s]device 0:  46%|████▌     | 699/1523 [01:47<02:03,  6.68it/s]device 0:  46%|████▌     | 700/1523 [01:47<02:11,  6.26it/s]device 0:  46%|████▌     | 701/1523 [01:47<02:15,  6.06it/s]device 0:  46%|████▌     | 702/1523 [01:47<02:05,  6.56it/s]device 0:  46%|████▌     | 703/1523 [01:48<02:08,  6.36it/s]device 0:  46%|████▌     | 704/1523 [01:48<02:10,  6.26it/s]device 0:  46%|████▋     | 705/1523 [01:48<02:09,  6.31it/s]device 0:  46%|████▋     | 706/1523 [01:48<02:04,  6.56it/s]device 0:  46%|████▋     | 707/1523 [01:48<02:08,  6.34it/s]device 0:  46%|████▋     | 708/1523 [01:48<02:12,  6.15it/s]device 0:  47%|████▋     | 709/1523 [01:48<02:02,  6.64it/s]device 0:  47%|████▋     | 710/1523 [01:49<01:59,  6.83it/s]device 0:  47%|████▋     | 711/1523 [01:49<01:58,  6.83it/s]device 0:  47%|████▋     | 712/1523 [01:49<01:56,  6.98it/s]device 0:  47%|████▋     | 713/1523 [01:49<02:02,  6.61it/s]device 0:  47%|████▋     | 714/1523 [01:49<01:54,  7.05it/s]device 0:  47%|████▋     | 715/1523 [01:49<01:55,  6.98it/s]device 0:  47%|████▋     | 716/1523 [01:49<01:53,  7.13it/s]device 0:  47%|████▋     | 717/1523 [01:50<01:57,  6.88it/s]device 0:  47%|████▋     | 718/1523 [01:50<01:57,  6.87it/s]device 0:  47%|████▋     | 719/1523 [01:50<01:58,  6.81it/s]device 0:  47%|████▋     | 720/1523 [01:50<02:09,  6.19it/s]device 0:  47%|████▋     | 721/1523 [01:50<02:13,  6.02it/s]device 0:  47%|████▋     | 722/1523 [01:50<02:00,  6.66it/s]device 0:  47%|████▋     | 723/1523 [01:51<01:58,  6.73it/s]device 0:  48%|████▊     | 724/1523 [01:51<02:00,  6.64it/s]device 0:  48%|████▊     | 725/1523 [01:51<01:59,  6.67it/s]device 0:  48%|████▊     | 726/1523 [01:51<01:51,  7.14it/s]device 0:  48%|████▊     | 727/1523 [01:51<01:47,  7.43it/s]device 0:  48%|████▊     | 728/1523 [01:51<01:46,  7.48it/s]device 0:  48%|████▊     | 729/1523 [01:51<01:47,  7.38it/s]device 0:  48%|████▊     | 730/1523 [01:52<01:49,  7.23it/s]device 0:  48%|████▊     | 731/1523 [01:52<01:48,  7.31it/s]device 0:  48%|████▊     | 732/1523 [01:52<01:54,  6.91it/s]device 0:  48%|████▊     | 733/1523 [01:52<01:59,  6.59it/s]device 0:  48%|████▊     | 734/1523 [01:52<01:52,  6.99it/s]device 0:  48%|████▊     | 735/1523 [01:52<01:54,  6.90it/s]device 0:  48%|████▊     | 736/1523 [01:52<01:47,  7.35it/s]device 0:  48%|████▊     | 737/1523 [01:53<01:57,  6.69it/s]device 0:  48%|████▊     | 738/1523 [01:53<02:02,  6.41it/s]device 0:  49%|████▊     | 739/1523 [01:53<02:09,  6.05it/s]device 0:  49%|████▊     | 740/1523 [01:53<02:11,  5.95it/s]device 0:  49%|████▊     | 741/1523 [01:53<01:56,  6.69it/s]device 0:  49%|████▊     | 742/1523 [01:53<02:00,  6.48it/s]device 0:  49%|████▉     | 743/1523 [01:54<01:59,  6.52it/s]device 0:  49%|████▉     | 744/1523 [01:54<02:02,  6.35it/s]device 0:  49%|████▉     | 745/1523 [01:54<01:59,  6.53it/s]device 0:  49%|████▉     | 746/1523 [01:54<01:55,  6.72it/s]device 0:  49%|████▉     | 747/1523 [01:54<01:54,  6.79it/s]device 0:  49%|████▉     | 748/1523 [01:54<01:51,  6.97it/s]device 0:  49%|████▉     | 749/1523 [01:54<01:52,  6.86it/s]device 0:  49%|████▉     | 750/1523 [01:55<01:47,  7.17it/s]device 0:  49%|████▉     | 751/1523 [01:55<01:45,  7.30it/s]device 0:  49%|████▉     | 752/1523 [01:55<01:52,  6.87it/s]device 0:  49%|████▉     | 753/1523 [01:55<01:48,  7.13it/s]device 0:  50%|████▉     | 754/1523 [01:55<01:50,  6.95it/s]device 0:  50%|████▉     | 755/1523 [01:55<01:47,  7.17it/s]device 0:  50%|████▉     | 756/1523 [01:55<01:44,  7.34it/s]device 0:  50%|████▉     | 757/1523 [01:56<01:50,  6.95it/s]device 0:  50%|████▉     | 758/1523 [01:56<02:01,  6.28it/s]device 0:  50%|████▉     | 759/1523 [01:56<01:52,  6.78it/s]device 0:  50%|████▉     | 760/1523 [01:56<01:52,  6.81it/s]device 0:  50%|████▉     | 761/1523 [01:56<01:50,  6.92it/s]device 0:  50%|█████     | 762/1523 [01:56<01:51,  6.84it/s]device 0:  50%|█████     | 763/1523 [01:56<01:49,  6.94it/s]device 0:  50%|█████     | 764/1523 [01:57<01:42,  7.40it/s]device 0:  50%|█████     | 765/1523 [01:57<01:52,  6.75it/s]device 0:  50%|█████     | 766/1523 [01:57<01:49,  6.94it/s]device 0:  50%|█████     | 767/1523 [01:57<01:45,  7.14it/s]device 0:  50%|█████     | 768/1523 [01:57<01:43,  7.26it/s]device 0:  50%|█████     | 769/1523 [01:57<01:36,  7.79it/s]device 0:  51%|█████     | 770/1523 [01:57<01:37,  7.71it/s]device 0:  51%|█████     | 771/1523 [01:57<01:40,  7.51it/s]device 0:  51%|█████     | 772/1523 [01:58<01:45,  7.11it/s]device 0:  51%|█████     | 773/1523 [01:58<01:51,  6.73it/s]device 0:  51%|█████     | 774/1523 [01:58<01:54,  6.56it/s]device 0:  51%|█████     | 775/1523 [01:58<01:56,  6.42it/s]device 0:  51%|█████     | 776/1523 [01:58<01:50,  6.76it/s]device 0:  51%|█████     | 777/1523 [01:58<01:44,  7.15it/s]device 0:  51%|█████     | 778/1523 [01:58<01:40,  7.42it/s]device 0:  51%|█████     | 779/1523 [01:59<01:35,  7.76it/s]device 0:  51%|█████     | 780/1523 [01:59<01:35,  7.77it/s]device 0:  51%|█████▏    | 781/1523 [01:59<01:40,  7.39it/s]device 0:  51%|█████▏    | 782/1523 [01:59<01:37,  7.60it/s]device 0:  51%|█████▏    | 783/1523 [01:59<01:44,  7.06it/s]device 0:  51%|█████▏    | 784/1523 [01:59<01:44,  7.07it/s]device 0:  52%|█████▏    | 785/1523 [01:59<01:40,  7.32it/s]device 0:  52%|█████▏    | 786/1523 [02:00<01:40,  7.31it/s]device 0:  52%|█████▏    | 787/1523 [02:00<01:43,  7.09it/s]device 0:  52%|█████▏    | 788/1523 [02:00<01:43,  7.09it/s]device 0:  52%|█████▏    | 789/1523 [02:00<01:39,  7.36it/s]device 0:  52%|█████▏    | 790/1523 [02:00<01:48,  6.78it/s]device 0:  52%|█████▏    | 791/1523 [02:00<01:56,  6.26it/s]device 0:  52%|█████▏    | 792/1523 [02:00<01:49,  6.70it/s]device 0:  52%|█████▏    | 793/1523 [02:01<01:41,  7.23it/s]device 0:  52%|█████▏    | 794/1523 [02:01<01:36,  7.56it/s]device 0:  52%|█████▏    | 795/1523 [02:01<01:41,  7.15it/s]device 0:  52%|█████▏    | 796/1523 [02:01<01:43,  6.99it/s]device 0:  52%|█████▏    | 797/1523 [02:01<01:47,  6.74it/s]device 0:  52%|█████▏    | 798/1523 [02:01<01:45,  6.88it/s]device 0:  52%|█████▏    | 799/1523 [02:01<01:47,  6.74it/s]device 0:  53%|█████▎    | 800/1523 [02:02<01:43,  6.98it/s]device 0:  53%|█████▎    | 801/1523 [02:02<01:39,  7.25it/s]device 0:  53%|█████▎    | 802/1523 [02:02<01:42,  7.02it/s]device 0:  53%|█████▎    | 803/1523 [02:02<01:36,  7.43it/s]device 0:  53%|█████▎    | 804/1523 [02:02<01:31,  7.85it/s]device 0:  53%|█████▎    | 805/1523 [02:02<01:37,  7.39it/s]device 0:  53%|█████▎    | 806/1523 [02:02<01:42,  7.03it/s]device 0:  53%|█████▎    | 807/1523 [02:03<01:49,  6.52it/s]device 0:  53%|█████▎    | 808/1523 [02:03<01:52,  6.35it/s]device 0:  53%|█████▎    | 809/1523 [02:03<01:48,  6.58it/s]device 0:  53%|█████▎    | 810/1523 [02:03<01:43,  6.87it/s]device 0:  53%|█████▎    | 811/1523 [02:03<01:40,  7.10it/s]device 0:  53%|█████▎    | 812/1523 [02:03<01:45,  6.77it/s]device 0:  53%|█████▎    | 813/1523 [02:04<01:55,  6.17it/s]device 0:  53%|█████▎    | 814/1523 [02:04<01:50,  6.41it/s]device 0:  54%|█████▎    | 815/1523 [02:04<01:52,  6.30it/s]device 0:  54%|█████▎    | 816/1523 [02:04<01:58,  5.96it/s]device 0:  54%|█████▎    | 817/1523 [02:04<01:53,  6.22it/s]device 0:  54%|█████▎    | 818/1523 [02:04<01:50,  6.37it/s]device 0:  54%|█████▍    | 819/1523 [02:04<01:51,  6.34it/s]device 0:  54%|█████▍    | 820/1523 [02:05<01:52,  6.27it/s]device 0:  54%|█████▍    | 821/1523 [02:05<01:52,  6.22it/s]device 0:  54%|█████▍    | 822/1523 [02:05<01:46,  6.57it/s]device 0:  54%|█████▍    | 823/1523 [02:05<01:50,  6.35it/s]device 0:  54%|█████▍    | 824/1523 [02:05<02:00,  5.81it/s]device 0:  54%|█████▍    | 825/1523 [02:05<01:52,  6.20it/s]device 0:  54%|█████▍    | 826/1523 [02:06<01:52,  6.19it/s]device 0:  54%|█████▍    | 827/1523 [02:06<01:57,  5.91it/s]device 0:  54%|█████▍    | 828/1523 [02:06<01:55,  6.01it/s]device 0:  54%|█████▍    | 829/1523 [02:06<01:55,  5.99it/s]device 0:  54%|█████▍    | 830/1523 [02:06<01:54,  6.07it/s]device 0:  55%|█████▍    | 831/1523 [02:06<01:49,  6.34it/s]device 0:  55%|█████▍    | 832/1523 [02:07<01:45,  6.56it/s]device 0:  55%|█████▍    | 833/1523 [02:07<01:52,  6.15it/s]device 0:  55%|█████▍    | 834/1523 [02:07<01:47,  6.38it/s]device 0:  55%|█████▍    | 835/1523 [02:07<01:42,  6.73it/s]device 0:  55%|█████▍    | 836/1523 [02:07<01:55,  5.94it/s]device 0:  55%|█████▍    | 837/1523 [02:07<01:48,  6.30it/s]device 0:  55%|█████▌    | 838/1523 [02:08<01:44,  6.56it/s]device 0:  55%|█████▌    | 839/1523 [02:08<01:49,  6.24it/s]device 0:  55%|█████▌    | 840/1523 [02:08<01:48,  6.31it/s]device 0:  55%|█████▌    | 841/1523 [02:08<01:58,  5.76it/s]device 0:  55%|█████▌    | 842/1523 [02:08<01:58,  5.73it/s]device 0:  55%|█████▌    | 843/1523 [02:08<02:01,  5.58it/s]device 0:  55%|█████▌    | 844/1523 [02:09<01:55,  5.86it/s]device 0:  55%|█████▌    | 845/1523 [02:09<01:51,  6.10it/s]device 0:  56%|█████▌    | 846/1523 [02:09<01:57,  5.79it/s]device 0:  56%|█████▌    | 847/1523 [02:09<01:50,  6.14it/s]device 0:  56%|█████▌    | 848/1523 [02:09<01:50,  6.13it/s]device 0:  56%|█████▌    | 849/1523 [02:09<01:47,  6.27it/s]device 0:  56%|█████▌    | 850/1523 [02:10<01:53,  5.95it/s]device 0:  56%|█████▌    | 851/1523 [02:10<01:52,  5.98it/s]device 0:  56%|█████▌    | 852/1523 [02:10<01:40,  6.66it/s]device 0:  56%|█████▌    | 853/1523 [02:10<01:37,  6.87it/s]device 0:  56%|█████▌    | 854/1523 [02:10<01:43,  6.46it/s]device 0:  56%|█████▌    | 855/1523 [02:10<01:38,  6.75it/s]device 0:  56%|█████▌    | 856/1523 [02:10<01:39,  6.73it/s]device 0:  56%|█████▋    | 857/1523 [02:11<01:50,  6.00it/s]device 0:  56%|█████▋    | 858/1523 [02:11<01:43,  6.44it/s]device 0:  56%|█████▋    | 859/1523 [02:11<01:52,  5.91it/s]device 0:  56%|█████▋    | 860/1523 [02:11<01:40,  6.58it/s]device 0:  57%|█████▋    | 861/1523 [02:11<01:34,  6.99it/s]device 0:  57%|█████▋    | 862/1523 [02:11<01:30,  7.33it/s]device 0:  57%|█████▋    | 863/1523 [02:11<01:32,  7.14it/s]device 0:  57%|█████▋    | 864/1523 [02:12<01:27,  7.55it/s]device 0:  57%|█████▋    | 865/1523 [02:12<01:27,  7.50it/s]device 0:  57%|█████▋    | 866/1523 [02:12<01:22,  7.93it/s]device 0:  57%|█████▋    | 867/1523 [02:12<01:36,  6.80it/s]device 0:  57%|█████▋    | 868/1523 [02:12<01:37,  6.69it/s]device 0:  57%|█████▋    | 869/1523 [02:12<01:37,  6.68it/s]device 0:  57%|█████▋    | 870/1523 [02:12<01:39,  6.54it/s]device 0:  57%|█████▋    | 871/1523 [02:13<01:38,  6.65it/s]device 0:  57%|█████▋    | 872/1523 [02:13<01:37,  6.70it/s]device 0:  57%|█████▋    | 873/1523 [02:13<01:38,  6.58it/s]device 0:  57%|█████▋    | 874/1523 [02:13<01:31,  7.10it/s]device 0:  57%|█████▋    | 875/1523 [02:13<01:30,  7.20it/s]device 0:  58%|█████▊    | 876/1523 [02:13<01:22,  7.80it/s]device 0:  58%|█████▊    | 877/1523 [02:13<01:23,  7.76it/s]device 0:  58%|█████▊    | 878/1523 [02:14<01:28,  7.31it/s]device 0:  58%|█████▊    | 879/1523 [02:14<01:30,  7.13it/s]device 0:  58%|█████▊    | 880/1523 [02:14<01:30,  7.14it/s]device 0:  58%|█████▊    | 881/1523 [02:14<01:36,  6.66it/s]device 0:  58%|█████▊    | 882/1523 [02:14<01:31,  7.03it/s]device 0:  58%|█████▊    | 883/1523 [02:14<01:31,  7.00it/s]device 0:  58%|█████▊    | 884/1523 [02:14<01:32,  6.87it/s]device 0:  58%|█████▊    | 885/1523 [02:15<01:28,  7.21it/s]device 0:  58%|█████▊    | 886/1523 [02:15<01:30,  7.04it/s]device 0:  58%|█████▊    | 887/1523 [02:15<01:26,  7.32it/s]device 0:  58%|█████▊    | 888/1523 [02:15<01:36,  6.61it/s]device 0:  58%|█████▊    | 889/1523 [02:15<01:41,  6.24it/s]device 0:  58%|█████▊    | 890/1523 [02:15<01:36,  6.53it/s]device 0:  59%|█████▊    | 891/1523 [02:15<01:33,  6.79it/s]device 0:  59%|█████▊    | 892/1523 [02:16<01:39,  6.33it/s]device 0:  59%|█████▊    | 894/1523 [02:16<01:37,  6.45it/s]device 0:  59%|█████▉    | 895/1523 [02:16<01:33,  6.74it/s]device 0:  59%|█████▉    | 896/1523 [02:16<01:34,  6.62it/s]device 0:  59%|█████▉    | 897/1523 [02:16<01:30,  6.91it/s]device 0:  59%|█████▉    | 898/1523 [02:17<01:28,  7.05it/s]device 0:  59%|█████▉    | 899/1523 [02:17<01:31,  6.83it/s]device 0:  59%|█████▉    | 900/1523 [02:17<01:35,  6.50it/s]device 0:  59%|█████▉    | 901/1523 [02:17<01:42,  6.10it/s]device 0:  59%|█████▉    | 902/1523 [02:17<01:37,  6.36it/s]device 0:  59%|█████▉    | 903/1523 [02:17<01:33,  6.61it/s]device 0:  59%|█████▉    | 904/1523 [02:18<01:37,  6.36it/s]device 0:  59%|█████▉    | 905/1523 [02:18<01:31,  6.75it/s]device 0:  59%|█████▉    | 906/1523 [02:18<01:26,  7.10it/s]device 0:  60%|█████▉    | 907/1523 [02:18<01:24,  7.31it/s]device 0:  60%|█████▉    | 908/1523 [02:18<01:23,  7.39it/s]device 0:  60%|█████▉    | 909/1523 [02:18<01:28,  6.94it/s]device 0:  60%|█████▉    | 910/1523 [02:18<01:29,  6.81it/s]device 0:  60%|█████▉    | 911/1523 [02:18<01:33,  6.52it/s]device 0:  60%|█████▉    | 912/1523 [02:19<01:31,  6.68it/s]device 0:  60%|█████▉    | 913/1523 [02:19<01:27,  6.95it/s]device 0:  60%|██████    | 914/1523 [02:19<01:27,  6.93it/s]device 0:  60%|██████    | 915/1523 [02:19<01:28,  6.85it/s]device 0:  60%|██████    | 916/1523 [02:19<01:31,  6.61it/s]device 0:  60%|██████    | 917/1523 [02:19<01:27,  6.95it/s]device 0:  60%|██████    | 918/1523 [02:19<01:24,  7.12it/s]device 0:  60%|██████    | 919/1523 [02:20<01:26,  6.98it/s]device 0:  60%|██████    | 920/1523 [02:20<01:30,  6.69it/s]device 0:  60%|██████    | 921/1523 [02:20<01:27,  6.91it/s]device 0:  61%|██████    | 922/1523 [02:20<01:25,  7.01it/s]device 0:  61%|██████    | 923/1523 [02:20<01:27,  6.88it/s]device 0:  61%|██████    | 924/1523 [02:20<01:26,  6.92it/s]device 0:  61%|██████    | 925/1523 [02:21<01:29,  6.66it/s]device 0:  61%|██████    | 926/1523 [02:21<01:29,  6.64it/s]device 0:  61%|██████    | 927/1523 [02:21<01:28,  6.76it/s]device 0:  61%|██████    | 928/1523 [02:21<01:23,  7.12it/s]device 0:  61%|██████    | 929/1523 [02:21<01:18,  7.54it/s]device 0:  61%|██████    | 930/1523 [02:21<01:23,  7.12it/s]device 0:  61%|██████    | 931/1523 [02:21<01:21,  7.28it/s]device 0:  61%|██████    | 932/1523 [02:21<01:17,  7.65it/s]device 0:  61%|██████▏   | 933/1523 [02:22<01:15,  7.80it/s]device 0:  61%|██████▏   | 934/1523 [02:22<01:13,  8.06it/s]device 0:  61%|██████▏   | 935/1523 [02:22<01:12,  8.16it/s]device 0:  61%|██████▏   | 936/1523 [02:22<01:13,  7.96it/s]device 0:  62%|██████▏   | 937/1523 [02:22<01:17,  7.53it/s]device 0:  62%|██████▏   | 938/1523 [02:22<01:20,  7.30it/s]device 0:  62%|██████▏   | 939/1523 [02:22<01:21,  7.19it/s]device 0:  62%|██████▏   | 940/1523 [02:23<01:25,  6.82it/s]device 0:  62%|██████▏   | 941/1523 [02:23<01:22,  7.09it/s]device 0:  62%|██████▏   | 942/1523 [02:23<01:18,  7.37it/s]device 0:  62%|██████▏   | 943/1523 [02:23<01:18,  7.36it/s]device 0:  62%|██████▏   | 944/1523 [02:23<01:20,  7.21it/s]device 0:  62%|██████▏   | 945/1523 [02:23<01:22,  7.03it/s]device 0:  62%|██████▏   | 946/1523 [02:23<01:23,  6.87it/s]device 0:  62%|██████▏   | 947/1523 [02:24<01:18,  7.34it/s]device 0:  62%|██████▏   | 948/1523 [02:24<01:19,  7.27it/s]device 0:  62%|██████▏   | 949/1523 [02:24<01:21,  7.04it/s]device 0:  62%|██████▏   | 950/1523 [02:24<01:15,  7.57it/s]device 0:  62%|██████▏   | 951/1523 [02:24<01:12,  7.87it/s]device 0:  63%|██████▎   | 952/1523 [02:24<01:17,  7.33it/s]device 0:  63%|██████▎   | 953/1523 [02:24<01:11,  7.95it/s]device 0:  63%|██████▎   | 954/1523 [02:24<01:14,  7.66it/s]device 0:  63%|██████▎   | 955/1523 [02:25<01:14,  7.64it/s]device 0:  63%|██████▎   | 956/1523 [02:25<01:13,  7.72it/s]device 0:  63%|██████▎   | 957/1523 [02:25<01:23,  6.80it/s]device 0:  63%|██████▎   | 958/1523 [02:25<01:21,  6.90it/s]device 0:  63%|██████▎   | 959/1523 [02:25<01:26,  6.49it/s]device 0:  63%|██████▎   | 960/1523 [02:25<01:22,  6.79it/s]device 0:  63%|██████▎   | 961/1523 [02:25<01:27,  6.43it/s]device 0:  63%|██████▎   | 962/1523 [02:26<01:25,  6.54it/s]device 0:  63%|██████▎   | 963/1523 [02:26<01:25,  6.58it/s]device 0:  63%|██████▎   | 964/1523 [02:26<01:31,  6.14it/s]device 0:  63%|██████▎   | 965/1523 [02:26<01:27,  6.38it/s]device 0:  63%|██████▎   | 966/1523 [02:26<01:26,  6.45it/s]device 0:  63%|██████▎   | 967/1523 [02:26<01:23,  6.67it/s]device 0:  64%|██████▎   | 968/1523 [02:27<01:20,  6.91it/s]device 0:  64%|██████▎   | 969/1523 [02:27<01:17,  7.16it/s]device 0:  64%|██████▎   | 970/1523 [02:27<01:13,  7.50it/s]device 0:  64%|██████▍   | 971/1523 [02:27<01:13,  7.46it/s]device 0:  64%|██████▍   | 972/1523 [02:27<01:12,  7.64it/s]device 0:  64%|██████▍   | 973/1523 [02:27<01:14,  7.35it/s]device 0:  64%|██████▍   | 974/1523 [02:27<01:15,  7.25it/s]device 0:  64%|██████▍   | 975/1523 [02:28<01:19,  6.86it/s]device 0:  64%|██████▍   | 976/1523 [02:28<01:22,  6.64it/s]device 0:  64%|██████▍   | 977/1523 [02:28<01:23,  6.55it/s]device 0:  64%|██████▍   | 978/1523 [02:28<01:20,  6.76it/s]device 0:  64%|██████▍   | 979/1523 [02:28<01:16,  7.11it/s]device 0:  64%|██████▍   | 980/1523 [02:28<01:18,  6.89it/s]device 0:  64%|██████▍   | 981/1523 [02:28<01:21,  6.63it/s]device 0:  64%|██████▍   | 982/1523 [02:29<01:17,  6.96it/s]device 0:  65%|██████▍   | 983/1523 [02:29<02:28,  3.62it/s]device 0:  65%|██████▍   | 984/1523 [02:29<02:08,  4.21it/s]device 0:  65%|██████▍   | 985/1523 [02:29<01:49,  4.92it/s]device 0:  65%|██████▍   | 986/1523 [02:30<01:47,  5.01it/s]device 0:  65%|██████▍   | 987/1523 [02:30<01:42,  5.25it/s]device 0:  65%|██████▍   | 988/1523 [02:30<01:31,  5.86it/s]device 0:  65%|██████▍   | 989/1523 [02:30<01:31,  5.84it/s]device 0:  65%|██████▌   | 990/1523 [02:30<01:33,  5.72it/s]device 0:  65%|██████▌   | 991/1523 [02:30<01:29,  5.94it/s]device 0:  65%|██████▌   | 992/1523 [02:30<01:21,  6.55it/s]device 0:  65%|██████▌   | 993/1523 [02:31<01:15,  7.04it/s]device 0:  65%|██████▌   | 994/1523 [02:31<01:18,  6.70it/s]device 0:  65%|██████▌   | 995/1523 [02:31<01:18,  6.74it/s]device 0:  65%|██████▌   | 996/1523 [02:31<01:20,  6.57it/s]device 0:  65%|██████▌   | 997/1523 [02:31<01:21,  6.47it/s]device 0:  66%|██████▌   | 998/1523 [02:31<01:22,  6.40it/s]device 0:  66%|██████▌   | 999/1523 [02:32<01:20,  6.50it/s]device 0:  66%|██████▌   | 1000/1523 [02:32<01:18,  6.65it/s]device 0:  66%|██████▌   | 1001/1523 [02:32<01:16,  6.79it/s]device 0:  66%|██████▌   | 1002/1523 [02:32<01:14,  7.03it/s]device 0:  66%|██████▌   | 1003/1523 [02:32<01:11,  7.26it/s]device 0:  66%|██████▌   | 1004/1523 [02:32<01:11,  7.26it/s]device 0:  66%|██████▌   | 1005/1523 [02:32<01:15,  6.90it/s]device 0:  66%|██████▌   | 1006/1523 [02:33<01:10,  7.29it/s]device 0:  66%|██████▌   | 1007/1523 [02:33<01:11,  7.22it/s]device 0:  66%|██████▌   | 1008/1523 [02:33<01:14,  6.87it/s]device 0:  66%|██████▋   | 1009/1523 [02:33<01:11,  7.20it/s]device 0:  66%|██████▋   | 1010/1523 [02:33<01:11,  7.18it/s]device 0:  66%|██████▋   | 1011/1523 [02:33<01:28,  5.81it/s]device 0:  66%|██████▋   | 1012/1523 [02:33<01:24,  6.08it/s]device 0:  67%|██████▋   | 1013/1523 [02:34<01:19,  6.42it/s]device 0:  67%|██████▋   | 1014/1523 [02:34<01:18,  6.49it/s]device 0:  67%|██████▋   | 1015/1523 [02:34<01:13,  6.89it/s]device 0:  67%|██████▋   | 1016/1523 [02:34<01:19,  6.39it/s]device 0:  67%|██████▋   | 1017/1523 [02:34<01:19,  6.39it/s]device 0:  67%|██████▋   | 1018/1523 [02:34<01:21,  6.21it/s]device 0:  67%|██████▋   | 1019/1523 [02:35<01:17,  6.54it/s]device 0:  67%|██████▋   | 1020/1523 [02:35<01:16,  6.61it/s]device 0:  67%|██████▋   | 1021/1523 [02:35<01:18,  6.42it/s]device 0:  67%|██████▋   | 1022/1523 [02:35<01:15,  6.68it/s]device 0:  67%|██████▋   | 1023/1523 [02:35<01:16,  6.57it/s]device 0:  67%|██████▋   | 1024/1523 [02:35<01:16,  6.53it/s]device 0:  67%|██████▋   | 1025/1523 [02:35<01:10,  7.04it/s]device 0:  67%|██████▋   | 1026/1523 [02:36<01:12,  6.90it/s]device 0:  67%|██████▋   | 1027/1523 [02:36<01:10,  7.04it/s]device 0:  67%|██████▋   | 1028/1523 [02:36<01:08,  7.20it/s]device 0:  68%|██████▊   | 1029/1523 [02:36<01:10,  7.06it/s]device 0:  68%|██████▊   | 1030/1523 [02:36<01:16,  6.49it/s]device 0:  68%|██████▊   | 1031/1523 [02:36<01:18,  6.24it/s]device 0:  68%|██████▊   | 1032/1523 [02:36<01:16,  6.42it/s]device 0:  68%|██████▊   | 1033/1523 [02:37<01:16,  6.44it/s]device 0:  68%|██████▊   | 1034/1523 [02:37<01:09,  7.05it/s]device 0:  68%|██████▊   | 1035/1523 [02:37<01:08,  7.16it/s]device 0:  68%|██████▊   | 1036/1523 [02:37<01:09,  6.99it/s]device 0:  68%|██████▊   | 1037/1523 [02:37<01:11,  6.79it/s]device 0:  68%|██████▊   | 1038/1523 [02:37<01:15,  6.41it/s]device 0:  68%|██████▊   | 1039/1523 [02:38<01:19,  6.06it/s]device 0:  68%|██████▊   | 1040/1523 [02:38<01:24,  5.73it/s]device 0:  68%|██████▊   | 1041/1523 [02:38<01:21,  5.94it/s]device 0:  68%|██████▊   | 1042/1523 [02:38<01:19,  6.06it/s]device 0:  68%|██████▊   | 1043/1523 [02:38<01:19,  6.05it/s]device 0:  69%|██████▊   | 1044/1523 [02:38<01:21,  5.90it/s]device 0:  69%|██████▊   | 1045/1523 [02:39<01:13,  6.54it/s]device 0:  69%|██████▊   | 1046/1523 [02:39<01:13,  6.49it/s]device 0:  69%|██████▊   | 1047/1523 [02:39<01:12,  6.61it/s]device 0:  69%|██████▉   | 1048/1523 [02:39<01:10,  6.70it/s]device 0:  69%|██████▉   | 1049/1523 [02:39<01:15,  6.26it/s]device 0:  69%|██████▉   | 1050/1523 [02:39<01:20,  5.89it/s]device 0:  69%|██████▉   | 1051/1523 [02:39<01:17,  6.12it/s]device 0:  69%|██████▉   | 1052/1523 [02:40<01:14,  6.29it/s]device 0:  69%|██████▉   | 1053/1523 [02:40<01:11,  6.59it/s]device 0:  69%|██████▉   | 1054/1523 [02:40<01:08,  6.86it/s]device 0:  69%|██████▉   | 1055/1523 [02:40<01:04,  7.22it/s]device 0:  69%|██████▉   | 1056/1523 [02:40<01:08,  6.82it/s]device 0:  69%|██████▉   | 1057/1523 [02:40<01:15,  6.21it/s]device 0:  69%|██████▉   | 1058/1523 [02:41<01:10,  6.60it/s]device 0:  70%|██████▉   | 1059/1523 [02:41<01:10,  6.55it/s]device 0:  70%|██████▉   | 1060/1523 [02:41<01:12,  6.43it/s]device 0:  70%|██████▉   | 1061/1523 [02:41<01:11,  6.46it/s]device 0:  70%|██████▉   | 1062/1523 [02:41<01:09,  6.65it/s]device 0:  70%|██████▉   | 1063/1523 [02:41<01:07,  6.80it/s]device 0:  70%|██████▉   | 1064/1523 [02:41<01:05,  7.02it/s]device 0:  70%|██████▉   | 1065/1523 [02:42<01:11,  6.42it/s]device 0:  70%|██████▉   | 1066/1523 [02:42<01:06,  6.89it/s]device 0:  70%|███████   | 1067/1523 [02:42<01:09,  6.55it/s]device 0:  70%|███████   | 1068/1523 [02:42<01:13,  6.19it/s]device 0:  70%|███████   | 1069/1523 [02:42<01:08,  6.65it/s]device 0:  70%|███████   | 1070/1523 [02:42<01:08,  6.64it/s]device 0:  70%|███████   | 1071/1523 [02:42<01:04,  7.03it/s]device 0:  70%|███████   | 1072/1523 [02:43<01:03,  7.09it/s]device 0:  70%|███████   | 1073/1523 [02:43<01:02,  7.26it/s]device 0:  71%|███████   | 1074/1523 [02:43<00:59,  7.50it/s]device 0:  71%|███████   | 1075/1523 [02:43<01:02,  7.13it/s]device 0:  71%|███████   | 1076/1523 [02:43<01:02,  7.16it/s]device 0:  71%|███████   | 1077/1523 [02:43<01:01,  7.26it/s]device 0:  71%|███████   | 1078/1523 [02:43<01:01,  7.29it/s]device 0:  71%|███████   | 1079/1523 [02:44<01:05,  6.82it/s]device 0:  71%|███████   | 1080/1523 [02:44<01:06,  6.69it/s]device 0:  71%|███████   | 1081/1523 [02:44<01:03,  7.00it/s]device 0:  71%|███████   | 1082/1523 [02:44<01:05,  6.68it/s]device 0:  71%|███████   | 1083/1523 [02:44<01:05,  6.76it/s]device 0:  71%|███████   | 1084/1523 [02:44<01:05,  6.73it/s]device 0:  71%|███████   | 1085/1523 [02:44<01:03,  6.88it/s]device 0:  71%|███████▏  | 1086/1523 [02:45<01:02,  7.03it/s]device 0:  71%|███████▏  | 1087/1523 [02:45<01:02,  6.95it/s]device 0:  71%|███████▏  | 1088/1523 [02:45<01:05,  6.66it/s]device 0:  72%|███████▏  | 1089/1523 [02:45<01:00,  7.22it/s]device 0:  72%|███████▏  | 1090/1523 [02:45<01:03,  6.84it/s]device 0:  72%|███████▏  | 1091/1523 [02:45<00:59,  7.22it/s]device 0:  72%|███████▏  | 1092/1523 [02:45<01:00,  7.17it/s]device 0:  72%|███████▏  | 1093/1523 [02:46<01:00,  7.15it/s]device 0:  72%|███████▏  | 1094/1523 [02:46<01:00,  7.11it/s]device 0:  72%|███████▏  | 1095/1523 [02:46<00:58,  7.28it/s]device 0:  72%|███████▏  | 1096/1523 [02:46<01:01,  6.98it/s]device 0:  72%|███████▏  | 1097/1523 [02:46<00:57,  7.35it/s]device 0:  72%|███████▏  | 1098/1523 [02:46<00:55,  7.71it/s]device 0:  72%|███████▏  | 1099/1523 [02:46<00:56,  7.50it/s]device 0:  72%|███████▏  | 1100/1523 [02:47<00:57,  7.36it/s]device 0:  72%|███████▏  | 1101/1523 [02:47<01:01,  6.84it/s]device 0:  72%|███████▏  | 1102/1523 [02:47<01:01,  6.80it/s]device 0:  72%|███████▏  | 1103/1523 [02:47<01:02,  6.71it/s]device 0:  72%|███████▏  | 1104/1523 [02:47<00:59,  7.03it/s]device 0:  73%|███████▎  | 1105/1523 [02:47<01:00,  6.94it/s]device 0:  73%|███████▎  | 1106/1523 [02:47<01:03,  6.60it/s]device 0:  73%|███████▎  | 1107/1523 [02:48<01:01,  6.80it/s]device 0:  73%|███████▎  | 1108/1523 [02:48<00:56,  7.37it/s]device 0:  73%|███████▎  | 1109/1523 [02:48<01:01,  6.76it/s]device 0:  73%|███████▎  | 1110/1523 [02:48<01:01,  6.74it/s]device 0:  73%|███████▎  | 1111/1523 [02:48<01:00,  6.78it/s]device 0:  73%|███████▎  | 1112/1523 [02:48<00:59,  6.93it/s]device 0:  73%|███████▎  | 1113/1523 [02:48<00:59,  6.85it/s]device 0:  73%|███████▎  | 1114/1523 [02:49<00:57,  7.06it/s]device 0:  73%|███████▎  | 1115/1523 [02:49<00:59,  6.88it/s]device 0:  73%|███████▎  | 1116/1523 [02:49<01:00,  6.74it/s]device 0:  73%|███████▎  | 1117/1523 [02:49<00:58,  6.90it/s]device 0:  73%|███████▎  | 1118/1523 [02:49<01:01,  6.62it/s]device 0:  73%|███████▎  | 1119/1523 [02:49<00:56,  7.14it/s]device 0:  74%|███████▎  | 1120/1523 [02:49<01:01,  6.56it/s]device 0:  74%|███████▎  | 1121/1523 [02:50<01:03,  6.35it/s]device 0:  74%|███████▎  | 1122/1523 [02:50<01:00,  6.65it/s]device 0:  74%|███████▎  | 1123/1523 [02:50<00:58,  6.88it/s]device 0:  74%|███████▍  | 1124/1523 [02:50<01:01,  6.54it/s]device 0:  74%|███████▍  | 1125/1523 [02:50<01:01,  6.49it/s]device 0:  74%|███████▍  | 1126/1523 [02:50<00:58,  6.76it/s]device 0:  74%|███████▍  | 1127/1523 [02:51<00:59,  6.70it/s]device 0:  74%|███████▍  | 1128/1523 [02:51<00:58,  6.75it/s]device 0:  74%|███████▍  | 1129/1523 [02:51<00:58,  6.71it/s]device 0:  74%|███████▍  | 1130/1523 [02:51<00:55,  7.06it/s]device 0:  74%|███████▍  | 1131/1523 [02:51<01:00,  6.50it/s]device 0:  74%|███████▍  | 1132/1523 [02:51<00:59,  6.60it/s]device 0:  74%|███████▍  | 1133/1523 [02:51<00:58,  6.64it/s]device 0:  74%|███████▍  | 1134/1523 [02:52<00:56,  6.88it/s]device 0:  75%|███████▍  | 1135/1523 [02:52<01:03,  6.15it/s]device 0:  75%|███████▍  | 1136/1523 [02:52<01:00,  6.44it/s]device 0:  75%|███████▍  | 1137/1523 [02:52<01:01,  6.26it/s]device 0:  75%|███████▍  | 1138/1523 [02:52<01:00,  6.36it/s]device 0:  75%|███████▍  | 1139/1523 [02:52<00:55,  6.89it/s]device 0:  75%|███████▍  | 1140/1523 [02:52<00:53,  7.17it/s]device 0:  75%|███████▍  | 1141/1523 [02:53<01:01,  6.25it/s]device 0:  75%|███████▍  | 1142/1523 [02:53<00:55,  6.88it/s]device 0:  75%|███████▌  | 1143/1523 [02:53<01:00,  6.28it/s]device 0:  75%|███████▌  | 1144/1523 [02:53<00:57,  6.57it/s]device 0:  75%|███████▌  | 1145/1523 [02:53<00:56,  6.69it/s]device 0:  75%|███████▌  | 1146/1523 [02:53<00:54,  6.92it/s]device 0:  75%|███████▌  | 1147/1523 [02:54<00:52,  7.17it/s]device 0:  75%|███████▌  | 1148/1523 [02:54<00:50,  7.44it/s]device 0:  75%|███████▌  | 1149/1523 [02:54<00:54,  6.89it/s]device 0:  76%|███████▌  | 1150/1523 [02:54<00:55,  6.69it/s]device 0:  76%|███████▌  | 1151/1523 [02:54<00:52,  7.12it/s]device 0:  76%|███████▌  | 1152/1523 [02:54<00:55,  6.72it/s]device 0:  76%|███████▌  | 1153/1523 [02:54<00:50,  7.28it/s]device 0:  76%|███████▌  | 1154/1523 [02:55<00:50,  7.28it/s]device 0:  76%|███████▌  | 1155/1523 [02:55<00:48,  7.56it/s]device 0:  76%|███████▌  | 1156/1523 [02:55<00:48,  7.59it/s]device 0:  76%|███████▌  | 1157/1523 [02:55<00:49,  7.44it/s]device 0:  76%|███████▌  | 1158/1523 [02:55<00:46,  7.77it/s]device 0:  76%|███████▌  | 1159/1523 [02:55<00:52,  6.89it/s]device 0:  76%|███████▌  | 1160/1523 [02:55<00:50,  7.13it/s]device 0:  76%|███████▌  | 1161/1523 [02:55<00:50,  7.12it/s]device 0:  76%|███████▋  | 1162/1523 [02:56<00:49,  7.28it/s]device 0:  76%|███████▋  | 1163/1523 [02:56<00:45,  7.85it/s]device 0:  76%|███████▋  | 1164/1523 [02:56<00:47,  7.49it/s]device 0:  76%|███████▋  | 1165/1523 [02:56<00:50,  7.10it/s]device 0:  77%|███████▋  | 1166/1523 [02:56<00:52,  6.74it/s]device 0:  77%|███████▋  | 1167/1523 [02:56<00:54,  6.48it/s]device 0:  77%|███████▋  | 1168/1523 [02:56<00:50,  7.06it/s]device 0:  77%|███████▋  | 1169/1523 [02:57<00:52,  6.75it/s]device 0:  77%|███████▋  | 1170/1523 [02:57<00:51,  6.84it/s]device 0:  77%|███████▋  | 1171/1523 [02:57<00:53,  6.57it/s]device 0:  77%|███████▋  | 1172/1523 [02:57<00:48,  7.17it/s]device 0:  77%|███████▋  | 1173/1523 [02:57<00:47,  7.31it/s]device 0:  77%|███████▋  | 1174/1523 [02:57<00:46,  7.43it/s]device 0:  77%|███████▋  | 1175/1523 [02:57<00:49,  7.07it/s]device 0:  77%|███████▋  | 1176/1523 [02:58<00:48,  7.16it/s]device 0:  77%|███████▋  | 1177/1523 [02:58<00:46,  7.38it/s]device 0:  77%|███████▋  | 1178/1523 [02:58<00:45,  7.59it/s]device 0:  77%|███████▋  | 1179/1523 [02:58<00:45,  7.64it/s]device 0:  77%|███████▋  | 1180/1523 [02:58<00:50,  6.78it/s]device 0:  78%|███████▊  | 1181/1523 [02:58<00:50,  6.77it/s]device 0:  78%|███████▊  | 1182/1523 [02:58<00:49,  6.86it/s]device 0:  78%|███████▊  | 1183/1523 [02:59<00:48,  6.97it/s]device 0:  78%|███████▊  | 1184/1523 [02:59<00:51,  6.52it/s]device 0:  78%|███████▊  | 1185/1523 [02:59<00:49,  6.82it/s]device 0:  78%|███████▊  | 1186/1523 [02:59<00:51,  6.58it/s]device 0:  78%|███████▊  | 1187/1523 [02:59<00:47,  7.02it/s]device 0:  78%|███████▊  | 1188/1523 [02:59<00:50,  6.62it/s]device 0:  78%|███████▊  | 1189/1523 [03:00<00:57,  5.85it/s]device 0:  78%|███████▊  | 1191/1523 [03:00<00:46,  7.16it/s]device 0:  78%|███████▊  | 1192/1523 [03:00<00:46,  7.05it/s]device 0:  78%|███████▊  | 1193/1523 [03:00<00:45,  7.26it/s]device 0:  78%|███████▊  | 1194/1523 [03:00<00:43,  7.52it/s]device 0:  78%|███████▊  | 1195/1523 [03:00<00:46,  7.12it/s]device 0:  79%|███████▊  | 1196/1523 [03:00<00:43,  7.52it/s]device 0:  79%|███████▊  | 1197/1523 [03:01<00:43,  7.50it/s]device 0:  79%|███████▊  | 1198/1523 [03:01<00:42,  7.61it/s]device 0:  79%|███████▊  | 1199/1523 [03:01<00:40,  7.98it/s]device 0:  79%|███████▉  | 1200/1523 [03:01<00:45,  7.13it/s]device 0:  79%|███████▉  | 1201/1523 [03:01<00:47,  6.80it/s]device 0:  79%|███████▉  | 1202/1523 [03:01<00:47,  6.71it/s]device 0:  79%|███████▉  | 1203/1523 [03:01<00:46,  6.94it/s]device 0:  79%|███████▉  | 1204/1523 [03:02<00:46,  6.82it/s]device 0:  79%|███████▉  | 1205/1523 [03:02<00:47,  6.70it/s]device 0:  79%|███████▉  | 1206/1523 [03:02<00:46,  6.86it/s]device 0:  79%|███████▉  | 1207/1523 [03:02<00:42,  7.45it/s]device 0:  79%|███████▉  | 1208/1523 [03:02<00:44,  7.04it/s]device 0:  79%|███████▉  | 1209/1523 [03:02<00:43,  7.28it/s]device 0:  79%|███████▉  | 1210/1523 [03:02<00:41,  7.48it/s]device 0:  80%|███████▉  | 1211/1523 [03:03<00:43,  7.17it/s]device 0:  80%|███████▉  | 1212/1523 [03:03<00:43,  7.12it/s]device 0:  80%|███████▉  | 1213/1523 [03:03<00:44,  7.01it/s]device 0:  80%|███████▉  | 1214/1523 [03:03<00:44,  6.90it/s]device 0:  80%|███████▉  | 1215/1523 [03:03<00:47,  6.47it/s]device 0:  80%|███████▉  | 1216/1523 [03:03<00:47,  6.41it/s]device 0:  80%|███████▉  | 1217/1523 [03:03<00:47,  6.42it/s]device 0:  80%|████████  | 1219/1523 [03:04<00:42,  7.24it/s]device 0:  80%|████████  | 1220/1523 [03:04<00:42,  7.08it/s]device 0:  80%|████████  | 1221/1523 [03:04<00:43,  6.86it/s]device 0:  80%|████████  | 1222/1523 [03:04<00:46,  6.53it/s]device 0:  80%|████████  | 1223/1523 [03:04<00:45,  6.63it/s]device 0:  80%|████████  | 1224/1523 [03:04<00:44,  6.68it/s]device 0:  80%|████████  | 1225/1523 [03:05<00:45,  6.54it/s]device 0:  80%|████████  | 1226/1523 [03:05<00:47,  6.21it/s]device 0:  81%|████████  | 1227/1523 [03:05<00:43,  6.77it/s]device 0:  81%|████████  | 1228/1523 [03:05<00:42,  7.02it/s]device 0:  81%|████████  | 1229/1523 [03:05<00:43,  6.82it/s]device 0:  81%|████████  | 1230/1523 [03:05<00:45,  6.40it/s]device 0:  81%|████████  | 1231/1523 [03:06<00:44,  6.54it/s]device 0:  81%|████████  | 1232/1523 [03:06<00:43,  6.63it/s]device 0:  81%|████████  | 1233/1523 [03:06<00:42,  6.86it/s]device 0:  81%|████████  | 1234/1523 [03:06<00:41,  6.97it/s]device 0:  81%|████████  | 1235/1523 [03:06<00:40,  7.06it/s]device 0:  81%|████████  | 1236/1523 [03:06<00:38,  7.44it/s]device 0:  81%|████████  | 1237/1523 [03:06<00:38,  7.41it/s]device 0:  81%|████████▏ | 1238/1523 [03:07<00:39,  7.22it/s]device 0:  81%|████████▏ | 1239/1523 [03:07<00:43,  6.58it/s]device 0:  81%|████████▏ | 1241/1523 [03:07<00:38,  7.31it/s]device 0:  82%|████████▏ | 1242/1523 [03:07<00:39,  7.16it/s]device 0:  82%|████████▏ | 1243/1523 [03:07<00:39,  7.04it/s]device 0:  82%|████████▏ | 1244/1523 [03:07<00:41,  6.73it/s]device 0:  82%|████████▏ | 1245/1523 [03:08<00:43,  6.33it/s]device 0:  82%|████████▏ | 1246/1523 [03:08<00:42,  6.52it/s]device 0:  82%|████████▏ | 1247/1523 [03:08<00:39,  7.04it/s]device 0:  82%|████████▏ | 1248/1523 [03:08<00:38,  7.15it/s]device 0:  82%|████████▏ | 1249/1523 [03:08<00:40,  6.69it/s]device 0:  82%|████████▏ | 1250/1523 [03:08<00:42,  6.41it/s]device 0:  82%|████████▏ | 1251/1523 [03:09<00:43,  6.20it/s]device 0:  82%|████████▏ | 1252/1523 [03:09<00:46,  5.79it/s]device 0:  82%|████████▏ | 1253/1523 [03:09<00:47,  5.66it/s]device 0:  82%|████████▏ | 1254/1523 [03:09<00:43,  6.12it/s]device 0:  82%|████████▏ | 1255/1523 [03:09<00:44,  6.07it/s]device 0:  82%|████████▏ | 1256/1523 [03:09<00:40,  6.62it/s]device 0:  83%|████████▎ | 1257/1523 [03:09<00:40,  6.53it/s]device 0:  83%|████████▎ | 1258/1523 [03:10<00:37,  7.01it/s]device 0:  83%|████████▎ | 1259/1523 [03:10<00:42,  6.14it/s]device 0:  83%|████████▎ | 1260/1523 [03:10<00:41,  6.27it/s]device 0:  83%|████████▎ | 1261/1523 [03:10<00:40,  6.53it/s]device 0:  83%|████████▎ | 1262/1523 [03:10<00:40,  6.48it/s]device 0:  83%|████████▎ | 1263/1523 [03:10<00:39,  6.65it/s]device 0:  83%|████████▎ | 1264/1523 [03:11<00:38,  6.71it/s]device 0:  83%|████████▎ | 1265/1523 [03:11<00:39,  6.60it/s]device 0:  83%|████████▎ | 1266/1523 [03:11<00:36,  7.05it/s]device 0:  83%|████████▎ | 1267/1523 [03:11<00:35,  7.17it/s]device 0:  83%|████████▎ | 1269/1523 [03:11<00:33,  7.48it/s]device 0:  83%|████████▎ | 1270/1523 [03:11<00:32,  7.87it/s]device 0:  83%|████████▎ | 1271/1523 [03:11<00:35,  7.09it/s]device 0:  84%|████████▎ | 1272/1523 [03:12<00:36,  6.94it/s]device 0:  84%|████████▎ | 1273/1523 [03:12<00:34,  7.34it/s]device 0:  84%|████████▎ | 1274/1523 [03:12<00:34,  7.24it/s]device 0:  84%|████████▎ | 1275/1523 [03:12<00:32,  7.53it/s]device 0:  84%|████████▍ | 1276/1523 [03:12<00:34,  7.22it/s]device 0:  84%|████████▍ | 1277/1523 [03:12<00:34,  7.17it/s]device 0:  84%|████████▍ | 1278/1523 [03:12<00:36,  6.68it/s]device 0:  84%|████████▍ | 1279/1523 [03:13<00:34,  6.97it/s]device 0:  84%|████████▍ | 1280/1523 [03:13<00:33,  7.36it/s]device 0:  84%|████████▍ | 1281/1523 [03:13<00:31,  7.75it/s]device 0:  84%|████████▍ | 1282/1523 [03:13<00:32,  7.44it/s]device 0:  84%|████████▍ | 1283/1523 [03:13<00:32,  7.42it/s]device 0:  84%|████████▍ | 1284/1523 [03:13<00:32,  7.45it/s]device 0:  84%|████████▍ | 1285/1523 [03:13<00:33,  7.21it/s]device 0:  84%|████████▍ | 1286/1523 [03:14<00:32,  7.34it/s]device 0:  85%|████████▍ | 1287/1523 [03:14<00:32,  7.19it/s]device 0:  85%|████████▍ | 1288/1523 [03:14<00:39,  5.99it/s]device 0:  85%|████████▍ | 1289/1523 [03:14<00:38,  6.14it/s]device 0:  85%|████████▍ | 1290/1523 [03:14<00:35,  6.53it/s]device 0:  85%|████████▍ | 1291/1523 [03:14<00:35,  6.55it/s]device 0:  85%|████████▍ | 1292/1523 [03:15<00:37,  6.16it/s]device 0:  85%|████████▍ | 1293/1523 [03:15<00:36,  6.32it/s]device 0:  85%|████████▍ | 1294/1523 [03:15<00:36,  6.21it/s]device 0:  85%|████████▌ | 1295/1523 [03:15<00:34,  6.57it/s]device 0:  85%|████████▌ | 1296/1523 [03:15<00:31,  7.28it/s]device 0:  85%|████████▌ | 1297/1523 [03:15<00:30,  7.42it/s]device 0:  85%|████████▌ | 1298/1523 [03:15<00:31,  7.09it/s]device 0:  85%|████████▌ | 1299/1523 [03:16<00:32,  6.86it/s]device 0:  85%|████████▌ | 1300/1523 [03:16<00:31,  7.02it/s]device 0:  85%|████████▌ | 1301/1523 [03:16<00:32,  6.91it/s]device 0:  85%|████████▌ | 1302/1523 [03:16<00:31,  6.94it/s]device 0:  86%|████████▌ | 1303/1523 [03:16<00:34,  6.45it/s]device 0:  86%|████████▌ | 1304/1523 [03:16<00:36,  6.05it/s]device 0:  86%|████████▌ | 1305/1523 [03:16<00:33,  6.59it/s]device 0:  86%|████████▌ | 1306/1523 [03:17<00:31,  6.91it/s]device 0:  86%|████████▌ | 1307/1523 [03:17<00:28,  7.60it/s]device 0:  86%|████████▌ | 1308/1523 [03:17<00:29,  7.29it/s]device 0:  86%|████████▌ | 1309/1523 [03:17<00:29,  7.28it/s]device 0:  86%|████████▌ | 1310/1523 [03:17<00:29,  7.21it/s]device 0:  86%|████████▌ | 1311/1523 [03:17<00:28,  7.40it/s]device 0:  86%|████████▌ | 1312/1523 [03:17<00:27,  7.68it/s]device 0:  86%|████████▌ | 1313/1523 [03:18<00:31,  6.59it/s]device 0:  86%|████████▋ | 1314/1523 [03:18<00:33,  6.30it/s]device 0:  86%|████████▋ | 1315/1523 [03:18<00:32,  6.43it/s]device 0:  86%|████████▋ | 1316/1523 [03:18<00:33,  6.15it/s]device 0:  86%|████████▋ | 1317/1523 [03:18<00:31,  6.55it/s]device 0:  87%|████████▋ | 1318/1523 [03:18<00:33,  6.13it/s]device 0:  87%|████████▋ | 1319/1523 [03:19<00:35,  5.72it/s]device 0:  87%|████████▋ | 1320/1523 [03:19<00:35,  5.75it/s]device 0:  87%|████████▋ | 1321/1523 [03:19<00:35,  5.69it/s]device 0:  87%|████████▋ | 1322/1523 [03:19<00:33,  5.93it/s]device 0:  87%|████████▋ | 1323/1523 [03:19<00:33,  5.93it/s]device 0:  87%|████████▋ | 1324/1523 [03:19<00:31,  6.34it/s]device 0:  87%|████████▋ | 1325/1523 [03:20<00:32,  6.18it/s]device 0:  87%|████████▋ | 1326/1523 [03:20<00:30,  6.52it/s]device 0:  87%|████████▋ | 1327/1523 [03:20<00:28,  6.89it/s]device 0:  87%|████████▋ | 1328/1523 [03:20<00:27,  7.02it/s]device 0:  87%|████████▋ | 1329/1523 [03:20<00:26,  7.26it/s]device 0:  87%|████████▋ | 1330/1523 [03:20<00:26,  7.39it/s]device 0:  87%|████████▋ | 1331/1523 [03:20<00:27,  6.89it/s]device 0:  87%|████████▋ | 1332/1523 [03:20<00:26,  7.17it/s]device 0:  88%|████████▊ | 1333/1523 [03:21<00:25,  7.50it/s]device 0:  88%|████████▊ | 1334/1523 [03:21<00:24,  7.74it/s]device 0:  88%|████████▊ | 1335/1523 [03:21<00:25,  7.40it/s]device 0:  88%|████████▊ | 1336/1523 [03:21<00:26,  6.94it/s]device 0:  88%|████████▊ | 1337/1523 [03:21<00:27,  6.83it/s]device 0:  88%|████████▊ | 1338/1523 [03:21<00:26,  6.89it/s]device 0:  88%|████████▊ | 1339/1523 [03:21<00:27,  6.81it/s]device 0:  88%|████████▊ | 1340/1523 [03:22<00:26,  6.82it/s]device 0:  88%|████████▊ | 1341/1523 [03:22<00:25,  7.02it/s]device 0:  88%|████████▊ | 1342/1523 [03:22<00:25,  7.02it/s]device 0:  88%|████████▊ | 1343/1523 [03:22<00:24,  7.29it/s]device 0:  88%|████████▊ | 1344/1523 [03:22<00:27,  6.58it/s]device 0:  88%|████████▊ | 1345/1523 [03:22<00:26,  6.62it/s]device 0:  88%|████████▊ | 1346/1523 [03:23<00:25,  6.84it/s]device 0:  88%|████████▊ | 1347/1523 [03:23<00:27,  6.48it/s]device 0:  89%|████████▊ | 1348/1523 [03:23<00:27,  6.30it/s]device 0:  89%|████████▊ | 1349/1523 [03:23<00:27,  6.34it/s]device 0:  89%|████████▊ | 1350/1523 [03:23<00:27,  6.30it/s]device 0:  89%|████████▊ | 1351/1523 [03:23<00:27,  6.25it/s]device 0:  89%|████████▉ | 1352/1523 [03:23<00:27,  6.29it/s]device 0:  89%|████████▉ | 1353/1523 [03:24<00:25,  6.63it/s]device 0:  89%|████████▉ | 1354/1523 [03:24<00:23,  7.25it/s]device 0:  89%|████████▉ | 1355/1523 [03:24<00:22,  7.41it/s]device 0:  89%|████████▉ | 1356/1523 [03:24<00:22,  7.45it/s]device 0:  89%|████████▉ | 1357/1523 [03:24<00:23,  7.12it/s]device 0:  89%|████████▉ | 1358/1523 [03:24<00:25,  6.43it/s]device 0:  89%|████████▉ | 1359/1523 [03:24<00:26,  6.27it/s]device 0:  89%|████████▉ | 1360/1523 [03:25<00:25,  6.40it/s]device 0:  89%|████████▉ | 1361/1523 [03:25<00:24,  6.70it/s]device 0:  89%|████████▉ | 1362/1523 [03:25<00:24,  6.47it/s]device 0:  89%|████████▉ | 1363/1523 [03:25<00:23,  6.71it/s]device 0:  90%|████████▉ | 1364/1523 [03:25<00:24,  6.48it/s]device 0:  90%|████████▉ | 1365/1523 [03:25<00:23,  6.80it/s]device 0:  90%|████████▉ | 1366/1523 [03:26<00:23,  6.78it/s]device 0:  90%|████████▉ | 1367/1523 [03:26<00:23,  6.52it/s]device 0:  90%|████████▉ | 1368/1523 [03:26<00:23,  6.69it/s]device 0:  90%|████████▉ | 1369/1523 [03:26<00:23,  6.61it/s]device 0:  90%|████████▉ | 1370/1523 [03:26<00:22,  6.70it/s]device 0:  90%|█████████ | 1371/1523 [03:26<00:20,  7.31it/s]device 0:  90%|█████████ | 1372/1523 [03:26<00:22,  6.63it/s]device 0:  90%|█████████ | 1373/1523 [03:27<00:23,  6.50it/s]device 0:  90%|█████████ | 1374/1523 [03:27<00:22,  6.69it/s]device 0:  90%|█████████ | 1375/1523 [03:27<00:22,  6.47it/s]device 0:  90%|█████████ | 1376/1523 [03:27<00:22,  6.48it/s]device 0:  90%|█████████ | 1377/1523 [03:27<00:25,  5.76it/s]device 0:  90%|█████████ | 1378/1523 [03:27<00:24,  5.99it/s]device 0:  91%|█████████ | 1379/1523 [03:28<00:22,  6.30it/s]device 0:  91%|█████████ | 1380/1523 [03:28<00:22,  6.46it/s]device 0:  91%|█████████ | 1381/1523 [03:28<00:23,  6.07it/s]device 0:  91%|█████████ | 1382/1523 [03:28<00:22,  6.25it/s]device 0:  91%|█████████ | 1383/1523 [03:28<00:20,  6.98it/s]device 0:  91%|█████████ | 1384/1523 [03:28<00:18,  7.39it/s]device 0:  91%|█████████ | 1385/1523 [03:28<00:19,  7.24it/s]device 0:  91%|█████████ | 1386/1523 [03:29<00:17,  7.71it/s]device 0:  91%|█████████ | 1387/1523 [03:29<00:17,  7.75it/s]device 0:  91%|█████████ | 1388/1523 [03:29<00:17,  7.78it/s]device 0:  91%|█████████ | 1389/1523 [03:29<00:18,  7.07it/s]device 0:  91%|█████████▏| 1390/1523 [03:29<00:17,  7.41it/s]device 0:  91%|█████████▏| 1391/1523 [03:29<00:19,  6.89it/s]device 0:  91%|█████████▏| 1392/1523 [03:29<00:19,  6.58it/s]device 0:  91%|█████████▏| 1393/1523 [03:30<00:19,  6.53it/s]device 0:  92%|█████████▏| 1394/1523 [03:30<00:19,  6.63it/s]device 0:  92%|█████████▏| 1395/1523 [03:30<00:20,  6.24it/s]device 0:  92%|█████████▏| 1396/1523 [03:30<00:18,  6.78it/s]device 0:  92%|█████████▏| 1397/1523 [03:30<00:18,  6.84it/s]device 0:  92%|█████████▏| 1398/1523 [03:30<00:18,  6.59it/s]device 0:  92%|█████████▏| 1399/1523 [03:30<00:17,  6.92it/s]device 0:  92%|█████████▏| 1400/1523 [03:31<00:19,  6.35it/s]device 0:  92%|█████████▏| 1401/1523 [03:31<00:18,  6.57it/s]device 0:  92%|█████████▏| 1402/1523 [03:31<00:18,  6.49it/s]device 0:  92%|█████████▏| 1403/1523 [03:31<00:20,  5.90it/s]device 0:  92%|█████████▏| 1404/1523 [03:31<00:19,  6.15it/s]device 0:  92%|█████████▏| 1405/1523 [03:31<00:18,  6.22it/s]device 0:  92%|█████████▏| 1406/1523 [03:32<00:18,  6.36it/s]device 0:  92%|█████████▏| 1407/1523 [03:32<00:18,  6.36it/s]device 0:  92%|█████████▏| 1408/1523 [03:32<00:17,  6.58it/s]device 0:  93%|█████████▎| 1409/1523 [03:32<00:16,  6.84it/s]device 0:  93%|█████████▎| 1410/1523 [03:32<00:15,  7.07it/s]device 0:  93%|█████████▎| 1411/1523 [03:32<00:18,  6.18it/s]device 0:  93%|█████████▎| 1412/1523 [03:32<00:17,  6.40it/s]device 0:  93%|█████████▎| 1413/1523 [03:33<00:18,  6.09it/s]device 0:  93%|█████████▎| 1414/1523 [03:33<00:18,  5.97it/s]device 0:  93%|█████████▎| 1415/1523 [03:33<00:17,  6.24it/s]device 0:  93%|█████████▎| 1416/1523 [03:33<00:18,  5.77it/s]device 0:  93%|█████████▎| 1417/1523 [03:33<00:17,  6.00it/s]device 0:  93%|█████████▎| 1418/1523 [03:33<00:16,  6.34it/s]device 0:  93%|█████████▎| 1419/1523 [03:34<00:16,  6.42it/s]device 0:  93%|█████████▎| 1420/1523 [03:34<00:17,  6.00it/s]device 0:  93%|█████████▎| 1421/1523 [03:34<00:17,  5.85it/s]device 0:  93%|█████████▎| 1422/1523 [03:34<00:17,  5.92it/s]device 0:  93%|█████████▎| 1423/1523 [03:34<00:15,  6.35it/s]device 0:  93%|█████████▎| 1424/1523 [03:34<00:14,  6.74it/s]device 0:  94%|█████████▎| 1425/1523 [03:35<00:13,  7.15it/s]device 0:  94%|█████████▎| 1426/1523 [03:35<00:14,  6.70it/s]device 0:  94%|█████████▎| 1427/1523 [03:35<00:14,  6.69it/s]device 0:  94%|█████████▍| 1428/1523 [03:35<00:15,  6.28it/s]device 0:  94%|█████████▍| 1429/1523 [03:35<00:13,  6.77it/s]device 0:  94%|█████████▍| 1430/1523 [03:35<00:13,  7.12it/s]device 0:  94%|█████████▍| 1431/1523 [03:35<00:12,  7.23it/s]device 0:  94%|█████████▍| 1432/1523 [03:36<00:12,  7.31it/s]device 0:  94%|█████████▍| 1433/1523 [03:36<00:12,  7.01it/s]device 0:  94%|█████████▍| 1434/1523 [03:36<00:12,  6.91it/s]device 0:  94%|█████████▍| 1435/1523 [03:36<00:13,  6.49it/s]device 0:  94%|█████████▍| 1436/1523 [03:36<00:14,  6.16it/s]device 0:  94%|█████████▍| 1437/1523 [03:36<00:12,  6.86it/s]device 0:  94%|█████████▍| 1438/1523 [03:36<00:12,  6.97it/s]device 0:  94%|█████████▍| 1439/1523 [03:37<00:13,  6.33it/s]device 0:  95%|█████████▍| 1440/1523 [03:37<00:13,  6.01it/s]device 0:  95%|█████████▍| 1441/1523 [03:37<00:14,  5.52it/s]device 0:  95%|█████████▍| 1442/1523 [03:37<00:15,  5.34it/s]device 0:  95%|█████████▍| 1443/1523 [03:37<00:14,  5.56it/s]device 0:  95%|█████████▍| 1444/1523 [03:38<00:13,  6.07it/s]device 0:  95%|█████████▍| 1445/1523 [03:38<00:13,  5.89it/s]device 0:  95%|█████████▍| 1446/1523 [03:38<00:11,  6.48it/s]device 0:  95%|█████████▌| 1447/1523 [03:38<00:11,  6.54it/s]device 0:  95%|█████████▌| 1448/1523 [03:38<00:11,  6.75it/s]device 0:  95%|█████████▌| 1449/1523 [03:38<00:10,  7.26it/s]device 0:  95%|█████████▌| 1450/1523 [03:38<00:10,  6.81it/s]device 0:  95%|█████████▌| 1451/1523 [03:39<00:10,  6.66it/s]device 0:  95%|█████████▌| 1452/1523 [03:39<00:11,  6.42it/s]device 0:  95%|█████████▌| 1453/1523 [03:39<00:10,  6.39it/s]device 0:  95%|█████████▌| 1454/1523 [03:39<00:10,  6.64it/s]device 0:  96%|█████████▌| 1455/1523 [03:39<00:09,  6.94it/s]device 0:  96%|█████████▌| 1456/1523 [03:39<00:11,  5.75it/s]device 0:  96%|█████████▌| 1457/1523 [03:40<00:11,  5.89it/s]device 0:  96%|█████████▌| 1458/1523 [03:40<00:11,  5.77it/s]device 0:  96%|█████████▌| 1459/1523 [03:40<00:10,  6.17it/s]device 0:  96%|█████████▌| 1460/1523 [03:40<00:09,  6.47it/s]device 0:  96%|█████████▌| 1461/1523 [03:40<00:09,  6.52it/s]device 0:  96%|█████████▌| 1462/1523 [03:40<00:10,  6.08it/s]device 0:  96%|█████████▌| 1463/1523 [03:41<00:09,  6.04it/s]device 0:  96%|█████████▌| 1464/1523 [03:41<00:09,  6.27it/s]device 0:  96%|█████████▌| 1465/1523 [03:41<00:09,  6.39it/s]device 0:  96%|█████████▋| 1466/1523 [03:41<00:08,  6.40it/s]device 0:  96%|█████████▋| 1467/1523 [03:41<00:08,  6.61it/s]device 0:  96%|█████████▋| 1468/1523 [03:41<00:08,  6.76it/s]device 0:  96%|█████████▋| 1469/1523 [03:41<00:07,  6.99it/s]device 0:  97%|█████████▋| 1470/1523 [03:42<00:07,  6.79it/s]device 0:  97%|█████████▋| 1471/1523 [03:42<00:07,  6.54it/s]device 0:  97%|█████████▋| 1472/1523 [03:42<00:08,  6.16it/s]device 0:  97%|█████████▋| 1473/1523 [03:42<00:07,  6.43it/s]device 0:  97%|█████████▋| 1474/1523 [03:42<00:07,  6.61it/s]device 0:  97%|█████████▋| 1475/1523 [03:42<00:06,  7.25it/s]device 0:  97%|█████████▋| 1476/1523 [03:42<00:06,  7.23it/s]device 0:  97%|█████████▋| 1477/1523 [03:43<00:06,  7.17it/s]device 0:  97%|█████████▋| 1478/1523 [03:43<00:06,  6.87it/s]device 0:  97%|█████████▋| 1479/1523 [03:43<00:06,  7.23it/s]device 0:  97%|█████████▋| 1480/1523 [03:43<00:06,  6.85it/s]device 0:  97%|█████████▋| 1481/1523 [03:43<00:06,  6.80it/s]device 0:  97%|█████████▋| 1482/1523 [03:43<00:06,  6.50it/s]device 0:  97%|█████████▋| 1483/1523 [03:43<00:05,  7.06it/s]device 0:  97%|█████████▋| 1484/1523 [03:44<00:05,  6.79it/s]device 0:  98%|█████████▊| 1485/1523 [03:44<00:05,  6.78it/s]device 0:  98%|█████████▊| 1486/1523 [03:44<00:05,  6.40it/s]device 0:  98%|█████████▊| 1487/1523 [03:44<00:05,  6.69it/s]device 0:  98%|█████████▊| 1488/1523 [03:44<00:05,  6.53it/s]device 0:  98%|█████████▊| 1489/1523 [03:44<00:05,  6.70it/s]device 0:  98%|█████████▊| 1490/1523 [03:45<00:04,  6.89it/s]device 0:  98%|█████████▊| 1491/1523 [03:45<00:04,  7.36it/s]device 0:  98%|█████████▊| 1492/1523 [03:45<00:04,  7.52it/s]device 0:  98%|█████████▊| 1493/1523 [03:45<00:03,  7.81it/s]device 0:  98%|█████████▊| 1494/1523 [03:45<00:04,  6.80it/s]device 0:  98%|█████████▊| 1495/1523 [03:45<00:04,  6.78it/s]device 0:  98%|█████████▊| 1496/1523 [03:45<00:03,  6.81it/s]device 0:  98%|█████████▊| 1497/1523 [03:46<00:04,  6.39it/s]device 0:  98%|█████████▊| 1498/1523 [03:46<00:03,  6.57it/s]device 0:  98%|█████████▊| 1499/1523 [03:46<00:03,  6.93it/s]device 0:  98%|█████████▊| 1500/1523 [03:46<00:03,  6.72it/s]device 0:  99%|█████████▊| 1501/1523 [03:46<00:03,  6.79it/s]device 0:  99%|█████████▊| 1502/1523 [03:46<00:03,  6.34it/s]device 0:  99%|█████████▊| 1503/1523 [03:46<00:03,  6.03it/s]device 0:  99%|█████████▉| 1504/1523 [03:47<00:03,  6.31it/s]device 0:  99%|█████████▉| 1505/1523 [03:47<00:02,  6.07it/s]device 0:  99%|█████████▉| 1506/1523 [03:47<00:02,  5.98it/s]device 0:  99%|█████████▉| 1507/1523 [03:47<00:02,  6.32it/s]device 0:  99%|█████████▉| 1508/1523 [03:47<00:02,  6.51it/s]device 0:  99%|█████████▉| 1509/1523 [03:47<00:02,  6.55it/s]device 0:  99%|█████████▉| 1510/1523 [03:48<00:02,  6.38it/s]device 0:  99%|█████████▉| 1511/1523 [03:48<00:01,  6.92it/s]device 0:  99%|█████████▉| 1512/1523 [03:48<00:01,  7.22it/s]device 0:  99%|█████████▉| 1513/1523 [03:48<00:01,  7.29it/s]device 0:  99%|█████████▉| 1514/1523 [03:48<00:01,  7.21it/s]device 0:  99%|█████████▉| 1515/1523 [03:48<00:01,  7.02it/s]device 0: 100%|█████████▉| 1516/1523 [03:48<00:00,  7.18it/s]device 0: 100%|█████████▉| 1517/1523 [03:48<00:00,  7.68it/s]device 0: 100%|█████████▉| 1518/1523 [03:49<00:00,  7.48it/s]device 0: 100%|█████████▉| 1519/1523 [03:49<00:00,  7.16it/s]device 0: 100%|█████████▉| 1520/1523 [03:49<00:00,  7.44it/s]device 0: 100%|█████████▉| 1521/1523 [03:49<00:00,  7.55it/s]device 0: 100%|█████████▉| 1522/1523 [03:49<00:00,  7.09it/s]device 0: 100%|██████████| 1523/1523 [03:49<00:00,  6.63it/s]
-/home/hyukjunlim/ccel/equiformerv2/oc20/trainer/forces_trainer_v2.py:291: VisibleDeprecationWarning: Creating an ndarray from ragged nested sequences (which is a list-or-tuple of lists-or-tuples-or ndarrays with different lengths or shapes) is deprecated. If you meant to do this, you must specify 'dtype=object' when creating the ndarray.
-  predictions["forces"] = np.array(predictions["forces"])
-/home/hyukjunlim/ccel/equiformerv2/oc20/trainer/base_trainer_oc20.py:761: VisibleDeprecationWarning: Creating an ndarray from ragged nested sequences (which is a list-or-tuple of lists-or-tuples-or ndarrays with different lengths or shapes) is deprecated. If you meant to do this, you must specify 'dtype=object' when creating the ndarray.
-  np.array(gather_results[k])[idx]
