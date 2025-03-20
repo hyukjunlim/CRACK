@@ -51,8 +51,8 @@ After downloading, place the datasets under `datasets/oc20/` by using `ln -s`:
 1. We predict the energy and embedding of EquiformerV2 on the OC20 **is2re** dataset of O absorbates by running:
     
     ```bash
-        sh scripts/train/oc20/s2ef/equiformer_v2/31M_exp.sh
-        sh scripts/train/oc20/s2ef/equiformer_v2/153M_exp.sh
+    sh scripts/train/oc20/s2ef/equiformer_v2/31M_exp.sh
+    sh scripts/train/oc20/s2ef/equiformer_v2/153M_exp.sh
     ```
 
 ## Checkpoints ##
