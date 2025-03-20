@@ -292,7 +292,7 @@ def create_tsne_comparison(latents, energy, highlight_range=False):
     
     return fig
 
-def frequency_aware_pooling(embeddings: np.ndarray) -> np.ndarray:
+def embedding_pooling(embeddings: np.ndarray) -> np.ndarray:
     """
     Pool embeddings with awareness of frequency bands using weighted averaging.
     Handles batched input embeddings.
@@ -358,27 +358,30 @@ for mode in modes:
     print(f"Processing mode {mode}, shape: {latents.shape}, {energy.shape}")
     
     # Pool the embeddings first
-    pooled_embeddings = frequency_aware_pooling(latents)  # shape: (N, 128)
+    pooled_embeddings = embedding_pooling(latents)  # shape: (N, 128)
     
     for highlight in highlight_options:
         highlight_str = "highlighted" if highlight else "all"
         print(f"  Creating visualizations with highlight={highlight}")
         
-        # Use pooled_embeddings instead of latents for visualization
+        # Use pooled_embeddings for all visualizations
+        fig1 = visualize_embeddings(pooled_embeddings, energy, method='pca', highlight_range=highlight)
+        fig1.savefig(f'visuals/{mode}/catalyst_pca_{highlight_str}.png', dpi=300, bbox_inches='tight')
+        plt.close(fig1)
+        
         fig2 = visualize_embeddings(pooled_embeddings, energy, method='tsne', highlight_range=highlight)
         fig2.savefig(f'visuals/{mode}/catalyst_tsne_{highlight_str}.png', dpi=300, bbox_inches='tight')
         plt.close(fig2)
         
-        # fig3 = create_multiple_visualizations(latents, energy, highlight_range=highlight)
-        # fig3.savefig(f'visuals/{mode}/catalyst_multiple_{highlight_str}.png', dpi=300, bbox_inches='tight')
-        # plt.close(fig3)
+        fig3 = create_multiple_visualizations(pooled_embeddings, energy, highlight_range=highlight)
+        fig3.savefig(f'visuals/{mode}/catalyst_multiple_{highlight_str}.png', dpi=300, bbox_inches='tight')
+        plt.close(fig3)
         
-        # # Create and save t-SNE comparison
-        # fig5 = create_tsne_comparison(latents, energy, highlight_range=highlight)
-        # fig5.savefig(f'visuals/{mode}/catalyst_tsne_comparison_{highlight_str}.png', dpi=300, bbox_inches='tight')
-        # plt.close(fig5)
+        fig5 = create_tsne_comparison(pooled_embeddings, energy, highlight_range=highlight)
+        fig5.savefig(f'visuals/{mode}/catalyst_tsne_comparison_{highlight_str}.png', dpi=300, bbox_inches='tight')
+        plt.close(fig5)
     
-    # # Create cluster analysis (only once per mode as it doesn't use highlighting)
-    # fig4 = analyze_embedding_clusters(latents, energy)
-    # fig4.savefig(f'visuals/{mode}/catalyst_cluster_analysis.png', dpi=300, bbox_inches='tight')
-    # plt.close(fig4)
+    # Use pooled_embeddings for cluster analysis too
+    fig4 = analyze_embedding_clusters(pooled_embeddings, energy)
+    fig4.savefig(f'visuals/{mode}/catalyst_cluster_analysis.png', dpi=300, bbox_inches='tight')
+    plt.close(fig4)
