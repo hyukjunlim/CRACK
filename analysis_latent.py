@@ -293,15 +293,18 @@ def create_tsne_comparison(latents, energy, highlight_range=False):
     return fig
 
 # Example usage with iterations
-modes = [25, 128]
-highlight_options = [True, False]
+modes = [128]
+highlight_options = [True]
 
 for mode in modes:
     # Set filename based on mode
     if mode == 25:
-        filename = 'logs_save/9066/s2ef_predictions.npz'
+        filename = 'save_logs/9066/s2ef_predictions.npz'
     elif mode == 128:
-        filename = 'logs_save/9068/s2ef_predictions.npz'
+        # 31M
+        # filename = 'save_logs/9068/s2ef_predictions.npz'
+        # 153M
+        filename = 'save_logs/2283214/s2ef_predictions.npz'
     
     # Load and reshape data
     data = np.load(filename)
@@ -313,25 +316,25 @@ for mode in modes:
         highlight_str = "highlighted" if highlight else "all"
         print(f"  Creating visualizations with highlight={highlight}")
         
-        # Create and save all visualizations
-        fig1 = visualize_embeddings(latents, energy, method='pca', highlight_range=highlight)
-        fig1.savefig(f'visuals/{mode}/catalyst_pca_{highlight_str}.png', dpi=300, bbox_inches='tight')
-        plt.close(fig1)
+        # # Create and save all visualizations
+        # fig1 = visualize_embeddings(latents, energy, method='pca', highlight_range=highlight)
+        # fig1.savefig(f'visuals/{mode}/catalyst_pca_{highlight_str}.png', dpi=300, bbox_inches='tight')
+        # plt.close(fig1)
         
-        fig2 = visualize_embeddings(latents, energy, method='tsne', highlight_range=highlight)
-        fig2.savefig(f'visuals/{mode}/catalyst_tsne_{highlight_str}.png', dpi=300, bbox_inches='tight')
-        plt.close(fig2)
+        # fig2 = visualize_embeddings(latents, energy, method='tsne', highlight_range=highlight)
+        # fig2.savefig(f'visuals/{mode}/catalyst_tsne_{highlight_str}.png', dpi=300, bbox_inches='tight')
+        # plt.close(fig2)
         
-        fig3 = create_multiple_visualizations(latents, energy, highlight_range=highlight)
-        fig3.savefig(f'visuals/{mode}/catalyst_multiple_{highlight_str}.png', dpi=300, bbox_inches='tight')
-        plt.close(fig3)
+        # fig3 = create_multiple_visualizations(latents, energy, highlight_range=highlight)
+        # fig3.savefig(f'visuals/{mode}/catalyst_multiple_{highlight_str}.png', dpi=300, bbox_inches='tight')
+        # plt.close(fig3)
         
         # Create and save t-SNE comparison
         fig5 = create_tsne_comparison(latents, energy, highlight_range=highlight)
         fig5.savefig(f'visuals/{mode}/catalyst_tsne_comparison_{highlight_str}.png', dpi=300, bbox_inches='tight')
         plt.close(fig5)
     
-    # Create cluster analysis (only once per mode as it doesn't use highlighting)
-    fig4 = analyze_embedding_clusters(latents, energy)
-    fig4.savefig(f'visuals/{mode}/catalyst_cluster_analysis.png', dpi=300, bbox_inches='tight')
-    plt.close(fig4)
+    # # Create cluster analysis (only once per mode as it doesn't use highlighting)
+    # fig4 = analyze_embedding_clusters(latents, energy)
+    # fig4.savefig(f'visuals/{mode}/catalyst_cluster_analysis.png', dpi=300, bbox_inches='tight')
+    # plt.close(fig4)

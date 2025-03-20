@@ -219,7 +219,7 @@ class ForcesTrainerV2(BaseTrainerV2):
                 )
                 
                 predictions["latents"].extend(
-                    out["latents"].tolist()
+                    out["latents"].cpu().detach().numpy()
                 )
                 
                 batch_natoms = torch.cat(

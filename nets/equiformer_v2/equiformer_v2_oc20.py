@@ -450,7 +450,7 @@ class EquiformerV2_OC20(BaseModel):
         
         # Final layer norm
         x.embedding = self.norm(x.embedding)
-        latent_rep = x.embedding.mean(dim=1)
+        latent_rep = x.embedding
 
         ###############################################################
         # Energy estimation
