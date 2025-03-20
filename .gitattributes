@@ -1,2 +1,0 @@
-save_logs/2287813/s2ef_predictions.npz filter=lfs diff=lfs merge=lfs -text
-save_logs/2301956/s2ef_predictions.npz filter=lfs diff=lfs merge=lfs -text
