@@ -4,7 +4,7 @@ from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 import seaborn as sns
 
-def visualize_embeddings(latents, energy, method='pca', perplexity=30, n_components=2, figsize=(12, 10), highlight_range=False):
+def visualize_embeddings(latents, energy, method='pca', perplexity=50, n_components=2, figsize=(12, 10), highlight_range=False):
     """
     Visualize high-dimensional embeddings with energy values as colors.
     
@@ -292,6 +292,54 @@ def create_tsne_comparison(latents, energy, highlight_range=False):
     
     return fig
 
+def frequency_aware_pooling(embeddings: np.ndarray) -> np.ndarray:
+    """
+    Pool embeddings with awareness of frequency bands using weighted averaging.
+    Handles batched input embeddings.
+    
+    Args:
+        embeddings (np.ndarray): Input embedding array of shape (N, 25, 128) where:
+            - N is the number of samples
+            - 25 channels contain frequency band information organized as [0e, 1o, 2e, 3o, 4e]
+            - 128 is the embedding dimension
+            The channels are distributed as [1, 3, 5, 7, 9] channels per band.
+        
+    Returns:
+        np.ndarray: Normalized global embeddings of shape (N, 128)
+        
+    Raises:
+        ValueError: If embedding shape is incorrect or doesn't match expected dimensions
+    """
+    # Input validation
+    if not isinstance(embeddings, np.ndarray):
+        raise ValueError("Input must be a numpy array")
+    if len(embeddings.shape) != 3 or embeddings.shape[1:] != (25, 128):
+        raise ValueError(f"Expected shape (N, 25, 128), got {embeddings.shape}")
+    
+    # Define channel sizes for each frequency band
+    channel_sizes = [1, 3, 5, 7, 9]  # 0e, 1o, 2e, 3o, 4e
+    if sum(channel_sizes) != embeddings.shape[1]:
+        raise ValueError("Channel sizes don't match input dimensions")
+    
+    # Initialize output array
+    batch_size = embeddings.shape[0]
+    global_embeddings = np.zeros((batch_size, embeddings.shape[2]), dtype=embeddings.dtype)
+    
+    # Process each frequency band with weighted averaging
+    channel_idx = 0
+    for size in channel_sizes:
+        end_idx = channel_idx + size
+        band_channels = embeddings[:, channel_idx:end_idx]
+        # Use weighted average based on band size
+        global_embeddings += np.mean(band_channels, axis=1) / len(channel_sizes)
+        channel_idx = end_idx
+    
+    # Normalize each embedding (with epsilon to prevent division by zero)
+    norms = np.linalg.norm(global_embeddings, axis=1, keepdims=True)
+    global_embeddings = np.where(norms > 1e-12, global_embeddings / norms, global_embeddings)
+    
+    return global_embeddings
+
 # Example usage with iterations
 modes = [128]
 highlight_options = [True]
@@ -301,38 +349,34 @@ for mode in modes:
     if mode == 25:
         filename = 'save_logs/9066/s2ef_predictions.npz'
     elif mode == 128:
-        # 31M
-        # filename = 'save_logs/9068/s2ef_predictions.npz'
-        # 153M
-        filename = 'save_logs/2283214/s2ef_predictions.npz'
+        filename = 'save_logs/2287813/s2ef_predictions.npz'
     
     # Load and reshape data
     data = np.load(filename)
-    latents = data['latents'].reshape(-1, mode)
+    latents = data['latents'].reshape(-1, 25, 128)
     energy = data['energy'].reshape(-1, 1)
     print(f"Processing mode {mode}, shape: {latents.shape}, {energy.shape}")
+    
+    # Pool the embeddings first
+    pooled_embeddings = frequency_aware_pooling(latents)  # shape: (N, 128)
     
     for highlight in highlight_options:
         highlight_str = "highlighted" if highlight else "all"
         print(f"  Creating visualizations with highlight={highlight}")
         
-        # # Create and save all visualizations
-        # fig1 = visualize_embeddings(latents, energy, method='pca', highlight_range=highlight)
-        # fig1.savefig(f'visuals/{mode}/catalyst_pca_{highlight_str}.png', dpi=300, bbox_inches='tight')
-        # plt.close(fig1)
-        
-        # fig2 = visualize_embeddings(latents, energy, method='tsne', highlight_range=highlight)
-        # fig2.savefig(f'visuals/{mode}/catalyst_tsne_{highlight_str}.png', dpi=300, bbox_inches='tight')
-        # plt.close(fig2)
+        # Use pooled_embeddings instead of latents for visualization
+        fig2 = visualize_embeddings(pooled_embeddings, energy, method='tsne', highlight_range=highlight)
+        fig2.savefig(f'visuals/{mode}/catalyst_tsne_{highlight_str}.png', dpi=300, bbox_inches='tight')
+        plt.close(fig2)
         
         # fig3 = create_multiple_visualizations(latents, energy, highlight_range=highlight)
         # fig3.savefig(f'visuals/{mode}/catalyst_multiple_{highlight_str}.png', dpi=300, bbox_inches='tight')
         # plt.close(fig3)
         
-        # Create and save t-SNE comparison
-        fig5 = create_tsne_comparison(latents, energy, highlight_range=highlight)
-        fig5.savefig(f'visuals/{mode}/catalyst_tsne_comparison_{highlight_str}.png', dpi=300, bbox_inches='tight')
-        plt.close(fig5)
+        # # Create and save t-SNE comparison
+        # fig5 = create_tsne_comparison(latents, energy, highlight_range=highlight)
+        # fig5.savefig(f'visuals/{mode}/catalyst_tsne_comparison_{highlight_str}.png', dpi=300, bbox_inches='tight')
+        # plt.close(fig5)
     
     # # Create cluster analysis (only once per mode as it doesn't use highlighting)
     # fig4 = analyze_embedding_clusters(latents, energy)
