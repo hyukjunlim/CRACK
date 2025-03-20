@@ -7,7 +7,21 @@ This repository is the extension of the [EquiformerV2](https://github.com/atomic
 
 ### Environment 
 
-See [here](docs/env_setup.md) for setting up the environment.
+We use conda to install required packages:
+```
+    conda env create -f env/env.yml
+```
+
+We activate the environment:
+```
+    conda activate equiformer_v2
+```
+
+Finally, we install `fairchem` by running:
+```
+    cd fairchem
+    pip install -e .
+```
 
 
 ### OC20
