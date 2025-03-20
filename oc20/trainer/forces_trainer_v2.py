@@ -187,7 +187,7 @@ class ForcesTrainerV2(BaseTrainerV2):
             self.normalizers["target"].to(self.device)
             self.normalizers["grad_target"].to(self.device)
 
-        predictions = {"id": [], "energy": [], "forces": [], "chunk_idx": []}
+        predictions = {"id": [], "energy": [], "forces": [], "chunk_idx": [], "latents": []}
 
         for i, batch_list in tqdm(
             enumerate(data_loader),
@@ -217,6 +217,11 @@ class ForcesTrainerV2(BaseTrainerV2):
                 predictions["energy"].extend(
                     out["energy"].to(torch.float16).tolist()
                 )
+                
+                predictions["latents"].extend(
+                    out["latents"].tolist()
+                )
+                
                 batch_natoms = torch.cat(
                     [batch.natoms for batch in batch_list]
                 )
@@ -226,6 +231,18 @@ class ForcesTrainerV2(BaseTrainerV2):
                 per_image_forces = [
                     force.numpy() for force in per_image_forces
                 ]
+                
+                # per_image_latents = torch.split(latents, batch_natoms.tolist())
+                # per_image_latents = [latent.numpy() for latent in per_image_latents]
+                
+                # ### latents.shape == (9, 356, 25)
+                # per_image_latents = [
+                #     torch.split(latents[i], batch_natoms.tolist()) for i in range(latents.shape[0])
+                # ]
+                # per_image_latents = [
+                #     [latent.numpy() for latent in latent_group]
+                #     for latent_group in per_image_latents
+                # ]
                 # evalAI only requires forces on free atoms
                 if results_file is not None:
                     _per_image_fixed = torch.split(
@@ -237,6 +254,21 @@ class ForcesTrainerV2(BaseTrainerV2):
                             per_image_forces, _per_image_fixed
                         )
                     ]
+                    # _per_image_free_latents = [
+                    #     latent[(fixed == 0).tolist()]
+                    #     for latent, fixed in zip(
+                    #         per_image_latents, _per_image_fixed
+                    #     )
+                    # ]
+                    # _per_image_free_latents = [
+                    #     [
+                    #         latent[(fixed == 0).tolist()]
+                    #         for latent, fixed in zip(
+                    #             per_layer_latents, _per_image_fixed
+                    #         )
+                    #     ]
+                    #     for per_layer_latents in per_image_latents
+                    # ]
                     _chunk_idx = np.array(
                         [
                             free_force.shape[0]
@@ -244,11 +276,14 @@ class ForcesTrainerV2(BaseTrainerV2):
                         ]
                     )
                     per_image_forces = _per_image_free_forces
+                    # per_image_latents = _per_image_free_latents
                     predictions["chunk_idx"].extend(_chunk_idx)
                 predictions["forces"].extend(per_image_forces)
+                # predictions["latents"].extend(per_image_latents)
             else:
                 predictions["energy"] = out["energy"].detach()
                 predictions["forces"] = out["forces"].detach()
+                predictions["latents"] = out["latents"].detach()
                 if self.ema:
                     self.ema.restore()
                 return predictions
@@ -257,8 +292,9 @@ class ForcesTrainerV2(BaseTrainerV2):
         predictions["chunk_idx"] = np.array(predictions["chunk_idx"])
         predictions["energy"] = np.array(predictions["energy"])
         predictions["id"] = np.array(predictions["id"])
+        predictions["latents"] = np.array(predictions["latents"])
         self.save_results(
-            predictions, results_file, keys=["energy", "forces", "chunk_idx"]
+            predictions, results_file, keys=["energy", "forces", "chunk_idx", "latents"]
         )
 
         if self.ema:
@@ -448,9 +484,9 @@ class ForcesTrainerV2(BaseTrainerV2):
         # forward pass.
         if (self.config["model_attributes"].get("regress_forces", True)
             or self.config['model_attributes'].get('use_auxiliary_task', False)):
-            out_energy, out_forces = self.model(batch_list)
+            out_energy, out_forces, latent_rep = self.model(batch_list)
         else:
-            out_energy = self.model(batch_list)
+            out_energy, latent_rep = self.model(batch_list)
 
         if out_energy.shape[-1] == 1:
             out_energy = out_energy.view(-1)
@@ -462,7 +498,9 @@ class ForcesTrainerV2(BaseTrainerV2):
         if (self.config["model_attributes"].get("regress_forces", True)
            or self.config['model_attributes'].get('use_auxiliary_task', False)):
             out["forces"] = out_forces
-
+        
+        out["latents"] = latent_rep
+        
         return out
 
     def _compute_loss(self, out, batch_list):

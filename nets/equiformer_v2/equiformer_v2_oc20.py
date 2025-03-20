@@ -432,6 +432,12 @@ class EquiformerV2_OC20(BaseModel):
         # Update spherical node embeddings
         ###############################################################
 
+        # latent_rep = torch.zeros(
+        #     (self.num_layers + 1, x.embedding.size(0), x.embedding.size(1)),
+        #     device=x.embedding.device,
+        #     dtype=x.embedding.dtype
+        # )
+        # latent_rep[0] = x.embedding.mean(dim=-1)
         for i in range(self.num_layers):
             x = self.blocks[i](
                 x,                  # SO3_Embedding
@@ -440,9 +446,11 @@ class EquiformerV2_OC20(BaseModel):
                 edge_index,
                 batch=data.batch    # for GraphDropPath
             )
-
+            # latent_rep[i + 1] = x.embedding.mean(dim=-1)
+        
         # Final layer norm
         x.embedding = self.norm(x.embedding)
+        latent_rep = x.embedding.mean(dim=1)
 
         ###############################################################
         # Energy estimation
@@ -465,9 +473,9 @@ class EquiformerV2_OC20(BaseModel):
             forces = forces.view(-1, 3)            
             
         if not self.regress_forces:
-            return energy
+            return energy, latent_rep
         else:
-            return energy, forces
+            return energy, forces, latent_rep
 
 
     # Initialize the edge rotation matrics

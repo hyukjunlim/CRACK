@@ -1,0 +1,1956 @@
+amp: true
+cmd:
+  checkpoint_dir: models/oc20/s2ef/2M/equiformer_v2/N@12_L@6_M@2/bs@64_lr@2e-4_wd@1e-3_epochs@12_warmup-epochs@0.1_g@1x1/checkpoints/2025-03-20-08-38-40
+  commit: f83d150b
+  identifier: ''
+  logs_dir: models/oc20/s2ef/2M/equiformer_v2/N@12_L@6_M@2/bs@64_lr@2e-4_wd@1e-3_epochs@12_warmup-epochs@0.1_g@1x1/logs/wandb/2025-03-20-08-38-40
+  print_every: 200
+  results_dir: models/oc20/s2ef/2M/equiformer_v2/N@12_L@6_M@2/bs@64_lr@2e-4_wd@1e-3_epochs@12_warmup-epochs@0.1_g@1x1/results/2025-03-20-08-38-40
+  seed: 0
+  timestamp_id: 2025-03-20-08-38-40
+dataset:
+  grad_target_mean: 0.0
+  grad_target_std: 2.887317180633545
+  normalize_labels: true
+  src: datasets/oc20/s2ef/2M/train/
+  target_mean: -0.7554450631141663
+  target_std: 2.887317180633545
+gpus: 1
+logger: wandb
+model: equiformer_v2
+model_attributes:
+  alpha_drop: 0.1
+  attn_activation: silu
+  attn_alpha_channels: 64
+  attn_hidden_channels: 64
+  attn_value_channels: 16
+  distance_function: gaussian
+  drop_path_rate: 0.1
+  edge_channels: 128
+  ffn_activation: silu
+  ffn_hidden_channels: 128
+  grid_resolution: 18
+  lmax_list:
+  - 6
+  max_neighbors: 20
+  max_num_elements: 90
+  max_radius: 12.0
+  mmax_list:
+  - 3
+  norm_type: layer_norm_sh
+  num_distance_basis: 512
+  num_heads: 8
+  num_layers: 20
+  num_sphere_samples: 128
+  otf_graph: true
+  proj_drop: 0.0
+  regress_forces: true
+  share_atom_edge_embedding: false
+  sphere_channels: 128
+  use_atom_edge_embedding: true
+  use_attn_renorm: true
+  use_gate_act: false
+  use_grid_mlp: true
+  use_pbc: true
+  use_s2_act_attn: false
+  use_sep_s2_act: true
+  weight_init: uniform
+noddp: false
+optim:
+  batch_size: 4
+  clip_grad_norm: 100
+  ema_decay: 0.999
+  energy_coefficient: 4
+  eval_batch_size: 2
+  eval_every: 10000
+  force_coefficient: 100
+  grad_accumulation_steps: 1
+  load_balancing: atoms
+  loss_energy: mae
+  loss_force: l2mae
+  lr_initial: 0.0004
+  max_epochs: 1
+  num_workers: 8
+  optimizer: AdamW
+  optimizer_params:
+    weight_decay: 0.001
+  scheduler: LambdaLR
+  scheduler_params:
+    lambda_type: cosine
+    lr_min_factor: 0.01
+    warmup_epochs: 0.01
+    warmup_factor: 0.2
+slurm:
+  cpus_per_task: 9
+  folder: /home/hyukjunlim03/ccel/equiformer_v2/logs/9082
+  gpus_per_node: 1
+  job_id: '9082'
+  job_name: ''
+  mem: 80GB
+  nodes: 1
+  ntasks_per_node: 1
+  partition: snu-gpu1
+  time: 4320
+task:
+  dataset: trajectory_lmdb_v2
+  eval_on_free_atoms: true
+  grad_input: atomic forces
+  labels:
+  - potential energy
+  primary_metric: forces_mae
+  train_on_free_atoms: true
+test_dataset:
+  src: datasets/oc20/Oabs
+val_dataset:
+  src: datasets/oc20/s2ef/all/val_id/
+
+wandb: Using wandb-core as the SDK backend.  Please refer to https://wandb.me/wandb-core for more information.
+wandb: Currently logged in as: hyukjunlim (hyukjunlim-seoul-national-university) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: Tracking run with wandb version 0.19.8
+wandb: Run data is saved locally in models/oc20/s2ef/2M/equiformer_v2/N@12_L@6_M@2/bs@64_lr@2e-4_wd@1e-3_epochs@12_warmup-epochs@0.1_g@1x1/logs/wandb/2025-03-20-08-38-40/wandb/run-20250320_083751-2025-03-20-08-38-40
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run 2025-03-20-08-38-40
+wandb: ⭐️ View project at https://wandb.ai/hyukjunlim-seoul-national-university/equiformer_v2
+wandb: 🚀 View run at https://wandb.ai/hyukjunlim-seoul-national-university/equiformer_v2/runs/2025-03-20-08-38-40
+Loading dataset: trajectory_lmdb_v2
+Loading model: equiformer_v2
+EquiformerV2_OC20(
+  (sphere_embedding): Embedding(90, 128)
+  (distance_expansion): GaussianSmearing()
+  (SO3_rotation): ModuleList(
+    (0): SO3_Rotation(
+      (mapping): CoefficientMappingModule(lmax_list=[6], mmax_list=[6])
+    )
+  )
+  (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+  (SO3_grid): (6, 6)
+  (edge_degree_embedding): EdgeDegreeEmbedding(
+    (SO3_rotation): ModuleList(
+      (0): SO3_Rotation(
+        (mapping): CoefficientMappingModule(lmax_list=[6], mmax_list=[6])
+      )
+    )
+    (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+    (source_embedding): Embedding(90, 128)
+    (target_embedding): Embedding(90, 128)
+    (rad_func): RadialFunction(
+      (net): Sequential(
+        (0): Linear(in_features=856, out_features=128, bias=True)
+        (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
+        (2): SiLU()
+        (3): Linear(in_features=128, out_features=128, bias=True)
+        (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
+        (5): SiLU()
+        (6): Linear(in_features=128, out_features=896, bias=True)
+      )
+    )
+  )
+  (blocks): ModuleList(
+    (0): TransBlockV2(
+      (norm_1): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
+      (ga): SO2EquivariantGraphAttention(
+        (SO3_rotation): ModuleList(
+          (0): SO3_Rotation(
+            (mapping): CoefficientMappingModule(lmax_list=[6], mmax_list=[6])
+          )
+        )
+        (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+        (SO3_grid): (6, 6)
+        (source_embedding): Embedding(90, 128)
+        (target_embedding): Embedding(90, 128)
+        (so2_conv_1): SO2_Convolution(
+          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+          (fc_m0): Linear(in_features=1792, out_features=1024, bias=True)
+          (so2_m_conv): ModuleList(
+            (0): SO2_m_Convolution(
+              (fc): Linear(in_features=1536, out_features=768, bias=False)
+            )
+            (1): SO2_m_Convolution(
+              (fc): Linear(in_features=1280, out_features=640, bias=False)
+            )
+            (2): SO2_m_Convolution(
+              (fc): Linear(in_features=1024, out_features=512, bias=False)
+            )
+          )
+          (rad_func): RadialFunction(
+            (net): Sequential(
+              (0): Linear(in_features=856, out_features=128, bias=True)
+              (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
+              (2): SiLU()
+              (3): Linear(in_features=128, out_features=128, bias=True)
+              (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
+              (5): SiLU()
+              (6): Linear(in_features=128, out_features=5632, bias=True)
+            )
+          )
+        )
+        (alpha_norm): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+        (alpha_act): SmoothLeakyReLU(negative_slope=0.2)
+        (alpha_dropout): Dropout(p=0.1, inplace=False)
+        (s2_act): SeparableS2Activation(
+          (scalar_act): SiLU()
+          (s2_act): S2Activation(
+            (act): SiLU()
+          )
+        )
+        (so2_conv_2): SO2_Convolution(
+          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+          (fc_m0): Linear(in_features=448, out_features=896, bias=True)
+          (so2_m_conv): ModuleList(
+            (0): SO2_m_Convolution(
+              (fc): Linear(in_features=384, out_features=1536, bias=False)
+            )
+            (1): SO2_m_Convolution(
+              (fc): Linear(in_features=320, out_features=1280, bias=False)
+            )
+            (2): SO2_m_Convolution(
+              (fc): Linear(in_features=256, out_features=1024, bias=False)
+            )
+          )
+        )
+        (proj): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+      )
+      (drop_path): GraphDropPath(drop_prob=0.1)
+      (norm_2): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
+      (ffn): FeedForwardNetwork(
+        (SO3_grid): (6, 6)
+        (so3_linear_1): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+        (scalar_mlp): Sequential(
+          (0): Linear(in_features=128, out_features=128, bias=True)
+          (1): SiLU()
+        )
+        (grid_mlp): Sequential(
+          (0): Linear(in_features=128, out_features=128, bias=False)
+          (1): SiLU()
+          (2): Linear(in_features=128, out_features=128, bias=False)
+          (3): SiLU()
+          (4): Linear(in_features=128, out_features=128, bias=False)
+        )
+        (so3_linear_2): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+      )
+    )
+    (1): TransBlockV2(
+      (norm_1): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
+      (ga): SO2EquivariantGraphAttention(
+        (SO3_rotation): ModuleList(
+          (0): SO3_Rotation(
+            (mapping): CoefficientMappingModule(lmax_list=[6], mmax_list=[6])
+          )
+        )
+        (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+        (SO3_grid): (6, 6)
+        (source_embedding): Embedding(90, 128)
+        (target_embedding): Embedding(90, 128)
+        (so2_conv_1): SO2_Convolution(
+          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+          (fc_m0): Linear(in_features=1792, out_features=1024, bias=True)
+          (so2_m_conv): ModuleList(
+            (0): SO2_m_Convolution(
+              (fc): Linear(in_features=1536, out_features=768, bias=False)
+            )
+            (1): SO2_m_Convolution(
+              (fc): Linear(in_features=1280, out_features=640, bias=False)
+            )
+            (2): SO2_m_Convolution(
+              (fc): Linear(in_features=1024, out_features=512, bias=False)
+            )
+          )
+          (rad_func): RadialFunction(
+            (net): Sequential(
+              (0): Linear(in_features=856, out_features=128, bias=True)
+              (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
+              (2): SiLU()
+              (3): Linear(in_features=128, out_features=128, bias=True)
+              (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
+              (5): SiLU()
+              (6): Linear(in_features=128, out_features=5632, bias=True)
+            )
+          )
+        )
+        (alpha_norm): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+        (alpha_act): SmoothLeakyReLU(negative_slope=0.2)
+        (alpha_dropout): Dropout(p=0.1, inplace=False)
+        (s2_act): SeparableS2Activation(
+          (scalar_act): SiLU()
+          (s2_act): S2Activation(
+            (act): SiLU()
+          )
+        )
+        (so2_conv_2): SO2_Convolution(
+          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+          (fc_m0): Linear(in_features=448, out_features=896, bias=True)
+          (so2_m_conv): ModuleList(
+            (0): SO2_m_Convolution(
+              (fc): Linear(in_features=384, out_features=1536, bias=False)
+            )
+            (1): SO2_m_Convolution(
+              (fc): Linear(in_features=320, out_features=1280, bias=False)
+            )
+            (2): SO2_m_Convolution(
+              (fc): Linear(in_features=256, out_features=1024, bias=False)
+            )
+          )
+        )
+        (proj): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+      )
+      (drop_path): GraphDropPath(drop_prob=0.1)
+      (norm_2): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
+      (ffn): FeedForwardNetwork(
+        (SO3_grid): (6, 6)
+        (so3_linear_1): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+        (scalar_mlp): Sequential(
+          (0): Linear(in_features=128, out_features=128, bias=True)
+          (1): SiLU()
+        )
+        (grid_mlp): Sequential(
+          (0): Linear(in_features=128, out_features=128, bias=False)
+          (1): SiLU()
+          (2): Linear(in_features=128, out_features=128, bias=False)
+          (3): SiLU()
+          (4): Linear(in_features=128, out_features=128, bias=False)
+        )
+        (so3_linear_2): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+      )
+    )
+    (2): TransBlockV2(
+      (norm_1): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
+      (ga): SO2EquivariantGraphAttention(
+        (SO3_rotation): ModuleList(
+          (0): SO3_Rotation(
+            (mapping): CoefficientMappingModule(lmax_list=[6], mmax_list=[6])
+          )
+        )
+        (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+        (SO3_grid): (6, 6)
+        (source_embedding): Embedding(90, 128)
+        (target_embedding): Embedding(90, 128)
+        (so2_conv_1): SO2_Convolution(
+          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+          (fc_m0): Linear(in_features=1792, out_features=1024, bias=True)
+          (so2_m_conv): ModuleList(
+            (0): SO2_m_Convolution(
+              (fc): Linear(in_features=1536, out_features=768, bias=False)
+            )
+            (1): SO2_m_Convolution(
+              (fc): Linear(in_features=1280, out_features=640, bias=False)
+            )
+            (2): SO2_m_Convolution(
+              (fc): Linear(in_features=1024, out_features=512, bias=False)
+            )
+          )
+          (rad_func): RadialFunction(
+            (net): Sequential(
+              (0): Linear(in_features=856, out_features=128, bias=True)
+              (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
+              (2): SiLU()
+              (3): Linear(in_features=128, out_features=128, bias=True)
+              (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
+              (5): SiLU()
+              (6): Linear(in_features=128, out_features=5632, bias=True)
+            )
+          )
+        )
+        (alpha_norm): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+        (alpha_act): SmoothLeakyReLU(negative_slope=0.2)
+        (alpha_dropout): Dropout(p=0.1, inplace=False)
+        (s2_act): SeparableS2Activation(
+          (scalar_act): SiLU()
+          (s2_act): S2Activation(
+            (act): SiLU()
+          )
+        )
+        (so2_conv_2): SO2_Convolution(
+          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+          (fc_m0): Linear(in_features=448, out_features=896, bias=True)
+          (so2_m_conv): ModuleList(
+            (0): SO2_m_Convolution(
+              (fc): Linear(in_features=384, out_features=1536, bias=False)
+            )
+            (1): SO2_m_Convolution(
+              (fc): Linear(in_features=320, out_features=1280, bias=False)
+            )
+            (2): SO2_m_Convolution(
+              (fc): Linear(in_features=256, out_features=1024, bias=False)
+            )
+          )
+        )
+        (proj): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+      )
+      (drop_path): GraphDropPath(drop_prob=0.1)
+      (norm_2): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
+      (ffn): FeedForwardNetwork(
+        (SO3_grid): (6, 6)
+        (so3_linear_1): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+        (scalar_mlp): Sequential(
+          (0): Linear(in_features=128, out_features=128, bias=True)
+          (1): SiLU()
+        )
+        (grid_mlp): Sequential(
+          (0): Linear(in_features=128, out_features=128, bias=False)
+          (1): SiLU()
+          (2): Linear(in_features=128, out_features=128, bias=False)
+          (3): SiLU()
+          (4): Linear(in_features=128, out_features=128, bias=False)
+        )
+        (so3_linear_2): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+      )
+    )
+    (3): TransBlockV2(
+      (norm_1): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
+      (ga): SO2EquivariantGraphAttention(
+        (SO3_rotation): ModuleList(
+          (0): SO3_Rotation(
+            (mapping): CoefficientMappingModule(lmax_list=[6], mmax_list=[6])
+          )
+        )
+        (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+        (SO3_grid): (6, 6)
+        (source_embedding): Embedding(90, 128)
+        (target_embedding): Embedding(90, 128)
+        (so2_conv_1): SO2_Convolution(
+          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+          (fc_m0): Linear(in_features=1792, out_features=1024, bias=True)
+          (so2_m_conv): ModuleList(
+            (0): SO2_m_Convolution(
+              (fc): Linear(in_features=1536, out_features=768, bias=False)
+            )
+            (1): SO2_m_Convolution(
+              (fc): Linear(in_features=1280, out_features=640, bias=False)
+            )
+            (2): SO2_m_Convolution(
+              (fc): Linear(in_features=1024, out_features=512, bias=False)
+            )
+          )
+          (rad_func): RadialFunction(
+            (net): Sequential(
+              (0): Linear(in_features=856, out_features=128, bias=True)
+              (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
+              (2): SiLU()
+              (3): Linear(in_features=128, out_features=128, bias=True)
+              (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
+              (5): SiLU()
+              (6): Linear(in_features=128, out_features=5632, bias=True)
+            )
+          )
+        )
+        (alpha_norm): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+        (alpha_act): SmoothLeakyReLU(negative_slope=0.2)
+        (alpha_dropout): Dropout(p=0.1, inplace=False)
+        (s2_act): SeparableS2Activation(
+          (scalar_act): SiLU()
+          (s2_act): S2Activation(
+            (act): SiLU()
+          )
+        )
+        (so2_conv_2): SO2_Convolution(
+          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+          (fc_m0): Linear(in_features=448, out_features=896, bias=True)
+          (so2_m_conv): ModuleList(
+            (0): SO2_m_Convolution(
+              (fc): Linear(in_features=384, out_features=1536, bias=False)
+            )
+            (1): SO2_m_Convolution(
+              (fc): Linear(in_features=320, out_features=1280, bias=False)
+            )
+            (2): SO2_m_Convolution(
+              (fc): Linear(in_features=256, out_features=1024, bias=False)
+            )
+          )
+        )
+        (proj): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+      )
+      (drop_path): GraphDropPath(drop_prob=0.1)
+      (norm_2): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
+      (ffn): FeedForwardNetwork(
+        (SO3_grid): (6, 6)
+        (so3_linear_1): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+        (scalar_mlp): Sequential(
+          (0): Linear(in_features=128, out_features=128, bias=True)
+          (1): SiLU()
+        )
+        (grid_mlp): Sequential(
+          (0): Linear(in_features=128, out_features=128, bias=False)
+          (1): SiLU()
+          (2): Linear(in_features=128, out_features=128, bias=False)
+          (3): SiLU()
+          (4): Linear(in_features=128, out_features=128, bias=False)
+        )
+        (so3_linear_2): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+      )
+    )
+    (4): TransBlockV2(
+      (norm_1): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
+      (ga): SO2EquivariantGraphAttention(
+        (SO3_rotation): ModuleList(
+          (0): SO3_Rotation(
+            (mapping): CoefficientMappingModule(lmax_list=[6], mmax_list=[6])
+          )
+        )
+        (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+        (SO3_grid): (6, 6)
+        (source_embedding): Embedding(90, 128)
+        (target_embedding): Embedding(90, 128)
+        (so2_conv_1): SO2_Convolution(
+          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+          (fc_m0): Linear(in_features=1792, out_features=1024, bias=True)
+          (so2_m_conv): ModuleList(
+            (0): SO2_m_Convolution(
+              (fc): Linear(in_features=1536, out_features=768, bias=False)
+            )
+            (1): SO2_m_Convolution(
+              (fc): Linear(in_features=1280, out_features=640, bias=False)
+            )
+            (2): SO2_m_Convolution(
+              (fc): Linear(in_features=1024, out_features=512, bias=False)
+            )
+          )
+          (rad_func): RadialFunction(
+            (net): Sequential(
+              (0): Linear(in_features=856, out_features=128, bias=True)
+              (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
+              (2): SiLU()
+              (3): Linear(in_features=128, out_features=128, bias=True)
+              (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
+              (5): SiLU()
+              (6): Linear(in_features=128, out_features=5632, bias=True)
+            )
+          )
+        )
+        (alpha_norm): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+        (alpha_act): SmoothLeakyReLU(negative_slope=0.2)
+        (alpha_dropout): Dropout(p=0.1, inplace=False)
+        (s2_act): SeparableS2Activation(
+          (scalar_act): SiLU()
+          (s2_act): S2Activation(
+            (act): SiLU()
+          )
+        )
+        (so2_conv_2): SO2_Convolution(
+          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+          (fc_m0): Linear(in_features=448, out_features=896, bias=True)
+          (so2_m_conv): ModuleList(
+            (0): SO2_m_Convolution(
+              (fc): Linear(in_features=384, out_features=1536, bias=False)
+            )
+            (1): SO2_m_Convolution(
+              (fc): Linear(in_features=320, out_features=1280, bias=False)
+            )
+            (2): SO2_m_Convolution(
+              (fc): Linear(in_features=256, out_features=1024, bias=False)
+            )
+          )
+        )
+        (proj): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+      )
+      (drop_path): GraphDropPath(drop_prob=0.1)
+      (norm_2): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
+      (ffn): FeedForwardNetwork(
+        (SO3_grid): (6, 6)
+        (so3_linear_1): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+        (scalar_mlp): Sequential(
+          (0): Linear(in_features=128, out_features=128, bias=True)
+          (1): SiLU()
+        )
+        (grid_mlp): Sequential(
+          (0): Linear(in_features=128, out_features=128, bias=False)
+          (1): SiLU()
+          (2): Linear(in_features=128, out_features=128, bias=False)
+          (3): SiLU()
+          (4): Linear(in_features=128, out_features=128, bias=False)
+        )
+        (so3_linear_2): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+      )
+    )
+    (5): TransBlockV2(
+      (norm_1): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
+      (ga): SO2EquivariantGraphAttention(
+        (SO3_rotation): ModuleList(
+          (0): SO3_Rotation(
+            (mapping): CoefficientMappingModule(lmax_list=[6], mmax_list=[6])
+          )
+        )
+        (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+        (SO3_grid): (6, 6)
+        (source_embedding): Embedding(90, 128)
+        (target_embedding): Embedding(90, 128)
+        (so2_conv_1): SO2_Convolution(
+          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+          (fc_m0): Linear(in_features=1792, out_features=1024, bias=True)
+          (so2_m_conv): ModuleList(
+            (0): SO2_m_Convolution(
+              (fc): Linear(in_features=1536, out_features=768, bias=False)
+            )
+            (1): SO2_m_Convolution(
+              (fc): Linear(in_features=1280, out_features=640, bias=False)
+            )
+            (2): SO2_m_Convolution(
+              (fc): Linear(in_features=1024, out_features=512, bias=False)
+            )
+          )
+          (rad_func): RadialFunction(
+            (net): Sequential(
+              (0): Linear(in_features=856, out_features=128, bias=True)
+              (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
+              (2): SiLU()
+              (3): Linear(in_features=128, out_features=128, bias=True)
+              (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
+              (5): SiLU()
+              (6): Linear(in_features=128, out_features=5632, bias=True)
+            )
+          )
+        )
+        (alpha_norm): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+        (alpha_act): SmoothLeakyReLU(negative_slope=0.2)
+        (alpha_dropout): Dropout(p=0.1, inplace=False)
+        (s2_act): SeparableS2Activation(
+          (scalar_act): SiLU()
+          (s2_act): S2Activation(
+            (act): SiLU()
+          )
+        )
+        (so2_conv_2): SO2_Convolution(
+          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+          (fc_m0): Linear(in_features=448, out_features=896, bias=True)
+          (so2_m_conv): ModuleList(
+            (0): SO2_m_Convolution(
+              (fc): Linear(in_features=384, out_features=1536, bias=False)
+            )
+            (1): SO2_m_Convolution(
+              (fc): Linear(in_features=320, out_features=1280, bias=False)
+            )
+            (2): SO2_m_Convolution(
+              (fc): Linear(in_features=256, out_features=1024, bias=False)
+            )
+          )
+        )
+        (proj): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+      )
+      (drop_path): GraphDropPath(drop_prob=0.1)
+      (norm_2): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
+      (ffn): FeedForwardNetwork(
+        (SO3_grid): (6, 6)
+        (so3_linear_1): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+        (scalar_mlp): Sequential(
+          (0): Linear(in_features=128, out_features=128, bias=True)
+          (1): SiLU()
+        )
+        (grid_mlp): Sequential(
+          (0): Linear(in_features=128, out_features=128, bias=False)
+          (1): SiLU()
+          (2): Linear(in_features=128, out_features=128, bias=False)
+          (3): SiLU()
+          (4): Linear(in_features=128, out_features=128, bias=False)
+        )
+        (so3_linear_2): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+      )
+    )
+    (6): TransBlockV2(
+      (norm_1): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
+      (ga): SO2EquivariantGraphAttention(
+        (SO3_rotation): ModuleList(
+          (0): SO3_Rotation(
+            (mapping): CoefficientMappingModule(lmax_list=[6], mmax_list=[6])
+          )
+        )
+        (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+        (SO3_grid): (6, 6)
+        (source_embedding): Embedding(90, 128)
+        (target_embedding): Embedding(90, 128)
+        (so2_conv_1): SO2_Convolution(
+          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+          (fc_m0): Linear(in_features=1792, out_features=1024, bias=True)
+          (so2_m_conv): ModuleList(
+            (0): SO2_m_Convolution(
+              (fc): Linear(in_features=1536, out_features=768, bias=False)
+            )
+            (1): SO2_m_Convolution(
+              (fc): Linear(in_features=1280, out_features=640, bias=False)
+            )
+            (2): SO2_m_Convolution(
+              (fc): Linear(in_features=1024, out_features=512, bias=False)
+            )
+          )
+          (rad_func): RadialFunction(
+            (net): Sequential(
+              (0): Linear(in_features=856, out_features=128, bias=True)
+              (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
+              (2): SiLU()
+              (3): Linear(in_features=128, out_features=128, bias=True)
+              (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
+              (5): SiLU()
+              (6): Linear(in_features=128, out_features=5632, bias=True)
+            )
+          )
+        )
+        (alpha_norm): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+        (alpha_act): SmoothLeakyReLU(negative_slope=0.2)
+        (alpha_dropout): Dropout(p=0.1, inplace=False)
+        (s2_act): SeparableS2Activation(
+          (scalar_act): SiLU()
+          (s2_act): S2Activation(
+            (act): SiLU()
+          )
+        )
+        (so2_conv_2): SO2_Convolution(
+          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+          (fc_m0): Linear(in_features=448, out_features=896, bias=True)
+          (so2_m_conv): ModuleList(
+            (0): SO2_m_Convolution(
+              (fc): Linear(in_features=384, out_features=1536, bias=False)
+            )
+            (1): SO2_m_Convolution(
+              (fc): Linear(in_features=320, out_features=1280, bias=False)
+            )
+            (2): SO2_m_Convolution(
+              (fc): Linear(in_features=256, out_features=1024, bias=False)
+            )
+          )
+        )
+        (proj): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+      )
+      (drop_path): GraphDropPath(drop_prob=0.1)
+      (norm_2): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
+      (ffn): FeedForwardNetwork(
+        (SO3_grid): (6, 6)
+        (so3_linear_1): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+        (scalar_mlp): Sequential(
+          (0): Linear(in_features=128, out_features=128, bias=True)
+          (1): SiLU()
+        )
+        (grid_mlp): Sequential(
+          (0): Linear(in_features=128, out_features=128, bias=False)
+          (1): SiLU()
+          (2): Linear(in_features=128, out_features=128, bias=False)
+          (3): SiLU()
+          (4): Linear(in_features=128, out_features=128, bias=False)
+        )
+        (so3_linear_2): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+      )
+    )
+    (7): TransBlockV2(
+      (norm_1): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
+      (ga): SO2EquivariantGraphAttention(
+        (SO3_rotation): ModuleList(
+          (0): SO3_Rotation(
+            (mapping): CoefficientMappingModule(lmax_list=[6], mmax_list=[6])
+          )
+        )
+        (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+        (SO3_grid): (6, 6)
+        (source_embedding): Embedding(90, 128)
+        (target_embedding): Embedding(90, 128)
+        (so2_conv_1): SO2_Convolution(
+          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+          (fc_m0): Linear(in_features=1792, out_features=1024, bias=True)
+          (so2_m_conv): ModuleList(
+            (0): SO2_m_Convolution(
+              (fc): Linear(in_features=1536, out_features=768, bias=False)
+            )
+            (1): SO2_m_Convolution(
+              (fc): Linear(in_features=1280, out_features=640, bias=False)
+            )
+            (2): SO2_m_Convolution(
+              (fc): Linear(in_features=1024, out_features=512, bias=False)
+            )
+          )
+          (rad_func): RadialFunction(
+            (net): Sequential(
+              (0): Linear(in_features=856, out_features=128, bias=True)
+              (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
+              (2): SiLU()
+              (3): Linear(in_features=128, out_features=128, bias=True)
+              (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
+              (5): SiLU()
+              (6): Linear(in_features=128, out_features=5632, bias=True)
+            )
+          )
+        )
+        (alpha_norm): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+        (alpha_act): SmoothLeakyReLU(negative_slope=0.2)
+        (alpha_dropout): Dropout(p=0.1, inplace=False)
+        (s2_act): SeparableS2Activation(
+          (scalar_act): SiLU()
+          (s2_act): S2Activation(
+            (act): SiLU()
+          )
+        )
+        (so2_conv_2): SO2_Convolution(
+          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+          (fc_m0): Linear(in_features=448, out_features=896, bias=True)
+          (so2_m_conv): ModuleList(
+            (0): SO2_m_Convolution(
+              (fc): Linear(in_features=384, out_features=1536, bias=False)
+            )
+            (1): SO2_m_Convolution(
+              (fc): Linear(in_features=320, out_features=1280, bias=False)
+            )
+            (2): SO2_m_Convolution(
+              (fc): Linear(in_features=256, out_features=1024, bias=False)
+            )
+          )
+        )
+        (proj): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+      )
+      (drop_path): GraphDropPath(drop_prob=0.1)
+      (norm_2): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
+      (ffn): FeedForwardNetwork(
+        (SO3_grid): (6, 6)
+        (so3_linear_1): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+        (scalar_mlp): Sequential(
+          (0): Linear(in_features=128, out_features=128, bias=True)
+          (1): SiLU()
+        )
+        (grid_mlp): Sequential(
+          (0): Linear(in_features=128, out_features=128, bias=False)
+          (1): SiLU()
+          (2): Linear(in_features=128, out_features=128, bias=False)
+          (3): SiLU()
+          (4): Linear(in_features=128, out_features=128, bias=False)
+        )
+        (so3_linear_2): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+      )
+    )
+    (8): TransBlockV2(
+      (norm_1): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
+      (ga): SO2EquivariantGraphAttention(
+        (SO3_rotation): ModuleList(
+          (0): SO3_Rotation(
+            (mapping): CoefficientMappingModule(lmax_list=[6], mmax_list=[6])
+          )
+        )
+        (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+        (SO3_grid): (6, 6)
+        (source_embedding): Embedding(90, 128)
+        (target_embedding): Embedding(90, 128)
+        (so2_conv_1): SO2_Convolution(
+          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+          (fc_m0): Linear(in_features=1792, out_features=1024, bias=True)
+          (so2_m_conv): ModuleList(
+            (0): SO2_m_Convolution(
+              (fc): Linear(in_features=1536, out_features=768, bias=False)
+            )
+            (1): SO2_m_Convolution(
+              (fc): Linear(in_features=1280, out_features=640, bias=False)
+            )
+            (2): SO2_m_Convolution(
+              (fc): Linear(in_features=1024, out_features=512, bias=False)
+            )
+          )
+          (rad_func): RadialFunction(
+            (net): Sequential(
+              (0): Linear(in_features=856, out_features=128, bias=True)
+              (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
+              (2): SiLU()
+              (3): Linear(in_features=128, out_features=128, bias=True)
+              (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
+              (5): SiLU()
+              (6): Linear(in_features=128, out_features=5632, bias=True)
+            )
+          )
+        )
+        (alpha_norm): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+        (alpha_act): SmoothLeakyReLU(negative_slope=0.2)
+        (alpha_dropout): Dropout(p=0.1, inplace=False)
+        (s2_act): SeparableS2Activation(
+          (scalar_act): SiLU()
+          (s2_act): S2Activation(
+            (act): SiLU()
+          )
+        )
+        (so2_conv_2): SO2_Convolution(
+          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+          (fc_m0): Linear(in_features=448, out_features=896, bias=True)
+          (so2_m_conv): ModuleList(
+            (0): SO2_m_Convolution(
+              (fc): Linear(in_features=384, out_features=1536, bias=False)
+            )
+            (1): SO2_m_Convolution(
+              (fc): Linear(in_features=320, out_features=1280, bias=False)
+            )
+            (2): SO2_m_Convolution(
+              (fc): Linear(in_features=256, out_features=1024, bias=False)
+            )
+          )
+        )
+        (proj): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+      )
+      (drop_path): GraphDropPath(drop_prob=0.1)
+      (norm_2): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
+      (ffn): FeedForwardNetwork(
+        (SO3_grid): (6, 6)
+        (so3_linear_1): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+        (scalar_mlp): Sequential(
+          (0): Linear(in_features=128, out_features=128, bias=True)
+          (1): SiLU()
+        )
+        (grid_mlp): Sequential(
+          (0): Linear(in_features=128, out_features=128, bias=False)
+          (1): SiLU()
+          (2): Linear(in_features=128, out_features=128, bias=False)
+          (3): SiLU()
+          (4): Linear(in_features=128, out_features=128, bias=False)
+        )
+        (so3_linear_2): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+      )
+    )
+    (9): TransBlockV2(
+      (norm_1): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
+      (ga): SO2EquivariantGraphAttention(
+        (SO3_rotation): ModuleList(
+          (0): SO3_Rotation(
+            (mapping): CoefficientMappingModule(lmax_list=[6], mmax_list=[6])
+          )
+        )
+        (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+        (SO3_grid): (6, 6)
+        (source_embedding): Embedding(90, 128)
+        (target_embedding): Embedding(90, 128)
+        (so2_conv_1): SO2_Convolution(
+          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+          (fc_m0): Linear(in_features=1792, out_features=1024, bias=True)
+          (so2_m_conv): ModuleList(
+            (0): SO2_m_Convolution(
+              (fc): Linear(in_features=1536, out_features=768, bias=False)
+            )
+            (1): SO2_m_Convolution(
+              (fc): Linear(in_features=1280, out_features=640, bias=False)
+            )
+            (2): SO2_m_Convolution(
+              (fc): Linear(in_features=1024, out_features=512, bias=False)
+            )
+          )
+          (rad_func): RadialFunction(
+            (net): Sequential(
+              (0): Linear(in_features=856, out_features=128, bias=True)
+              (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
+              (2): SiLU()
+              (3): Linear(in_features=128, out_features=128, bias=True)
+              (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
+              (5): SiLU()
+              (6): Linear(in_features=128, out_features=5632, bias=True)
+            )
+          )
+        )
+        (alpha_norm): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+        (alpha_act): SmoothLeakyReLU(negative_slope=0.2)
+        (alpha_dropout): Dropout(p=0.1, inplace=False)
+        (s2_act): SeparableS2Activation(
+          (scalar_act): SiLU()
+          (s2_act): S2Activation(
+            (act): SiLU()
+          )
+        )
+        (so2_conv_2): SO2_Convolution(
+          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+          (fc_m0): Linear(in_features=448, out_features=896, bias=True)
+          (so2_m_conv): ModuleList(
+            (0): SO2_m_Convolution(
+              (fc): Linear(in_features=384, out_features=1536, bias=False)
+            )
+            (1): SO2_m_Convolution(
+              (fc): Linear(in_features=320, out_features=1280, bias=False)
+            )
+            (2): SO2_m_Convolution(
+              (fc): Linear(in_features=256, out_features=1024, bias=False)
+            )
+          )
+        )
+        (proj): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+      )
+      (drop_path): GraphDropPath(drop_prob=0.1)
+      (norm_2): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
+      (ffn): FeedForwardNetwork(
+        (SO3_grid): (6, 6)
+        (so3_linear_1): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+        (scalar_mlp): Sequential(
+          (0): Linear(in_features=128, out_features=128, bias=True)
+          (1): SiLU()
+        )
+        (grid_mlp): Sequential(
+          (0): Linear(in_features=128, out_features=128, bias=False)
+          (1): SiLU()
+          (2): Linear(in_features=128, out_features=128, bias=False)
+          (3): SiLU()
+          (4): Linear(in_features=128, out_features=128, bias=False)
+        )
+        (so3_linear_2): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+      )
+    )
+    (10): TransBlockV2(
+      (norm_1): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
+      (ga): SO2EquivariantGraphAttention(
+        (SO3_rotation): ModuleList(
+          (0): SO3_Rotation(
+            (mapping): CoefficientMappingModule(lmax_list=[6], mmax_list=[6])
+          )
+        )
+        (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+        (SO3_grid): (6, 6)
+        (source_embedding): Embedding(90, 128)
+        (target_embedding): Embedding(90, 128)
+        (so2_conv_1): SO2_Convolution(
+          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+          (fc_m0): Linear(in_features=1792, out_features=1024, bias=True)
+          (so2_m_conv): ModuleList(
+            (0): SO2_m_Convolution(
+              (fc): Linear(in_features=1536, out_features=768, bias=False)
+            )
+            (1): SO2_m_Convolution(
+              (fc): Linear(in_features=1280, out_features=640, bias=False)
+            )
+            (2): SO2_m_Convolution(
+              (fc): Linear(in_features=1024, out_features=512, bias=False)
+            )
+          )
+          (rad_func): RadialFunction(
+            (net): Sequential(
+              (0): Linear(in_features=856, out_features=128, bias=True)
+              (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
+              (2): SiLU()
+              (3): Linear(in_features=128, out_features=128, bias=True)
+              (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
+              (5): SiLU()
+              (6): Linear(in_features=128, out_features=5632, bias=True)
+            )
+          )
+        )
+        (alpha_norm): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+        (alpha_act): SmoothLeakyReLU(negative_slope=0.2)
+        (alpha_dropout): Dropout(p=0.1, inplace=False)
+        (s2_act): SeparableS2Activation(
+          (scalar_act): SiLU()
+          (s2_act): S2Activation(
+            (act): SiLU()
+          )
+        )
+        (so2_conv_2): SO2_Convolution(
+          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+          (fc_m0): Linear(in_features=448, out_features=896, bias=True)
+          (so2_m_conv): ModuleList(
+            (0): SO2_m_Convolution(
+              (fc): Linear(in_features=384, out_features=1536, bias=False)
+            )
+            (1): SO2_m_Convolution(
+              (fc): Linear(in_features=320, out_features=1280, bias=False)
+            )
+            (2): SO2_m_Convolution(
+              (fc): Linear(in_features=256, out_features=1024, bias=False)
+            )
+          )
+        )
+        (proj): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+      )
+      (drop_path): GraphDropPath(drop_prob=0.1)
+      (norm_2): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
+      (ffn): FeedForwardNetwork(
+        (SO3_grid): (6, 6)
+        (so3_linear_1): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+        (scalar_mlp): Sequential(
+          (0): Linear(in_features=128, out_features=128, bias=True)
+          (1): SiLU()
+        )
+        (grid_mlp): Sequential(
+          (0): Linear(in_features=128, out_features=128, bias=False)
+          (1): SiLU()
+          (2): Linear(in_features=128, out_features=128, bias=False)
+          (3): SiLU()
+          (4): Linear(in_features=128, out_features=128, bias=False)
+        )
+        (so3_linear_2): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+      )
+    )
+    (11): TransBlockV2(
+      (norm_1): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
+      (ga): SO2EquivariantGraphAttention(
+        (SO3_rotation): ModuleList(
+          (0): SO3_Rotation(
+            (mapping): CoefficientMappingModule(lmax_list=[6], mmax_list=[6])
+          )
+        )
+        (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+        (SO3_grid): (6, 6)
+        (source_embedding): Embedding(90, 128)
+        (target_embedding): Embedding(90, 128)
+        (so2_conv_1): SO2_Convolution(
+          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+          (fc_m0): Linear(in_features=1792, out_features=1024, bias=True)
+          (so2_m_conv): ModuleList(
+            (0): SO2_m_Convolution(
+              (fc): Linear(in_features=1536, out_features=768, bias=False)
+            )
+            (1): SO2_m_Convolution(
+              (fc): Linear(in_features=1280, out_features=640, bias=False)
+            )
+            (2): SO2_m_Convolution(
+              (fc): Linear(in_features=1024, out_features=512, bias=False)
+            )
+          )
+          (rad_func): RadialFunction(
+            (net): Sequential(
+              (0): Linear(in_features=856, out_features=128, bias=True)
+              (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
+              (2): SiLU()
+              (3): Linear(in_features=128, out_features=128, bias=True)
+              (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
+              (5): SiLU()
+              (6): Linear(in_features=128, out_features=5632, bias=True)
+            )
+          )
+        )
+        (alpha_norm): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+        (alpha_act): SmoothLeakyReLU(negative_slope=0.2)
+        (alpha_dropout): Dropout(p=0.1, inplace=False)
+        (s2_act): SeparableS2Activation(
+          (scalar_act): SiLU()
+          (s2_act): S2Activation(
+            (act): SiLU()
+          )
+        )
+        (so2_conv_2): SO2_Convolution(
+          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+          (fc_m0): Linear(in_features=448, out_features=896, bias=True)
+          (so2_m_conv): ModuleList(
+            (0): SO2_m_Convolution(
+              (fc): Linear(in_features=384, out_features=1536, bias=False)
+            )
+            (1): SO2_m_Convolution(
+              (fc): Linear(in_features=320, out_features=1280, bias=False)
+            )
+            (2): SO2_m_Convolution(
+              (fc): Linear(in_features=256, out_features=1024, bias=False)
+            )
+          )
+        )
+        (proj): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+      )
+      (drop_path): GraphDropPath(drop_prob=0.1)
+      (norm_2): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
+      (ffn): FeedForwardNetwork(
+        (SO3_grid): (6, 6)
+        (so3_linear_1): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+        (scalar_mlp): Sequential(
+          (0): Linear(in_features=128, out_features=128, bias=True)
+          (1): SiLU()
+        )
+        (grid_mlp): Sequential(
+          (0): Linear(in_features=128, out_features=128, bias=False)
+          (1): SiLU()
+          (2): Linear(in_features=128, out_features=128, bias=False)
+          (3): SiLU()
+          (4): Linear(in_features=128, out_features=128, bias=False)
+        )
+        (so3_linear_2): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+      )
+    )
+    (12): TransBlockV2(
+      (norm_1): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
+      (ga): SO2EquivariantGraphAttention(
+        (SO3_rotation): ModuleList(
+          (0): SO3_Rotation(
+            (mapping): CoefficientMappingModule(lmax_list=[6], mmax_list=[6])
+          )
+        )
+        (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+        (SO3_grid): (6, 6)
+        (source_embedding): Embedding(90, 128)
+        (target_embedding): Embedding(90, 128)
+        (so2_conv_1): SO2_Convolution(
+          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+          (fc_m0): Linear(in_features=1792, out_features=1024, bias=True)
+          (so2_m_conv): ModuleList(
+            (0): SO2_m_Convolution(
+              (fc): Linear(in_features=1536, out_features=768, bias=False)
+            )
+            (1): SO2_m_Convolution(
+              (fc): Linear(in_features=1280, out_features=640, bias=False)
+            )
+            (2): SO2_m_Convolution(
+              (fc): Linear(in_features=1024, out_features=512, bias=False)
+            )
+          )
+          (rad_func): RadialFunction(
+            (net): Sequential(
+              (0): Linear(in_features=856, out_features=128, bias=True)
+              (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
+              (2): SiLU()
+              (3): Linear(in_features=128, out_features=128, bias=True)
+              (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
+              (5): SiLU()
+              (6): Linear(in_features=128, out_features=5632, bias=True)
+            )
+          )
+        )
+        (alpha_norm): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+        (alpha_act): SmoothLeakyReLU(negative_slope=0.2)
+        (alpha_dropout): Dropout(p=0.1, inplace=False)
+        (s2_act): SeparableS2Activation(
+          (scalar_act): SiLU()
+          (s2_act): S2Activation(
+            (act): SiLU()
+          )
+        )
+        (so2_conv_2): SO2_Convolution(
+          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+          (fc_m0): Linear(in_features=448, out_features=896, bias=True)
+          (so2_m_conv): ModuleList(
+            (0): SO2_m_Convolution(
+              (fc): Linear(in_features=384, out_features=1536, bias=False)
+            )
+            (1): SO2_m_Convolution(
+              (fc): Linear(in_features=320, out_features=1280, bias=False)
+            )
+            (2): SO2_m_Convolution(
+              (fc): Linear(in_features=256, out_features=1024, bias=False)
+            )
+          )
+        )
+        (proj): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+      )
+      (drop_path): GraphDropPath(drop_prob=0.1)
+      (norm_2): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
+      (ffn): FeedForwardNetwork(
+        (SO3_grid): (6, 6)
+        (so3_linear_1): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+        (scalar_mlp): Sequential(
+          (0): Linear(in_features=128, out_features=128, bias=True)
+          (1): SiLU()
+        )
+        (grid_mlp): Sequential(
+          (0): Linear(in_features=128, out_features=128, bias=False)
+          (1): SiLU()
+          (2): Linear(in_features=128, out_features=128, bias=False)
+          (3): SiLU()
+          (4): Linear(in_features=128, out_features=128, bias=False)
+        )
+        (so3_linear_2): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+      )
+    )
+    (13): TransBlockV2(
+      (norm_1): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
+      (ga): SO2EquivariantGraphAttention(
+        (SO3_rotation): ModuleList(
+          (0): SO3_Rotation(
+            (mapping): CoefficientMappingModule(lmax_list=[6], mmax_list=[6])
+          )
+        )
+        (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+        (SO3_grid): (6, 6)
+        (source_embedding): Embedding(90, 128)
+        (target_embedding): Embedding(90, 128)
+        (so2_conv_1): SO2_Convolution(
+          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+          (fc_m0): Linear(in_features=1792, out_features=1024, bias=True)
+          (so2_m_conv): ModuleList(
+            (0): SO2_m_Convolution(
+              (fc): Linear(in_features=1536, out_features=768, bias=False)
+            )
+            (1): SO2_m_Convolution(
+              (fc): Linear(in_features=1280, out_features=640, bias=False)
+            )
+            (2): SO2_m_Convolution(
+              (fc): Linear(in_features=1024, out_features=512, bias=False)
+            )
+          )
+          (rad_func): RadialFunction(
+            (net): Sequential(
+              (0): Linear(in_features=856, out_features=128, bias=True)
+              (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
+              (2): SiLU()
+              (3): Linear(in_features=128, out_features=128, bias=True)
+              (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
+              (5): SiLU()
+              (6): Linear(in_features=128, out_features=5632, bias=True)
+            )
+          )
+        )
+        (alpha_norm): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+        (alpha_act): SmoothLeakyReLU(negative_slope=0.2)
+        (alpha_dropout): Dropout(p=0.1, inplace=False)
+        (s2_act): SeparableS2Activation(
+          (scalar_act): SiLU()
+          (s2_act): S2Activation(
+            (act): SiLU()
+          )
+        )
+        (so2_conv_2): SO2_Convolution(
+          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+          (fc_m0): Linear(in_features=448, out_features=896, bias=True)
+          (so2_m_conv): ModuleList(
+            (0): SO2_m_Convolution(
+              (fc): Linear(in_features=384, out_features=1536, bias=False)
+            )
+            (1): SO2_m_Convolution(
+              (fc): Linear(in_features=320, out_features=1280, bias=False)
+            )
+            (2): SO2_m_Convolution(
+              (fc): Linear(in_features=256, out_features=1024, bias=False)
+            )
+          )
+        )
+        (proj): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+      )
+      (drop_path): GraphDropPath(drop_prob=0.1)
+      (norm_2): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
+      (ffn): FeedForwardNetwork(
+        (SO3_grid): (6, 6)
+        (so3_linear_1): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+        (scalar_mlp): Sequential(
+          (0): Linear(in_features=128, out_features=128, bias=True)
+          (1): SiLU()
+        )
+        (grid_mlp): Sequential(
+          (0): Linear(in_features=128, out_features=128, bias=False)
+          (1): SiLU()
+          (2): Linear(in_features=128, out_features=128, bias=False)
+          (3): SiLU()
+          (4): Linear(in_features=128, out_features=128, bias=False)
+        )
+        (so3_linear_2): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+      )
+    )
+    (14): TransBlockV2(
+      (norm_1): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
+      (ga): SO2EquivariantGraphAttention(
+        (SO3_rotation): ModuleList(
+          (0): SO3_Rotation(
+            (mapping): CoefficientMappingModule(lmax_list=[6], mmax_list=[6])
+          )
+        )
+        (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+        (SO3_grid): (6, 6)
+        (source_embedding): Embedding(90, 128)
+        (target_embedding): Embedding(90, 128)
+        (so2_conv_1): SO2_Convolution(
+          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+          (fc_m0): Linear(in_features=1792, out_features=1024, bias=True)
+          (so2_m_conv): ModuleList(
+            (0): SO2_m_Convolution(
+              (fc): Linear(in_features=1536, out_features=768, bias=False)
+            )
+            (1): SO2_m_Convolution(
+              (fc): Linear(in_features=1280, out_features=640, bias=False)
+            )
+            (2): SO2_m_Convolution(
+              (fc): Linear(in_features=1024, out_features=512, bias=False)
+            )
+          )
+          (rad_func): RadialFunction(
+            (net): Sequential(
+              (0): Linear(in_features=856, out_features=128, bias=True)
+              (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
+              (2): SiLU()
+              (3): Linear(in_features=128, out_features=128, bias=True)
+              (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
+              (5): SiLU()
+              (6): Linear(in_features=128, out_features=5632, bias=True)
+            )
+          )
+        )
+        (alpha_norm): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+        (alpha_act): SmoothLeakyReLU(negative_slope=0.2)
+        (alpha_dropout): Dropout(p=0.1, inplace=False)
+        (s2_act): SeparableS2Activation(
+          (scalar_act): SiLU()
+          (s2_act): S2Activation(
+            (act): SiLU()
+          )
+        )
+        (so2_conv_2): SO2_Convolution(
+          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+          (fc_m0): Linear(in_features=448, out_features=896, bias=True)
+          (so2_m_conv): ModuleList(
+            (0): SO2_m_Convolution(
+              (fc): Linear(in_features=384, out_features=1536, bias=False)
+            )
+            (1): SO2_m_Convolution(
+              (fc): Linear(in_features=320, out_features=1280, bias=False)
+            )
+            (2): SO2_m_Convolution(
+              (fc): Linear(in_features=256, out_features=1024, bias=False)
+            )
+          )
+        )
+        (proj): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+      )
+      (drop_path): GraphDropPath(drop_prob=0.1)
+      (norm_2): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
+      (ffn): FeedForwardNetwork(
+        (SO3_grid): (6, 6)
+        (so3_linear_1): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+        (scalar_mlp): Sequential(
+          (0): Linear(in_features=128, out_features=128, bias=True)
+          (1): SiLU()
+        )
+        (grid_mlp): Sequential(
+          (0): Linear(in_features=128, out_features=128, bias=False)
+          (1): SiLU()
+          (2): Linear(in_features=128, out_features=128, bias=False)
+          (3): SiLU()
+          (4): Linear(in_features=128, out_features=128, bias=False)
+        )
+        (so3_linear_2): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+      )
+    )
+    (15): TransBlockV2(
+      (norm_1): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
+      (ga): SO2EquivariantGraphAttention(
+        (SO3_rotation): ModuleList(
+          (0): SO3_Rotation(
+            (mapping): CoefficientMappingModule(lmax_list=[6], mmax_list=[6])
+          )
+        )
+        (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+        (SO3_grid): (6, 6)
+        (source_embedding): Embedding(90, 128)
+        (target_embedding): Embedding(90, 128)
+        (so2_conv_1): SO2_Convolution(
+          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+          (fc_m0): Linear(in_features=1792, out_features=1024, bias=True)
+          (so2_m_conv): ModuleList(
+            (0): SO2_m_Convolution(
+              (fc): Linear(in_features=1536, out_features=768, bias=False)
+            )
+            (1): SO2_m_Convolution(
+              (fc): Linear(in_features=1280, out_features=640, bias=False)
+            )
+            (2): SO2_m_Convolution(
+              (fc): Linear(in_features=1024, out_features=512, bias=False)
+            )
+          )
+          (rad_func): RadialFunction(
+            (net): Sequential(
+              (0): Linear(in_features=856, out_features=128, bias=True)
+              (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
+              (2): SiLU()
+              (3): Linear(in_features=128, out_features=128, bias=True)
+              (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
+              (5): SiLU()
+              (6): Linear(in_features=128, out_features=5632, bias=True)
+            )
+          )
+        )
+        (alpha_norm): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+        (alpha_act): SmoothLeakyReLU(negative_slope=0.2)
+        (alpha_dropout): Dropout(p=0.1, inplace=False)
+        (s2_act): SeparableS2Activation(
+          (scalar_act): SiLU()
+          (s2_act): S2Activation(
+            (act): SiLU()
+          )
+        )
+        (so2_conv_2): SO2_Convolution(
+          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+          (fc_m0): Linear(in_features=448, out_features=896, bias=True)
+          (so2_m_conv): ModuleList(
+            (0): SO2_m_Convolution(
+              (fc): Linear(in_features=384, out_features=1536, bias=False)
+            )
+            (1): SO2_m_Convolution(
+              (fc): Linear(in_features=320, out_features=1280, bias=False)
+            )
+            (2): SO2_m_Convolution(
+              (fc): Linear(in_features=256, out_features=1024, bias=False)
+            )
+          )
+        )
+        (proj): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+      )
+      (drop_path): GraphDropPath(drop_prob=0.1)
+      (norm_2): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
+      (ffn): FeedForwardNetwork(
+        (SO3_grid): (6, 6)
+        (so3_linear_1): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+        (scalar_mlp): Sequential(
+          (0): Linear(in_features=128, out_features=128, bias=True)
+          (1): SiLU()
+        )
+        (grid_mlp): Sequential(
+          (0): Linear(in_features=128, out_features=128, bias=False)
+          (1): SiLU()
+          (2): Linear(in_features=128, out_features=128, bias=False)
+          (3): SiLU()
+          (4): Linear(in_features=128, out_features=128, bias=False)
+        )
+        (so3_linear_2): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+      )
+    )
+    (16): TransBlockV2(
+      (norm_1): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
+      (ga): SO2EquivariantGraphAttention(
+        (SO3_rotation): ModuleList(
+          (0): SO3_Rotation(
+            (mapping): CoefficientMappingModule(lmax_list=[6], mmax_list=[6])
+          )
+        )
+        (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+        (SO3_grid): (6, 6)
+        (source_embedding): Embedding(90, 128)
+        (target_embedding): Embedding(90, 128)
+        (so2_conv_1): SO2_Convolution(
+          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+          (fc_m0): Linear(in_features=1792, out_features=1024, bias=True)
+          (so2_m_conv): ModuleList(
+            (0): SO2_m_Convolution(
+              (fc): Linear(in_features=1536, out_features=768, bias=False)
+            )
+            (1): SO2_m_Convolution(
+              (fc): Linear(in_features=1280, out_features=640, bias=False)
+            )
+            (2): SO2_m_Convolution(
+              (fc): Linear(in_features=1024, out_features=512, bias=False)
+            )
+          )
+          (rad_func): RadialFunction(
+            (net): Sequential(
+              (0): Linear(in_features=856, out_features=128, bias=True)
+              (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
+              (2): SiLU()
+              (3): Linear(in_features=128, out_features=128, bias=True)
+              (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
+              (5): SiLU()
+              (6): Linear(in_features=128, out_features=5632, bias=True)
+            )
+          )
+        )
+        (alpha_norm): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+        (alpha_act): SmoothLeakyReLU(negative_slope=0.2)
+        (alpha_dropout): Dropout(p=0.1, inplace=False)
+        (s2_act): SeparableS2Activation(
+          (scalar_act): SiLU()
+          (s2_act): S2Activation(
+            (act): SiLU()
+          )
+        )
+        (so2_conv_2): SO2_Convolution(
+          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+          (fc_m0): Linear(in_features=448, out_features=896, bias=True)
+          (so2_m_conv): ModuleList(
+            (0): SO2_m_Convolution(
+              (fc): Linear(in_features=384, out_features=1536, bias=False)
+            )
+            (1): SO2_m_Convolution(
+              (fc): Linear(in_features=320, out_features=1280, bias=False)
+            )
+            (2): SO2_m_Convolution(
+              (fc): Linear(in_features=256, out_features=1024, bias=False)
+            )
+          )
+        )
+        (proj): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+      )
+      (drop_path): GraphDropPath(drop_prob=0.1)
+      (norm_2): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
+      (ffn): FeedForwardNetwork(
+        (SO3_grid): (6, 6)
+        (so3_linear_1): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+        (scalar_mlp): Sequential(
+          (0): Linear(in_features=128, out_features=128, bias=True)
+          (1): SiLU()
+        )
+        (grid_mlp): Sequential(
+          (0): Linear(in_features=128, out_features=128, bias=False)
+          (1): SiLU()
+          (2): Linear(in_features=128, out_features=128, bias=False)
+          (3): SiLU()
+          (4): Linear(in_features=128, out_features=128, bias=False)
+        )
+        (so3_linear_2): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+      )
+    )
+    (17): TransBlockV2(
+      (norm_1): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
+      (ga): SO2EquivariantGraphAttention(
+        (SO3_rotation): ModuleList(
+          (0): SO3_Rotation(
+            (mapping): CoefficientMappingModule(lmax_list=[6], mmax_list=[6])
+          )
+        )
+        (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+        (SO3_grid): (6, 6)
+        (source_embedding): Embedding(90, 128)
+        (target_embedding): Embedding(90, 128)
+        (so2_conv_1): SO2_Convolution(
+          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+          (fc_m0): Linear(in_features=1792, out_features=1024, bias=True)
+          (so2_m_conv): ModuleList(
+            (0): SO2_m_Convolution(
+              (fc): Linear(in_features=1536, out_features=768, bias=False)
+            )
+            (1): SO2_m_Convolution(
+              (fc): Linear(in_features=1280, out_features=640, bias=False)
+            )
+            (2): SO2_m_Convolution(
+              (fc): Linear(in_features=1024, out_features=512, bias=False)
+            )
+          )
+          (rad_func): RadialFunction(
+            (net): Sequential(
+              (0): Linear(in_features=856, out_features=128, bias=True)
+              (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
+              (2): SiLU()
+              (3): Linear(in_features=128, out_features=128, bias=True)
+              (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
+              (5): SiLU()
+              (6): Linear(in_features=128, out_features=5632, bias=True)
+            )
+          )
+        )
+        (alpha_norm): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+        (alpha_act): SmoothLeakyReLU(negative_slope=0.2)
+        (alpha_dropout): Dropout(p=0.1, inplace=False)
+        (s2_act): SeparableS2Activation(
+          (scalar_act): SiLU()
+          (s2_act): S2Activation(
+            (act): SiLU()
+          )
+        )
+        (so2_conv_2): SO2_Convolution(
+          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+          (fc_m0): Linear(in_features=448, out_features=896, bias=True)
+          (so2_m_conv): ModuleList(
+            (0): SO2_m_Convolution(
+              (fc): Linear(in_features=384, out_features=1536, bias=False)
+            )
+            (1): SO2_m_Convolution(
+              (fc): Linear(in_features=320, out_features=1280, bias=False)
+            )
+            (2): SO2_m_Convolution(
+              (fc): Linear(in_features=256, out_features=1024, bias=False)
+            )
+          )
+        )
+        (proj): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+      )
+      (drop_path): GraphDropPath(drop_prob=0.1)
+      (norm_2): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
+      (ffn): FeedForwardNetwork(
+        (SO3_grid): (6, 6)
+        (so3_linear_1): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+        (scalar_mlp): Sequential(
+          (0): Linear(in_features=128, out_features=128, bias=True)
+          (1): SiLU()
+        )
+        (grid_mlp): Sequential(
+          (0): Linear(in_features=128, out_features=128, bias=False)
+          (1): SiLU()
+          (2): Linear(in_features=128, out_features=128, bias=False)
+          (3): SiLU()
+          (4): Linear(in_features=128, out_features=128, bias=False)
+        )
+        (so3_linear_2): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+      )
+    )
+    (18): TransBlockV2(
+      (norm_1): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
+      (ga): SO2EquivariantGraphAttention(
+        (SO3_rotation): ModuleList(
+          (0): SO3_Rotation(
+            (mapping): CoefficientMappingModule(lmax_list=[6], mmax_list=[6])
+          )
+        )
+        (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+        (SO3_grid): (6, 6)
+        (source_embedding): Embedding(90, 128)
+        (target_embedding): Embedding(90, 128)
+        (so2_conv_1): SO2_Convolution(
+          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+          (fc_m0): Linear(in_features=1792, out_features=1024, bias=True)
+          (so2_m_conv): ModuleList(
+            (0): SO2_m_Convolution(
+              (fc): Linear(in_features=1536, out_features=768, bias=False)
+            )
+            (1): SO2_m_Convolution(
+              (fc): Linear(in_features=1280, out_features=640, bias=False)
+            )
+            (2): SO2_m_Convolution(
+              (fc): Linear(in_features=1024, out_features=512, bias=False)
+            )
+          )
+          (rad_func): RadialFunction(
+            (net): Sequential(
+              (0): Linear(in_features=856, out_features=128, bias=True)
+              (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
+              (2): SiLU()
+              (3): Linear(in_features=128, out_features=128, bias=True)
+              (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
+              (5): SiLU()
+              (6): Linear(in_features=128, out_features=5632, bias=True)
+            )
+          )
+        )
+        (alpha_norm): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+        (alpha_act): SmoothLeakyReLU(negative_slope=0.2)
+        (alpha_dropout): Dropout(p=0.1, inplace=False)
+        (s2_act): SeparableS2Activation(
+          (scalar_act): SiLU()
+          (s2_act): S2Activation(
+            (act): SiLU()
+          )
+        )
+        (so2_conv_2): SO2_Convolution(
+          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+          (fc_m0): Linear(in_features=448, out_features=896, bias=True)
+          (so2_m_conv): ModuleList(
+            (0): SO2_m_Convolution(
+              (fc): Linear(in_features=384, out_features=1536, bias=False)
+            )
+            (1): SO2_m_Convolution(
+              (fc): Linear(in_features=320, out_features=1280, bias=False)
+            )
+            (2): SO2_m_Convolution(
+              (fc): Linear(in_features=256, out_features=1024, bias=False)
+            )
+          )
+        )
+        (proj): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+      )
+      (drop_path): GraphDropPath(drop_prob=0.1)
+      (norm_2): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
+      (ffn): FeedForwardNetwork(
+        (SO3_grid): (6, 6)
+        (so3_linear_1): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+        (scalar_mlp): Sequential(
+          (0): Linear(in_features=128, out_features=128, bias=True)
+          (1): SiLU()
+        )
+        (grid_mlp): Sequential(
+          (0): Linear(in_features=128, out_features=128, bias=False)
+          (1): SiLU()
+          (2): Linear(in_features=128, out_features=128, bias=False)
+          (3): SiLU()
+          (4): Linear(in_features=128, out_features=128, bias=False)
+        )
+        (so3_linear_2): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+      )
+    )
+    (19): TransBlockV2(
+      (norm_1): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
+      (ga): SO2EquivariantGraphAttention(
+        (SO3_rotation): ModuleList(
+          (0): SO3_Rotation(
+            (mapping): CoefficientMappingModule(lmax_list=[6], mmax_list=[6])
+          )
+        )
+        (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+        (SO3_grid): (6, 6)
+        (source_embedding): Embedding(90, 128)
+        (target_embedding): Embedding(90, 128)
+        (so2_conv_1): SO2_Convolution(
+          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+          (fc_m0): Linear(in_features=1792, out_features=1024, bias=True)
+          (so2_m_conv): ModuleList(
+            (0): SO2_m_Convolution(
+              (fc): Linear(in_features=1536, out_features=768, bias=False)
+            )
+            (1): SO2_m_Convolution(
+              (fc): Linear(in_features=1280, out_features=640, bias=False)
+            )
+            (2): SO2_m_Convolution(
+              (fc): Linear(in_features=1024, out_features=512, bias=False)
+            )
+          )
+          (rad_func): RadialFunction(
+            (net): Sequential(
+              (0): Linear(in_features=856, out_features=128, bias=True)
+              (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
+              (2): SiLU()
+              (3): Linear(in_features=128, out_features=128, bias=True)
+              (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
+              (5): SiLU()
+              (6): Linear(in_features=128, out_features=5632, bias=True)
+            )
+          )
+        )
+        (alpha_norm): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+        (alpha_act): SmoothLeakyReLU(negative_slope=0.2)
+        (alpha_dropout): Dropout(p=0.1, inplace=False)
+        (s2_act): SeparableS2Activation(
+          (scalar_act): SiLU()
+          (s2_act): S2Activation(
+            (act): SiLU()
+          )
+        )
+        (so2_conv_2): SO2_Convolution(
+          (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+          (fc_m0): Linear(in_features=448, out_features=896, bias=True)
+          (so2_m_conv): ModuleList(
+            (0): SO2_m_Convolution(
+              (fc): Linear(in_features=384, out_features=1536, bias=False)
+            )
+            (1): SO2_m_Convolution(
+              (fc): Linear(in_features=320, out_features=1280, bias=False)
+            )
+            (2): SO2_m_Convolution(
+              (fc): Linear(in_features=256, out_features=1024, bias=False)
+            )
+          )
+        )
+        (proj): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+      )
+      (drop_path): GraphDropPath(drop_prob=0.1)
+      (norm_2): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
+      (ffn): FeedForwardNetwork(
+        (SO3_grid): (6, 6)
+        (so3_linear_1): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+        (scalar_mlp): Sequential(
+          (0): Linear(in_features=128, out_features=128, bias=True)
+          (1): SiLU()
+        )
+        (grid_mlp): Sequential(
+          (0): Linear(in_features=128, out_features=128, bias=False)
+          (1): SiLU()
+          (2): Linear(in_features=128, out_features=128, bias=False)
+          (3): SiLU()
+          (4): Linear(in_features=128, out_features=128, bias=False)
+        )
+        (so3_linear_2): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+      )
+    )
+  )
+  (norm): EquivariantLayerNormArraySphericalHarmonics(lmax=6, num_channels=128, eps=1e-05, std_balance_degrees=True)
+  (energy_block): FeedForwardNetwork(
+    (SO3_grid): (6, 6)
+    (so3_linear_1): SO3_LinearV2(in_features=128, out_features=128, lmax=6)
+    (scalar_mlp): Sequential(
+      (0): Linear(in_features=128, out_features=128, bias=True)
+      (1): SiLU()
+    )
+    (grid_mlp): Sequential(
+      (0): Linear(in_features=128, out_features=128, bias=False)
+      (1): SiLU()
+      (2): Linear(in_features=128, out_features=128, bias=False)
+      (3): SiLU()
+      (4): Linear(in_features=128, out_features=128, bias=False)
+    )
+    (so3_linear_2): SO3_LinearV2(in_features=128, out_features=1, lmax=6)
+  )
+  (force_block): SO2EquivariantGraphAttention(
+    (SO3_rotation): ModuleList(
+      (0): SO3_Rotation(
+        (mapping): CoefficientMappingModule(lmax_list=[6], mmax_list=[6])
+      )
+    )
+    (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+    (SO3_grid): (6, 6)
+    (source_embedding): Embedding(90, 128)
+    (target_embedding): Embedding(90, 128)
+    (so2_conv_1): SO2_Convolution(
+      (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+      (fc_m0): Linear(in_features=1792, out_features=1024, bias=True)
+      (so2_m_conv): ModuleList(
+        (0): SO2_m_Convolution(
+          (fc): Linear(in_features=1536, out_features=768, bias=False)
+        )
+        (1): SO2_m_Convolution(
+          (fc): Linear(in_features=1280, out_features=640, bias=False)
+        )
+        (2): SO2_m_Convolution(
+          (fc): Linear(in_features=1024, out_features=512, bias=False)
+        )
+      )
+      (rad_func): RadialFunction(
+        (net): Sequential(
+          (0): Linear(in_features=856, out_features=128, bias=True)
+          (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
+          (2): SiLU()
+          (3): Linear(in_features=128, out_features=128, bias=True)
+          (4): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
+          (5): SiLU()
+          (6): Linear(in_features=128, out_features=5632, bias=True)
+        )
+      )
+    )
+    (alpha_norm): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+    (alpha_act): SmoothLeakyReLU(negative_slope=0.2)
+    (s2_act): SeparableS2Activation(
+      (scalar_act): SiLU()
+      (s2_act): S2Activation(
+        (act): SiLU()
+      )
+    )
+    (so2_conv_2): SO2_Convolution(
+      (mappingReduced): CoefficientMappingModule(lmax_list=[6], mmax_list=[3])
+      (fc_m0): Linear(in_features=448, out_features=896, bias=True)
+      (so2_m_conv): ModuleList(
+        (0): SO2_m_Convolution(
+          (fc): Linear(in_features=384, out_features=1536, bias=False)
+        )
+        (1): SO2_m_Convolution(
+          (fc): Linear(in_features=320, out_features=1280, bias=False)
+        )
+        (2): SO2_m_Convolution(
+          (fc): Linear(in_features=256, out_features=1024, bias=False)
+        )
+      )
+    )
+    (proj): SO3_LinearV2(in_features=128, out_features=1, lmax=6)
+  )
+)
+Loaded EquiformerV2_OC20 with 153602690 parameters.
+Parameters without weight decay:
+['module.blocks.0.ffn.scalar_mlp.0.bias', 'module.blocks.0.ffn.so3_linear_1.bias', 'module.blocks.0.ffn.so3_linear_2.bias', 'module.blocks.0.ga.alpha_norm.bias', 'module.blocks.0.ga.alpha_norm.weight', 'module.blocks.0.ga.proj.bias', 'module.blocks.0.ga.so2_conv_1.fc_m0.bias', 'module.blocks.0.ga.so2_conv_1.rad_func.net.0.bias', 'module.blocks.0.ga.so2_conv_1.rad_func.net.1.bias', 'module.blocks.0.ga.so2_conv_1.rad_func.net.1.weight', 'module.blocks.0.ga.so2_conv_1.rad_func.net.3.bias', 'module.blocks.0.ga.so2_conv_1.rad_func.net.4.bias', 'module.blocks.0.ga.so2_conv_1.rad_func.net.4.weight', 'module.blocks.0.ga.so2_conv_1.rad_func.net.6.bias', 'module.blocks.0.ga.so2_conv_2.fc_m0.bias', 'module.blocks.0.norm_1.affine_weight', 'module.blocks.0.norm_1.norm_l0.bias', 'module.blocks.0.norm_1.norm_l0.weight', 'module.blocks.0.norm_2.affine_weight', 'module.blocks.0.norm_2.norm_l0.bias', 'module.blocks.0.norm_2.norm_l0.weight', 'module.blocks.1.ffn.scalar_mlp.0.bias', 'module.blocks.1.ffn.so3_linear_1.bias', 'module.blocks.1.ffn.so3_linear_2.bias', 'module.blocks.1.ga.alpha_norm.bias', 'module.blocks.1.ga.alpha_norm.weight', 'module.blocks.1.ga.proj.bias', 'module.blocks.1.ga.so2_conv_1.fc_m0.bias', 'module.blocks.1.ga.so2_conv_1.rad_func.net.0.bias', 'module.blocks.1.ga.so2_conv_1.rad_func.net.1.bias', 'module.blocks.1.ga.so2_conv_1.rad_func.net.1.weight', 'module.blocks.1.ga.so2_conv_1.rad_func.net.3.bias', 'module.blocks.1.ga.so2_conv_1.rad_func.net.4.bias', 'module.blocks.1.ga.so2_conv_1.rad_func.net.4.weight', 'module.blocks.1.ga.so2_conv_1.rad_func.net.6.bias', 'module.blocks.1.ga.so2_conv_2.fc_m0.bias', 'module.blocks.1.norm_1.affine_weight', 'module.blocks.1.norm_1.norm_l0.bias', 'module.blocks.1.norm_1.norm_l0.weight', 'module.blocks.1.norm_2.affine_weight', 'module.blocks.1.norm_2.norm_l0.bias', 'module.blocks.1.norm_2.norm_l0.weight', 'module.blocks.10.ffn.scalar_mlp.0.bias', 'module.blocks.10.ffn.so3_linear_1.bias', 'module.blocks.10.ffn.so3_linear_2.bias', 'module.blocks.10.ga.alpha_norm.bias', 'module.blocks.10.ga.alpha_norm.weight', 'module.blocks.10.ga.proj.bias', 'module.blocks.10.ga.so2_conv_1.fc_m0.bias', 'module.blocks.10.ga.so2_conv_1.rad_func.net.0.bias', 'module.blocks.10.ga.so2_conv_1.rad_func.net.1.bias', 'module.blocks.10.ga.so2_conv_1.rad_func.net.1.weight', 'module.blocks.10.ga.so2_conv_1.rad_func.net.3.bias', 'module.blocks.10.ga.so2_conv_1.rad_func.net.4.bias', 'module.blocks.10.ga.so2_conv_1.rad_func.net.4.weight', 'module.blocks.10.ga.so2_conv_1.rad_func.net.6.bias', 'module.blocks.10.ga.so2_conv_2.fc_m0.bias', 'module.blocks.10.norm_1.affine_weight', 'module.blocks.10.norm_1.norm_l0.bias', 'module.blocks.10.norm_1.norm_l0.weight', 'module.blocks.10.norm_2.affine_weight', 'module.blocks.10.norm_2.norm_l0.bias', 'module.blocks.10.norm_2.norm_l0.weight', 'module.blocks.11.ffn.scalar_mlp.0.bias', 'module.blocks.11.ffn.so3_linear_1.bias', 'module.blocks.11.ffn.so3_linear_2.bias', 'module.blocks.11.ga.alpha_norm.bias', 'module.blocks.11.ga.alpha_norm.weight', 'module.blocks.11.ga.proj.bias', 'module.blocks.11.ga.so2_conv_1.fc_m0.bias', 'module.blocks.11.ga.so2_conv_1.rad_func.net.0.bias', 'module.blocks.11.ga.so2_conv_1.rad_func.net.1.bias', 'module.blocks.11.ga.so2_conv_1.rad_func.net.1.weight', 'module.blocks.11.ga.so2_conv_1.rad_func.net.3.bias', 'module.blocks.11.ga.so2_conv_1.rad_func.net.4.bias', 'module.blocks.11.ga.so2_conv_1.rad_func.net.4.weight', 'module.blocks.11.ga.so2_conv_1.rad_func.net.6.bias', 'module.blocks.11.ga.so2_conv_2.fc_m0.bias', 'module.blocks.11.norm_1.affine_weight', 'module.blocks.11.norm_1.norm_l0.bias', 'module.blocks.11.norm_1.norm_l0.weight', 'module.blocks.11.norm_2.affine_weight', 'module.blocks.11.norm_2.norm_l0.bias', 'module.blocks.11.norm_2.norm_l0.weight', 'module.blocks.12.ffn.scalar_mlp.0.bias', 'module.blocks.12.ffn.so3_linear_1.bias', 'module.blocks.12.ffn.so3_linear_2.bias', 'module.blocks.12.ga.alpha_norm.bias', 'module.blocks.12.ga.alpha_norm.weight', 'module.blocks.12.ga.proj.bias', 'module.blocks.12.ga.so2_conv_1.fc_m0.bias', 'module.blocks.12.ga.so2_conv_1.rad_func.net.0.bias', 'module.blocks.12.ga.so2_conv_1.rad_func.net.1.bias', 'module.blocks.12.ga.so2_conv_1.rad_func.net.1.weight', 'module.blocks.12.ga.so2_conv_1.rad_func.net.3.bias', 'module.blocks.12.ga.so2_conv_1.rad_func.net.4.bias', 'module.blocks.12.ga.so2_conv_1.rad_func.net.4.weight', 'module.blocks.12.ga.so2_conv_1.rad_func.net.6.bias', 'module.blocks.12.ga.so2_conv_2.fc_m0.bias', 'module.blocks.12.norm_1.affine_weight', 'module.blocks.12.norm_1.norm_l0.bias', 'module.blocks.12.norm_1.norm_l0.weight', 'module.blocks.12.norm_2.affine_weight', 'module.blocks.12.norm_2.norm_l0.bias', 'module.blocks.12.norm_2.norm_l0.weight', 'module.blocks.13.ffn.scalar_mlp.0.bias', 'module.blocks.13.ffn.so3_linear_1.bias', 'module.blocks.13.ffn.so3_linear_2.bias', 'module.blocks.13.ga.alpha_norm.bias', 'module.blocks.13.ga.alpha_norm.weight', 'module.blocks.13.ga.proj.bias', 'module.blocks.13.ga.so2_conv_1.fc_m0.bias', 'module.blocks.13.ga.so2_conv_1.rad_func.net.0.bias', 'module.blocks.13.ga.so2_conv_1.rad_func.net.1.bias', 'module.blocks.13.ga.so2_conv_1.rad_func.net.1.weight', 'module.blocks.13.ga.so2_conv_1.rad_func.net.3.bias', 'module.blocks.13.ga.so2_conv_1.rad_func.net.4.bias', 'module.blocks.13.ga.so2_conv_1.rad_func.net.4.weight', 'module.blocks.13.ga.so2_conv_1.rad_func.net.6.bias', 'module.blocks.13.ga.so2_conv_2.fc_m0.bias', 'module.blocks.13.norm_1.affine_weight', 'module.blocks.13.norm_1.norm_l0.bias', 'module.blocks.13.norm_1.norm_l0.weight', 'module.blocks.13.norm_2.affine_weight', 'module.blocks.13.norm_2.norm_l0.bias', 'module.blocks.13.norm_2.norm_l0.weight', 'module.blocks.14.ffn.scalar_mlp.0.bias', 'module.blocks.14.ffn.so3_linear_1.bias', 'module.blocks.14.ffn.so3_linear_2.bias', 'module.blocks.14.ga.alpha_norm.bias', 'module.blocks.14.ga.alpha_norm.weight', 'module.blocks.14.ga.proj.bias', 'module.blocks.14.ga.so2_conv_1.fc_m0.bias', 'module.blocks.14.ga.so2_conv_1.rad_func.net.0.bias', 'module.blocks.14.ga.so2_conv_1.rad_func.net.1.bias', 'module.blocks.14.ga.so2_conv_1.rad_func.net.1.weight', 'module.blocks.14.ga.so2_conv_1.rad_func.net.3.bias', 'module.blocks.14.ga.so2_conv_1.rad_func.net.4.bias', 'module.blocks.14.ga.so2_conv_1.rad_func.net.4.weight', 'module.blocks.14.ga.so2_conv_1.rad_func.net.6.bias', 'module.blocks.14.ga.so2_conv_2.fc_m0.bias', 'module.blocks.14.norm_1.affine_weight', 'module.blocks.14.norm_1.norm_l0.bias', 'module.blocks.14.norm_1.norm_l0.weight', 'module.blocks.14.norm_2.affine_weight', 'module.blocks.14.norm_2.norm_l0.bias', 'module.blocks.14.norm_2.norm_l0.weight', 'module.blocks.15.ffn.scalar_mlp.0.bias', 'module.blocks.15.ffn.so3_linear_1.bias', 'module.blocks.15.ffn.so3_linear_2.bias', 'module.blocks.15.ga.alpha_norm.bias', 'module.blocks.15.ga.alpha_norm.weight', 'module.blocks.15.ga.proj.bias', 'module.blocks.15.ga.so2_conv_1.fc_m0.bias', 'module.blocks.15.ga.so2_conv_1.rad_func.net.0.bias', 'module.blocks.15.ga.so2_conv_1.rad_func.net.1.bias', 'module.blocks.15.ga.so2_conv_1.rad_func.net.1.weight', 'module.blocks.15.ga.so2_conv_1.rad_func.net.3.bias', 'module.blocks.15.ga.so2_conv_1.rad_func.net.4.bias', 'module.blocks.15.ga.so2_conv_1.rad_func.net.4.weight', 'module.blocks.15.ga.so2_conv_1.rad_func.net.6.bias', 'module.blocks.15.ga.so2_conv_2.fc_m0.bias', 'module.blocks.15.norm_1.affine_weight', 'module.blocks.15.norm_1.norm_l0.bias', 'module.blocks.15.norm_1.norm_l0.weight', 'module.blocks.15.norm_2.affine_weight', 'module.blocks.15.norm_2.norm_l0.bias', 'module.blocks.15.norm_2.norm_l0.weight', 'module.blocks.16.ffn.scalar_mlp.0.bias', 'module.blocks.16.ffn.so3_linear_1.bias', 'module.blocks.16.ffn.so3_linear_2.bias', 'module.blocks.16.ga.alpha_norm.bias', 'module.blocks.16.ga.alpha_norm.weight', 'module.blocks.16.ga.proj.bias', 'module.blocks.16.ga.so2_conv_1.fc_m0.bias', 'module.blocks.16.ga.so2_conv_1.rad_func.net.0.bias', 'module.blocks.16.ga.so2_conv_1.rad_func.net.1.bias', 'module.blocks.16.ga.so2_conv_1.rad_func.net.1.weight', 'module.blocks.16.ga.so2_conv_1.rad_func.net.3.bias', 'module.blocks.16.ga.so2_conv_1.rad_func.net.4.bias', 'module.blocks.16.ga.so2_conv_1.rad_func.net.4.weight', 'module.blocks.16.ga.so2_conv_1.rad_func.net.6.bias', 'module.blocks.16.ga.so2_conv_2.fc_m0.bias', 'module.blocks.16.norm_1.affine_weight', 'module.blocks.16.norm_1.norm_l0.bias', 'module.blocks.16.norm_1.norm_l0.weight', 'module.blocks.16.norm_2.affine_weight', 'module.blocks.16.norm_2.norm_l0.bias', 'module.blocks.16.norm_2.norm_l0.weight', 'module.blocks.17.ffn.scalar_mlp.0.bias', 'module.blocks.17.ffn.so3_linear_1.bias', 'module.blocks.17.ffn.so3_linear_2.bias', 'module.blocks.17.ga.alpha_norm.bias', 'module.blocks.17.ga.alpha_norm.weight', 'module.blocks.17.ga.proj.bias', 'module.blocks.17.ga.so2_conv_1.fc_m0.bias', 'module.blocks.17.ga.so2_conv_1.rad_func.net.0.bias', 'module.blocks.17.ga.so2_conv_1.rad_func.net.1.bias', 'module.blocks.17.ga.so2_conv_1.rad_func.net.1.weight', 'module.blocks.17.ga.so2_conv_1.rad_func.net.3.bias', 'module.blocks.17.ga.so2_conv_1.rad_func.net.4.bias', 'module.blocks.17.ga.so2_conv_1.rad_func.net.4.weight', 'module.blocks.17.ga.so2_conv_1.rad_func.net.6.bias', 'module.blocks.17.ga.so2_conv_2.fc_m0.bias', 'module.blocks.17.norm_1.affine_weight', 'module.blocks.17.norm_1.norm_l0.bias', 'module.blocks.17.norm_1.norm_l0.weight', 'module.blocks.17.norm_2.affine_weight', 'module.blocks.17.norm_2.norm_l0.bias', 'module.blocks.17.norm_2.norm_l0.weight', 'module.blocks.18.ffn.scalar_mlp.0.bias', 'module.blocks.18.ffn.so3_linear_1.bias', 'module.blocks.18.ffn.so3_linear_2.bias', 'module.blocks.18.ga.alpha_norm.bias', 'module.blocks.18.ga.alpha_norm.weight', 'module.blocks.18.ga.proj.bias', 'module.blocks.18.ga.so2_conv_1.fc_m0.bias', 'module.blocks.18.ga.so2_conv_1.rad_func.net.0.bias', 'module.blocks.18.ga.so2_conv_1.rad_func.net.1.bias', 'module.blocks.18.ga.so2_conv_1.rad_func.net.1.weight', 'module.blocks.18.ga.so2_conv_1.rad_func.net.3.bias', 'module.blocks.18.ga.so2_conv_1.rad_func.net.4.bias', 'module.blocks.18.ga.so2_conv_1.rad_func.net.4.weight', 'module.blocks.18.ga.so2_conv_1.rad_func.net.6.bias', 'module.blocks.18.ga.so2_conv_2.fc_m0.bias', 'module.blocks.18.norm_1.affine_weight', 'module.blocks.18.norm_1.norm_l0.bias', 'module.blocks.18.norm_1.norm_l0.weight', 'module.blocks.18.norm_2.affine_weight', 'module.blocks.18.norm_2.norm_l0.bias', 'module.blocks.18.norm_2.norm_l0.weight', 'module.blocks.19.ffn.scalar_mlp.0.bias', 'module.blocks.19.ffn.so3_linear_1.bias', 'module.blocks.19.ffn.so3_linear_2.bias', 'module.blocks.19.ga.alpha_norm.bias', 'module.blocks.19.ga.alpha_norm.weight', 'module.blocks.19.ga.proj.bias', 'module.blocks.19.ga.so2_conv_1.fc_m0.bias', 'module.blocks.19.ga.so2_conv_1.rad_func.net.0.bias', 'module.blocks.19.ga.so2_conv_1.rad_func.net.1.bias', 'module.blocks.19.ga.so2_conv_1.rad_func.net.1.weight', 'module.blocks.19.ga.so2_conv_1.rad_func.net.3.bias', 'module.blocks.19.ga.so2_conv_1.rad_func.net.4.bias', 'module.blocks.19.ga.so2_conv_1.rad_func.net.4.weight', 'module.blocks.19.ga.so2_conv_1.rad_func.net.6.bias', 'module.blocks.19.ga.so2_conv_2.fc_m0.bias', 'module.blocks.19.norm_1.affine_weight', 'module.blocks.19.norm_1.norm_l0.bias', 'module.blocks.19.norm_1.norm_l0.weight', 'module.blocks.19.norm_2.affine_weight', 'module.blocks.19.norm_2.norm_l0.bias', 'module.blocks.19.norm_2.norm_l0.weight', 'module.blocks.2.ffn.scalar_mlp.0.bias', 'module.blocks.2.ffn.so3_linear_1.bias', 'module.blocks.2.ffn.so3_linear_2.bias', 'module.blocks.2.ga.alpha_norm.bias', 'module.blocks.2.ga.alpha_norm.weight', 'module.blocks.2.ga.proj.bias', 'module.blocks.2.ga.so2_conv_1.fc_m0.bias', 'module.blocks.2.ga.so2_conv_1.rad_func.net.0.bias', 'module.blocks.2.ga.so2_conv_1.rad_func.net.1.bias', 'module.blocks.2.ga.so2_conv_1.rad_func.net.1.weight', 'module.blocks.2.ga.so2_conv_1.rad_func.net.3.bias', 'module.blocks.2.ga.so2_conv_1.rad_func.net.4.bias', 'module.blocks.2.ga.so2_conv_1.rad_func.net.4.weight', 'module.blocks.2.ga.so2_conv_1.rad_func.net.6.bias', 'module.blocks.2.ga.so2_conv_2.fc_m0.bias', 'module.blocks.2.norm_1.affine_weight', 'module.blocks.2.norm_1.norm_l0.bias', 'module.blocks.2.norm_1.norm_l0.weight', 'module.blocks.2.norm_2.affine_weight', 'module.blocks.2.norm_2.norm_l0.bias', 'module.blocks.2.norm_2.norm_l0.weight', 'module.blocks.3.ffn.scalar_mlp.0.bias', 'module.blocks.3.ffn.so3_linear_1.bias', 'module.blocks.3.ffn.so3_linear_2.bias', 'module.blocks.3.ga.alpha_norm.bias', 'module.blocks.3.ga.alpha_norm.weight', 'module.blocks.3.ga.proj.bias', 'module.blocks.3.ga.so2_conv_1.fc_m0.bias', 'module.blocks.3.ga.so2_conv_1.rad_func.net.0.bias', 'module.blocks.3.ga.so2_conv_1.rad_func.net.1.bias', 'module.blocks.3.ga.so2_conv_1.rad_func.net.1.weight', 'module.blocks.3.ga.so2_conv_1.rad_func.net.3.bias', 'module.blocks.3.ga.so2_conv_1.rad_func.net.4.bias', 'module.blocks.3.ga.so2_conv_1.rad_func.net.4.weight', 'module.blocks.3.ga.so2_conv_1.rad_func.net.6.bias', 'module.blocks.3.ga.so2_conv_2.fc_m0.bias', 'module.blocks.3.norm_1.affine_weight', 'module.blocks.3.norm_1.norm_l0.bias', 'module.blocks.3.norm_1.norm_l0.weight', 'module.blocks.3.norm_2.affine_weight', 'module.blocks.3.norm_2.norm_l0.bias', 'module.blocks.3.norm_2.norm_l0.weight', 'module.blocks.4.ffn.scalar_mlp.0.bias', 'module.blocks.4.ffn.so3_linear_1.bias', 'module.blocks.4.ffn.so3_linear_2.bias', 'module.blocks.4.ga.alpha_norm.bias', 'module.blocks.4.ga.alpha_norm.weight', 'module.blocks.4.ga.proj.bias', 'module.blocks.4.ga.so2_conv_1.fc_m0.bias', 'module.blocks.4.ga.so2_conv_1.rad_func.net.0.bias', 'module.blocks.4.ga.so2_conv_1.rad_func.net.1.bias', 'module.blocks.4.ga.so2_conv_1.rad_func.net.1.weight', 'module.blocks.4.ga.so2_conv_1.rad_func.net.3.bias', 'module.blocks.4.ga.so2_conv_1.rad_func.net.4.bias', 'module.blocks.4.ga.so2_conv_1.rad_func.net.4.weight', 'module.blocks.4.ga.so2_conv_1.rad_func.net.6.bias', 'module.blocks.4.ga.so2_conv_2.fc_m0.bias', 'module.blocks.4.norm_1.affine_weight', 'module.blocks.4.norm_1.norm_l0.bias', 'module.blocks.4.norm_1.norm_l0.weight', 'module.blocks.4.norm_2.affine_weight', 'module.blocks.4.norm_2.norm_l0.bias', 'module.blocks.4.norm_2.norm_l0.weight', 'module.blocks.5.ffn.scalar_mlp.0.bias', 'module.blocks.5.ffn.so3_linear_1.bias', 'module.blocks.5.ffn.so3_linear_2.bias', 'module.blocks.5.ga.alpha_norm.bias', 'module.blocks.5.ga.alpha_norm.weight', 'module.blocks.5.ga.proj.bias', 'module.blocks.5.ga.so2_conv_1.fc_m0.bias', 'module.blocks.5.ga.so2_conv_1.rad_func.net.0.bias', 'module.blocks.5.ga.so2_conv_1.rad_func.net.1.bias', 'module.blocks.5.ga.so2_conv_1.rad_func.net.1.weight', 'module.blocks.5.ga.so2_conv_1.rad_func.net.3.bias', 'module.blocks.5.ga.so2_conv_1.rad_func.net.4.bias', 'module.blocks.5.ga.so2_conv_1.rad_func.net.4.weight', 'module.blocks.5.ga.so2_conv_1.rad_func.net.6.bias', 'module.blocks.5.ga.so2_conv_2.fc_m0.bias', 'module.blocks.5.norm_1.affine_weight', 'module.blocks.5.norm_1.norm_l0.bias', 'module.blocks.5.norm_1.norm_l0.weight', 'module.blocks.5.norm_2.affine_weight', 'module.blocks.5.norm_2.norm_l0.bias', 'module.blocks.5.norm_2.norm_l0.weight', 'module.blocks.6.ffn.scalar_mlp.0.bias', 'module.blocks.6.ffn.so3_linear_1.bias', 'module.blocks.6.ffn.so3_linear_2.bias', 'module.blocks.6.ga.alpha_norm.bias', 'module.blocks.6.ga.alpha_norm.weight', 'module.blocks.6.ga.proj.bias', 'module.blocks.6.ga.so2_conv_1.fc_m0.bias', 'module.blocks.6.ga.so2_conv_1.rad_func.net.0.bias', 'module.blocks.6.ga.so2_conv_1.rad_func.net.1.bias', 'module.blocks.6.ga.so2_conv_1.rad_func.net.1.weight', 'module.blocks.6.ga.so2_conv_1.rad_func.net.3.bias', 'module.blocks.6.ga.so2_conv_1.rad_func.net.4.bias', 'module.blocks.6.ga.so2_conv_1.rad_func.net.4.weight', 'module.blocks.6.ga.so2_conv_1.rad_func.net.6.bias', 'module.blocks.6.ga.so2_conv_2.fc_m0.bias', 'module.blocks.6.norm_1.affine_weight', 'module.blocks.6.norm_1.norm_l0.bias', 'module.blocks.6.norm_1.norm_l0.weight', 'module.blocks.6.norm_2.affine_weight', 'module.blocks.6.norm_2.norm_l0.bias', 'module.blocks.6.norm_2.norm_l0.weight', 'module.blocks.7.ffn.scalar_mlp.0.bias', 'module.blocks.7.ffn.so3_linear_1.bias', 'module.blocks.7.ffn.so3_linear_2.bias', 'module.blocks.7.ga.alpha_norm.bias', 'module.blocks.7.ga.alpha_norm.weight', 'module.blocks.7.ga.proj.bias', 'module.blocks.7.ga.so2_conv_1.fc_m0.bias', 'module.blocks.7.ga.so2_conv_1.rad_func.net.0.bias', 'module.blocks.7.ga.so2_conv_1.rad_func.net.1.bias', 'module.blocks.7.ga.so2_conv_1.rad_func.net.1.weight', 'module.blocks.7.ga.so2_conv_1.rad_func.net.3.bias', 'module.blocks.7.ga.so2_conv_1.rad_func.net.4.bias', 'module.blocks.7.ga.so2_conv_1.rad_func.net.4.weight', 'module.blocks.7.ga.so2_conv_1.rad_func.net.6.bias', 'module.blocks.7.ga.so2_conv_2.fc_m0.bias', 'module.blocks.7.norm_1.affine_weight', 'module.blocks.7.norm_1.norm_l0.bias', 'module.blocks.7.norm_1.norm_l0.weight', 'module.blocks.7.norm_2.affine_weight', 'module.blocks.7.norm_2.norm_l0.bias', 'module.blocks.7.norm_2.norm_l0.weight', 'module.blocks.8.ffn.scalar_mlp.0.bias', 'module.blocks.8.ffn.so3_linear_1.bias', 'module.blocks.8.ffn.so3_linear_2.bias', 'module.blocks.8.ga.alpha_norm.bias', 'module.blocks.8.ga.alpha_norm.weight', 'module.blocks.8.ga.proj.bias', 'module.blocks.8.ga.so2_conv_1.fc_m0.bias', 'module.blocks.8.ga.so2_conv_1.rad_func.net.0.bias', 'module.blocks.8.ga.so2_conv_1.rad_func.net.1.bias', 'module.blocks.8.ga.so2_conv_1.rad_func.net.1.weight', 'module.blocks.8.ga.so2_conv_1.rad_func.net.3.bias', 'module.blocks.8.ga.so2_conv_1.rad_func.net.4.bias', 'module.blocks.8.ga.so2_conv_1.rad_func.net.4.weight', 'module.blocks.8.ga.so2_conv_1.rad_func.net.6.bias', 'module.blocks.8.ga.so2_conv_2.fc_m0.bias', 'module.blocks.8.norm_1.affine_weight', 'module.blocks.8.norm_1.norm_l0.bias', 'module.blocks.8.norm_1.norm_l0.weight', 'module.blocks.8.norm_2.affine_weight', 'module.blocks.8.norm_2.norm_l0.bias', 'module.blocks.8.norm_2.norm_l0.weight', 'module.blocks.9.ffn.scalar_mlp.0.bias', 'module.blocks.9.ffn.so3_linear_1.bias', 'module.blocks.9.ffn.so3_linear_2.bias', 'module.blocks.9.ga.alpha_norm.bias', 'module.blocks.9.ga.alpha_norm.weight', 'module.blocks.9.ga.proj.bias', 'module.blocks.9.ga.so2_conv_1.fc_m0.bias', 'module.blocks.9.ga.so2_conv_1.rad_func.net.0.bias', 'module.blocks.9.ga.so2_conv_1.rad_func.net.1.bias', 'module.blocks.9.ga.so2_conv_1.rad_func.net.1.weight', 'module.blocks.9.ga.so2_conv_1.rad_func.net.3.bias', 'module.blocks.9.ga.so2_conv_1.rad_func.net.4.bias', 'module.blocks.9.ga.so2_conv_1.rad_func.net.4.weight', 'module.blocks.9.ga.so2_conv_1.rad_func.net.6.bias', 'module.blocks.9.ga.so2_conv_2.fc_m0.bias', 'module.blocks.9.norm_1.affine_weight', 'module.blocks.9.norm_1.norm_l0.bias', 'module.blocks.9.norm_1.norm_l0.weight', 'module.blocks.9.norm_2.affine_weight', 'module.blocks.9.norm_2.norm_l0.bias', 'module.blocks.9.norm_2.norm_l0.weight', 'module.edge_degree_embedding.rad_func.net.0.bias', 'module.edge_degree_embedding.rad_func.net.1.bias', 'module.edge_degree_embedding.rad_func.net.1.weight', 'module.edge_degree_embedding.rad_func.net.3.bias', 'module.edge_degree_embedding.rad_func.net.4.bias', 'module.edge_degree_embedding.rad_func.net.4.weight', 'module.edge_degree_embedding.rad_func.net.6.bias', 'module.energy_block.scalar_mlp.0.bias', 'module.energy_block.so3_linear_1.bias', 'module.energy_block.so3_linear_2.bias', 'module.force_block.alpha_norm.bias', 'module.force_block.alpha_norm.weight', 'module.force_block.proj.bias', 'module.force_block.so2_conv_1.fc_m0.bias', 'module.force_block.so2_conv_1.rad_func.net.0.bias', 'module.force_block.so2_conv_1.rad_func.net.1.bias', 'module.force_block.so2_conv_1.rad_func.net.1.weight', 'module.force_block.so2_conv_1.rad_func.net.3.bias', 'module.force_block.so2_conv_1.rad_func.net.4.bias', 'module.force_block.so2_conv_1.rad_func.net.4.weight', 'module.force_block.so2_conv_1.rad_func.net.6.bias', 'module.force_block.so2_conv_2.fc_m0.bias', 'module.norm.affine_weight', 'module.norm.norm_l0.bias', 'module.norm.norm_l0.weight']
+Predicting on test.
+device 0:   0%|          | 0/6091 [00:00<?, ?it/s]device 0:   0%|          | 1/6091 [00:01<2:16:20,  1.34s/it]device 0:   0%|          | 2/6091 [00:01<1:12:01,  1.41it/s]device 0:   0%|          | 3/6091 [00:01<50:29,  2.01it/s]  device 0:   0%|          | 4/6091 [00:02<40:20,  2.52it/s]device 0:   0%|          | 5/6091 [00:02<34:53,  2.91it/s]device 0:   0%|          | 6/6091 [00:02<30:26,  3.33it/s]device 0:   0%|          | 6/6091 [00:03<51:07,  1.98it/s]
+submitit ERROR (2025-03-20 08:38:02,287) - Submitted job triggered an exception
+2025-03-20 08:38:02 (ERROR): Submitted job triggered an exception
+Traceback (most recent call last):
+  File "/home/hyukjunlim03/anaconda3/envs/equiformer_v2/lib/python3.8/runpy.py", line 194, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "/home/hyukjunlim03/anaconda3/envs/equiformer_v2/lib/python3.8/runpy.py", line 87, in _run_code
+    exec(code, run_globals)
+  File "/home/hyukjunlim03/anaconda3/envs/equiformer_v2/lib/python3.8/site-packages/submitit/core/_submit.py", line 11, in <module>
+    submitit_main()
+  File "/home/hyukjunlim03/anaconda3/envs/equiformer_v2/lib/python3.8/site-packages/submitit/core/submission.py", line 72, in submitit_main
+    process_job(args.folder)
+  File "/home/hyukjunlim03/anaconda3/envs/equiformer_v2/lib/python3.8/site-packages/submitit/core/submission.py", line 65, in process_job
+    raise error
+  File "/home/hyukjunlim03/anaconda3/envs/equiformer_v2/lib/python3.8/site-packages/submitit/core/submission.py", line 54, in process_job
+    result = delayed.result()
+  File "/home/hyukjunlim03/anaconda3/envs/equiformer_v2/lib/python3.8/site-packages/submitit/core/utils.py", line 133, in result
+    self._result = self.function(*self.args, **self.kwargs)
+  File "main_oc20.py", line 73, in __call__
+    self.task.run()
+  File "/home/hyukjunlim03/ccel/equiformer_v2/fairchem/ocpmodels/tasks/task.py", line 67, in run
+    self.trainer.predict(
+  File "/home/hyukjunlim03/anaconda3/envs/equiformer_v2/lib/python3.8/site-packages/torch/autograd/grad_mode.py", line 27, in decorate_context
+    return func(*args, **kwargs)
+  File "/home/hyukjunlim03/ccel/equiformer_v2/oc20/trainer/forces_trainer_v2.py", line 200, in predict
+    out = self._forward(batch_list)
+  File "/home/hyukjunlim03/ccel/equiformer_v2/oc20/trainer/forces_trainer_v2.py", line 487, in _forward
+    out_energy, out_forces, latent_rep = self.model(batch_list)
+  File "/home/hyukjunlim03/anaconda3/envs/equiformer_v2/lib/python3.8/site-packages/torch/nn/modules/module.py", line 1194, in _call_impl
+    return forward_call(*input, **kwargs)
+  File "/home/hyukjunlim03/ccel/equiformer_v2/fairchem/ocpmodels/common/data_parallel.py", line 61, in forward
+    return self.module(
+  File "/home/hyukjunlim03/anaconda3/envs/equiformer_v2/lib/python3.8/site-packages/torch/nn/modules/module.py", line 1194, in _call_impl
+    return forward_call(*input, **kwargs)
+  File "/home/hyukjunlim03/ccel/equiformer_v2/fairchem/ocpmodels/common/utils.py", line 132, in cls_method
+    return f(self, *args, **kwargs)
+  File "/home/hyukjunlim03/anaconda3/envs/equiformer_v2/lib/python3.8/site-packages/torch/autograd/grad_mode.py", line 27, in decorate_context
+    return func(*args, **kwargs)
+  File "/home/hyukjunlim03/ccel/equiformer_v2/nets/equiformer_v2/equiformer_v2_oc20.py", line 442, in forward
+    x = self.blocks[i](
+  File "/home/hyukjunlim03/anaconda3/envs/equiformer_v2/lib/python3.8/site-packages/torch/nn/modules/module.py", line 1194, in _call_impl
+    return forward_call(*input, **kwargs)
+  File "/home/hyukjunlim03/ccel/equiformer_v2/nets/equiformer_v2/transformer_block.py", line 596, in forward
+    output_embedding = self.ga(output_embedding,
+  File "/home/hyukjunlim03/anaconda3/envs/equiformer_v2/lib/python3.8/site-packages/torch/nn/modules/module.py", line 1194, in _call_impl
+    return forward_call(*input, **kwargs)
+  File "/home/hyukjunlim03/ccel/equiformer_v2/nets/equiformer_v2/transformer_block.py", line 293, in forward
+    x_message.embedding = self.s2_act(x_0_gating, x_message.embedding, self.SO3_grid)
+  File "/home/hyukjunlim03/anaconda3/envs/equiformer_v2/lib/python3.8/site-packages/torch/nn/modules/module.py", line 1194, in _call_impl
+    return forward_call(*input, **kwargs)
+  File "/home/hyukjunlim03/ccel/equiformer_v2/nets/equiformer_v2/activation.py", line 185, in forward
+    output_tensors = self.s2_act(input_tensors, SO3_grid)
+  File "/home/hyukjunlim03/anaconda3/envs/equiformer_v2/lib/python3.8/site-packages/torch/nn/modules/module.py", line 1194, in _call_impl
+    return forward_call(*input, **kwargs)
+  File "/home/hyukjunlim03/ccel/equiformer_v2/nets/equiformer_v2/activation.py", line 166, in forward
+    x_grid = self.act(x_grid)
+  File "/home/hyukjunlim03/anaconda3/envs/equiformer_v2/lib/python3.8/site-packages/torch/nn/modules/module.py", line 1194, in _call_impl
+    return forward_call(*input, **kwargs)
+  File "/home/hyukjunlim03/anaconda3/envs/equiformer_v2/lib/python3.8/site-packages/torch/nn/modules/activation.py", line 395, in forward
+    return F.silu(input, inplace=self.inplace)
+  File "/home/hyukjunlim03/anaconda3/envs/equiformer_v2/lib/python3.8/site-packages/torch/nn/functional.py", line 2059, in silu
+    return torch._C._nn.silu(input)
+torch.cuda.OutOfMemoryError: CUDA out of memory. Tried to allocate 206.00 MiB (GPU 0; 23.67 GiB total capacity; 22.61 GiB already allocated; 12.25 MiB free; 22.76 GiB reserved in total by PyTorch) If reserved memory is >> allocated memory try setting max_split_size_mb to avoid fragmentation.  See documentation for Memory Management and PYTORCH_CUDA_ALLOC_CONF
+srun: error: n011: task 0: Exited with exit code 1

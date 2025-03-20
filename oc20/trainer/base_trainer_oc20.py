@@ -760,6 +760,10 @@ class BaseTrainer(ABC):
                     gather_results[k] = np.concatenate(
                         np.array(gather_results[k])[idx]
                     )
+                elif k == "latents":
+                    gather_results[k] = np.concatenate(
+                        np.array(gather_results[k])[idx]
+                    )
                 elif k == "chunk_idx":
                     gather_results[k] = np.cumsum(
                         np.array(gather_results[k])[idx]

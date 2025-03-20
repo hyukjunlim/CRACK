@@ -1,0 +1,13 @@
+submitit INFO (2025-03-19 23:12:06,765) - Starting with JobEnvironment(job_id=9066, hostname=n011.hpc, local_rank=0(1), node=0(1), global_rank=0(1))
+submitit INFO (2025-03-19 23:12:06,765) - Loading pickle: /home/hyukjunlim03/ccel/equiformer_v2/logs/9066/9066_submitted.pkl
+2025-03-19 23:12:11 (INFO): Project root: /home/hyukjunlim03/ccel/equiformer_v2/fairchem
+2025-03-19 23:12:16 (INFO): Batch balancing is disabled for single GPU training.
+2025-03-19 23:12:16 (INFO): Batch balancing is disabled for single GPU training.
+2025-03-19 23:12:16 (INFO): Batch balancing is disabled for single GPU training.
+2025-03-19 23:12:18 (INFO): Loading checkpoint from: models/oc20/s2ef/2M/equiformer_v2/N@12_L@6_M@2/bs@64_lr@2e-4_wd@1e-3_epochs@12_warmup-epochs@0.1_g@1x1/eq2_31M_ec4_allmd.pt
+2025-03-19 23:19:28 (INFO): Writing results to models/oc20/s2ef/2M/equiformer_v2/N@12_L@6_M@2/bs@64_lr@2e-4_wd@1e-3_epochs@12_warmup-epochs@0.1_g@1x1/results/2025-03-19-23-11-12/s2ef_predictions.npz
+2025-03-19 23:19:28 (INFO): Total time taken: 430.2627239227295
+submitit INFO (2025-03-19 23:19:28,560) - Job completed successfully
+2025-03-19 23:19:28 (INFO): Job completed successfully
+[1;34mwandb[0m: 
+[1;34mwandb[0m: 🚀 View run [33m2025-03-19-23-11-12[0m at: [34mhttps://wandb.ai/hyukjunlim-seoul-national-university/equiformer_v2/runs/2025-03-19-23-11-12[0m
