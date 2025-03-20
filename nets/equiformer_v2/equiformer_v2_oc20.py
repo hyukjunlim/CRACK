@@ -432,13 +432,22 @@ class EquiformerV2_OC20(BaseModel):
         # Update spherical node embeddings
         ###############################################################
 
+        x = self.blocks[0](
+            x,                  # SO3_Embedding
+            atomic_numbers,
+            edge_distance,
+            edge_index,
+            batch=data.batch    # for GraphDropPath
+        )
+        
         latent_rep = torch.zeros(
             (self.num_layers + 1, x.embedding.size(0), x.embedding.size(2)),
             device=x.embedding.device,
             dtype=x.embedding.dtype
         )
         latent_rep[0] = self.embedding_pooling(x.embedding)
-        for i in range(self.num_layers):
+        
+        for i in range(1, self.num_layers):
             x = self.blocks[i](
                 x,                  # SO3_Embedding
                 atomic_numbers,
@@ -446,7 +455,7 @@ class EquiformerV2_OC20(BaseModel):
                 edge_index,
                 batch=data.batch    # for GraphDropPath
             )
-            latent_rep[i + 1] = self.embedding_pooling(x.embedding)
+            latent_rep[i] = self.embedding_pooling(x.embedding)
         # Final layer norm
         x.embedding = self.norm(x.embedding)
         latent_rep = latent_rep.transpose(0, 1)
