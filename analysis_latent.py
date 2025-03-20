@@ -294,8 +294,8 @@ def create_tsne_comparison(latents, energy, highlight_range=False):
 
 
 # Example usage with iterations
-modes = [25, 128]
-highlight_options = [True, False]
+modes = [128]
+highlight_options = [True]
 
 for mode in modes:
     # Set filename based on mode
