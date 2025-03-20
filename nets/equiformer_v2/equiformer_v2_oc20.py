@@ -433,7 +433,7 @@ class EquiformerV2_OC20(BaseModel):
         ###############################################################
 
         latent_rep = torch.zeros(
-            (self.num_layers + 1, x.embedding.size(0), x.embedding.size(1)),
+            (self.num_layers + 1, x.embedding.size(0), x.embedding.size(2)),
             device=x.embedding.device,
             dtype=x.embedding.dtype
         )
@@ -451,6 +451,7 @@ class EquiformerV2_OC20(BaseModel):
         # Final layer norm
         x.embedding = self.norm(x.embedding)
         # latent_rep = self.embedding_pooling(x.embedding)
+
 
         ###############################################################
         # Energy estimation
