@@ -438,7 +438,6 @@ class EquiformerV2_OC20(BaseModel):
             dtype=x.embedding.dtype
         )
         latent_rep[0] = self.embedding_pooling(x.embedding)
-        print(latent_rep[0].shape, flush=True)
         for i in range(self.num_layers):
             x = self.blocks[i](
                 x,                  # SO3_Embedding
@@ -448,11 +447,10 @@ class EquiformerV2_OC20(BaseModel):
                 batch=data.batch    # for GraphDropPath
             )
             latent_rep[i + 1] = self.embedding_pooling(x.embedding)
-            print(latent_rep[i + 1].shape, flush=True)
         # Final layer norm
         x.embedding = self.norm(x.embedding)
-        # latent_rep = self.embedding_pooling(x.embedding)
-
+        latent_rep = latent_rep.transpose(0, 1)
+        
 
         ###############################################################
         # Energy estimation
