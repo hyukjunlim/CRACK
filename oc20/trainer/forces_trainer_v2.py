@@ -218,7 +218,7 @@ class ForcesTrainerV2(BaseTrainerV2):
                     out["energy"].to(torch.float16).tolist()
                 )
                 
-                predictions["latents"].append(
+                predictions["latents"].extend(
                     out["latents"].cpu().detach().numpy()
                 )
                 

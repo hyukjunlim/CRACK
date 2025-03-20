@@ -450,6 +450,7 @@ class EquiformerV2_OC20(BaseModel):
         # Final layer norm
         x.embedding = self.norm(x.embedding)
         latent_rep = latent_rep.transpose(0, 1)
+        latent_rep = latent_rep.reshape(latent_rep.shape[0], -1)
         
 
         ###############################################################
