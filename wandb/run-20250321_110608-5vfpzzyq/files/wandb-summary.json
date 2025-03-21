@@ -1,1 +1,0 @@
-{"train_loss":0.14829586882205958,"rectified_flow_loss":2.1361836306750774,"_wandb":{"runtime":521},"_timestamp":1.7425232903440452e+09,"_runtime":521.453185793,"epoch":29,"velocity_matching_loss":0.036955597446394636,"_step":29,"learning_rate":0.00025401262395666804,"val_loss":0.05101730674505234}

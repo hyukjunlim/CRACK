@@ -3,3 +3,4 @@
 /logs/
 /save_logs/
 **/__pycache__/
+*.pt

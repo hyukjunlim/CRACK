@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 import os
 from sklearn.decomposition import PCA
+from torch.optim.lr_scheduler import OneCycleLR
 
 
 class ResidualFlowMatchingNetwork(nn.Module):
@@ -21,128 +22,189 @@ class ResidualFlowMatchingNetwork(nn.Module):
         hidden_dims=[256, 512, 512, 256], 
         time_embed_dim=128,
         use_attention=True,
-        num_heads=4,
-        dropout=0.1,
-        activation=nn.SiLU()  # Upgrade to SiLU activation
+        num_heads=8,
+        dropout=0.2,
+        activation=nn.SiLU(),
+        use_layer_norm=True,
+        use_skip_connections=True,
+        attention_layers=2
     ):
         super().__init__()
         self.embedding_dim = embedding_dim
         self.time_embed_dim = time_embed_dim
         self.activation = activation
         self.use_attention = use_attention
+        self.use_layer_norm = use_layer_norm
+        self.use_skip_connections = use_skip_connections
         
-        # Enhanced time embedding with more frequencies
-        self.time_embedding = SinusoidalTimeEmbedding(time_embed_dim, max_period=10000.0)
-        
-        # Context network for time - creates a scale and shift for modulation
-        self.time_context_net = nn.Sequential(
+        # Enhanced time embedding with learnable parameters
+        self.time_embedding = nn.Sequential(
+            SinusoidalTimeEmbedding(time_embed_dim),
             nn.Linear(time_embed_dim, time_embed_dim * 2),
             nn.SiLU(),
+            nn.Linear(time_embed_dim * 2, time_embed_dim)
+        )
+        
+        # Enhanced context network with normalization
+        self.time_context_net = nn.Sequential(
+            nn.LayerNorm(time_embed_dim),
+            nn.Linear(time_embed_dim, time_embed_dim * 2),
+            nn.SiLU(),
+            nn.Dropout(dropout),
             nn.Linear(time_embed_dim * 2, time_embed_dim * 4),
             nn.SiLU(),
+            nn.Dropout(dropout),
             nn.Linear(time_embed_dim * 4, time_embed_dim * 2)
         )
         
-        # Input layer
-        self.input_layer = nn.Linear(embedding_dim, hidden_dims[0])
-        self.input_norm = nn.LayerNorm(hidden_dims[0])
+        # Input processing
+        self.input_layer = nn.Sequential(
+            nn.Linear(embedding_dim, hidden_dims[0]),
+            nn.LayerNorm(hidden_dims[0]) if use_layer_norm else nn.Identity(),
+            activation,
+            nn.Dropout(dropout)
+        )
         
-        # Residual blocks
+        # Residual blocks with enhanced architecture
         self.residual_blocks = nn.ModuleList()
         for i in range(len(hidden_dims) - 1):
             self.residual_blocks.append(
-                ResidualBlock(
+                EnhancedResidualBlock(
                     hidden_dims[i], 
                     hidden_dims[i+1],
                     time_embed_dim,
-                    dropout=dropout
+                    dropout=dropout,
+                    use_layer_norm=use_layer_norm,
+                    activation=activation
                 )
             )
         
-        # Multi-head attention layer if enabled
+        # Multiple attention layers
         if use_attention:
-            self.attention = nn.MultiheadAttention(
-                hidden_dims[-2], 
-                num_heads=num_heads, 
-                dropout=dropout,
-                batch_first=True
-            )
-            self.attention_norm = nn.LayerNorm(hidden_dims[-2])
+            self.attention_layers = nn.ModuleList([
+                AttentionBlock(
+                    hidden_dims[-2],
+                    num_heads=num_heads,
+                    dropout=dropout,
+                    use_layer_norm=use_layer_norm
+                )
+                for _ in range(attention_layers)
+            ])
         
-        # Output layer
-        self.output_layer = nn.Sequential(
-            nn.LayerNorm(hidden_dims[-1]),
-            nn.Linear(hidden_dims[-1], embedding_dim)
-        )
+        # Output processing with multiple layers
+        output_layers = []
+        if use_layer_norm:
+            output_layers.append(nn.LayerNorm(hidden_dims[-1]))
+        output_layers.extend([
+            nn.Linear(hidden_dims[-1], hidden_dims[-1] // 2),
+            activation,
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dims[-1] // 2, embedding_dim)
+        ])
+        self.output_layer = nn.Sequential(*output_layers)
     
     def forward(self, x, t):
-        # Time embedding
+        # Time embedding with gradient scaling
         t_emb = self.time_embedding(t)
         context = self.time_context_net(t_emb)
-        
-        # Split context into scale and shift for adaptive modulation
         time_scale, time_shift = torch.chunk(context, 2, dim=-1)
         
-        # Input processing
+        # Input processing with residual connection
         h = self.input_layer(x)
-        h = self.input_norm(h)
-        h = self.activation(h)
+        if self.use_skip_connections and h.shape == x.shape:
+            h = h + x
         
         # Process through residual blocks
         for block in self.residual_blocks[:-1]:
             h = block(h, time_scale, time_shift)
         
-        # Apply attention before final block if enabled
+        # Multiple attention layers
         if self.use_attention:
-            # Self-attention on batch
-            h_norm = self.attention_norm(h)
-            attn_out, _ = self.attention(h_norm, h_norm, h_norm)
-            h = h + attn_out
+            for attn_layer in self.attention_layers:
+                h = attn_layer(h)
         
         # Final residual block
         h = self.residual_blocks[-1](h, time_scale, time_shift)
         
-        # Output layer
+        # Output processing
         velocity = self.output_layer(h)
         
         return velocity
 
 
-class ResidualBlock(nn.Module):
-    """Residual block with time conditioning."""
-    def __init__(self, in_dim, out_dim, time_dim, dropout=0.1):
+class EnhancedResidualBlock(nn.Module):
+    """Enhanced residual block with additional features"""
+    def __init__(self, in_dim, out_dim, time_dim, dropout=0.2, use_layer_norm=True, activation=nn.SiLU()):
         super().__init__()
-        self.time_mlp = nn.Linear(time_dim, out_dim * 2)
+        self.use_layer_norm = use_layer_norm
         
+        # Time conditioning
+        self.time_mlp = nn.Sequential(
+            nn.Linear(time_dim, out_dim * 2),
+            activation
+        )
+        
+        # Main blocks with enhanced architecture
         self.block1 = nn.Sequential(
-            nn.LayerNorm(in_dim),
+            nn.LayerNorm(in_dim) if use_layer_norm else nn.Identity(),
             nn.Linear(in_dim, out_dim),
-            nn.SiLU()
+            activation,
+            nn.Dropout(dropout)
         )
         
         self.block2 = nn.Sequential(
-            nn.LayerNorm(out_dim),
+            nn.LayerNorm(out_dim) if use_layer_norm else nn.Identity(),
+            nn.Linear(out_dim, out_dim),
+            activation,
             nn.Dropout(dropout),
             nn.Linear(out_dim, out_dim)
         )
         
+        # Shortcut with normalization
         if in_dim != out_dim:
-            self.shortcut = nn.Linear(in_dim, out_dim)
+            self.shortcut = nn.Sequential(
+                nn.LayerNorm(in_dim) if use_layer_norm else nn.Identity(),
+                nn.Linear(in_dim, out_dim)
+            )
         else:
             self.shortcut = nn.Identity()
     
     def forward(self, x, time_scale, time_shift):
+        identity = self.shortcut(x)
+        
+        # Main path
         h = self.block1(x)
         
-        # Apply time conditioning as an adaptive layer norm
+        # Enhanced time conditioning
         time_embeddings = self.time_mlp(time_scale)
         scale, shift = torch.chunk(time_embeddings, 2, dim=1)
         h = h * (1 + scale) + shift
         
         h = self.block2(h)
         
-        # Add residual connection
-        return h + self.shortcut(x)
+        return h + identity
+
+
+class AttentionBlock(nn.Module):
+    """Enhanced attention block with additional features"""
+    def __init__(self, dim, num_heads=8, dropout=0.2, use_layer_norm=True):
+        super().__init__()
+        self.use_layer_norm = use_layer_norm
+        
+        self.norm = nn.LayerNorm(dim) if use_layer_norm else nn.Identity()
+        self.attention = nn.MultiheadAttention(
+            dim, 
+            num_heads=num_heads, 
+            dropout=dropout,
+            batch_first=True
+        )
+        self.dropout = nn.Dropout(dropout)
+    
+    def forward(self, x):
+        identity = x
+        x = self.norm(x)
+        attn_out, _ = self.attention(x, x, x)
+        return identity + self.dropout(attn_out)
 
 
 class SinusoidalTimeEmbedding(nn.Module):
@@ -197,9 +259,8 @@ class FlowMatching:
         
         # Initialize the enhanced network
         self.model = ResidualFlowMatchingNetwork(
-            embedding_dim, 
-            hidden_dims,
-            use_attention=use_attention
+            embedding_dim=embedding_dim,
+            use_attention=use_attention,
         ).to(device)
         
         # Setup optimizer with weight decay
@@ -276,12 +337,12 @@ class FlowMatching:
         # Optimization step
         self.optimizer.zero_grad()
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)  # Gradient clipping
+        torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=0.5)
         self.optimizer.step()
         
         return loss.item()
     
-    def sample_trajectory(self, x0, steps=100, method="rk4", solver_rtol=1e-5, solver_atol=1e-5):
+    def sample_trajectory(self, x0, steps=100, method="dopri5", solver_rtol=1e-5, solver_atol=1e-5):
         """
         Enhanced trajectory sampling with modern ODE solvers.
         
@@ -390,7 +451,7 @@ class FlowMatching:
         x1 = ground_truth[:, -1].to(self.device)  # For reference only
         
         # Generate sampled trajectories with same number of steps as ground truth
-        sampled_trajectories = self.sample_trajectory(x0, steps=n_timesteps-1, method="rk4")
+        sampled_trajectories = self.sample_trajectory(x0, steps=n_timesteps-1, method="dopri5")
         
         # Calculate statistics
         mse_per_sample = torch.mean((ground_truth.cpu() - sampled_trajectories.cpu())**2, dim=(1, 2))
@@ -628,7 +689,7 @@ class FlowMatching:
         self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         
 # Example usage
-def prepare_data(trajectories, train_ratio=0.8):
+def prepare_data(trajectories, train_ratio=0.9):
     """
     Prepare training and validation data.
     
@@ -677,7 +738,7 @@ def train_flow_model(
     # Initialize model with enhanced architecture
     flow_model = FlowMatching(
         embedding_dim=embedding_dim,
-        hidden_dims=[256, 256, 256, 256, 256, 256],  # Deeper network
+        hidden_dims=[256, 512, 768, 512, 256],  # Deeper network
         lr=2e-4,  # Slightly higher LR with cosine schedule
         flow_matching_type=flow_matching_type,
         use_attention=True,

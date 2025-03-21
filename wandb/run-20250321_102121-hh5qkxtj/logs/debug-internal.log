@@ -1,7 +1,0 @@
-{"time":"2025-03-21T10:21:21.418885426+09:00","level":"INFO","msg":"stream: starting","core version":"0.19.8","symlink path":"/home/hyukjunlim03/ccel/equiformer_v2/wandb/run-20250321_102121-hh5qkxtj/logs/debug-core.log"}
-{"time":"2025-03-21T10:21:21.648274224+09:00","level":"INFO","msg":"created new stream","id":"hh5qkxtj"}
-{"time":"2025-03-21T10:21:21.64831553+09:00","level":"INFO","msg":"stream: started","id":"hh5qkxtj"}
-{"time":"2025-03-21T10:21:21.648331387+09:00","level":"INFO","msg":"writer: Do: started","stream_id":"hh5qkxtj"}
-{"time":"2025-03-21T10:21:21.648363704+09:00","level":"INFO","msg":"sender: started","stream_id":"hh5qkxtj"}
-{"time":"2025-03-21T10:21:21.64833848+09:00","level":"INFO","msg":"handler: started","stream_id":"hh5qkxtj"}
-{"time":"2025-03-21T10:21:22.163652379+09:00","level":"INFO","msg":"Starting system monitor"}
