@@ -3,15 +3,16 @@ import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 import seaborn as sns
+import os
 
-def visualize_embeddings(latents, energy, method='pca', perplexity=50, n_components=2, figsize=(12, 10), highlight_range=False):
+def visualize_embeddings(latents, energy, method='pca', perplexity=50, n_components=2, figsize=(12, 10), highlight_range=False, by_layers=False):
     """
     Visualize high-dimensional embeddings with energy values as colors.
     
     Parameters:
     -----------
     latents : numpy.ndarray
-        Embedding vectors of shape (n_samples, embedding_dimension)
+        Embedding vectors of shape (n_samples, embedding_dimension) or (n_samples, n_layers, embedding_dimension)
     energy : numpy.ndarray
         Energy values of shape (n_samples, 1)
     method : str
@@ -24,6 +25,8 @@ def visualize_embeddings(latents, energy, method='pca', perplexity=50, n_compone
         Figure size for the plots
     highlight_range : bool
         If True, highlights points with energy between 1.5 and 2
+    by_layers : bool
+        If True, create subplot for each layer in 3D input
     
     Returns:
     --------
@@ -33,6 +36,44 @@ def visualize_embeddings(latents, energy, method='pca', perplexity=50, n_compone
     # Flatten energy if it's a 2D array
     if energy.ndim > 1:
         energy = energy.ravel()
+    
+    if by_layers and latents.ndim == 3:
+        n_layers = latents.shape[1]
+        n_cols = 5
+        n_rows = 5
+        fig = plt.figure(figsize=(40, 30))
+        
+        for layer in range(n_layers):
+            ax = plt.subplot(n_rows, n_cols, layer + 1)
+            latents_layer = latents[:, layer, :]
+            
+            # Dimensionality reduction
+            if method.lower() == 'pca':
+                reducer = PCA(n_components=n_components)
+                title_prefix = 'PCA'
+            else:
+                reducer = TSNE(n_components=n_components, perplexity=perplexity, random_state=42)
+                title_prefix = 't-SNE'
+            
+            reduced_data = reducer.fit_transform(latents_layer)
+            highlight_mask = (energy >= 1.5) & (energy <= 2) if highlight_range else np.ones_like(energy, dtype=bool)
+            
+            if highlight_range:
+                ax.scatter(reduced_data[:, 0], reduced_data[:, 1], c='lightgray', alpha=0.5, s=50, label='Other samples')
+                im = ax.scatter(reduced_data[highlight_mask, 0], reduced_data[highlight_mask, 1],
+                              c=energy[highlight_mask], cmap='viridis', alpha=0.8, s=50, label='1.5 ≤ Energy ≤ 2')
+            else:
+                im = ax.scatter(reduced_data[:, 0], reduced_data[:, 1], c=energy, cmap='viridis', alpha=0.8, s=50)
+            
+            plt.colorbar(im, ax=ax, label='Energy')
+            ax.set_title(f'Layer {layer}: {title_prefix} Visualization')
+            ax.set_xlabel(f'{title_prefix} Component 1')
+            ax.set_ylabel(f'{title_prefix} Component 2')
+            if highlight_range:
+                ax.legend()
+        
+        plt.tight_layout()
+        return fig
     
     # Create a figure with subplots
     fig = plt.figure(figsize=figsize)
@@ -93,7 +134,7 @@ def visualize_embeddings(latents, energy, method='pca', perplexity=50, n_compone
     plt.tight_layout()
     return fig
 
-def create_multiple_visualizations(latents, energy, highlight_range=False):
+def create_multiple_visualizations(latents, energy, highlight_range=False, by_layers=False):
     """
     Create multiple visualizations with different dimensionality reduction techniques.
     
@@ -105,7 +146,46 @@ def create_multiple_visualizations(latents, energy, highlight_range=False):
         Energy values of shape (n_samples, 1)
     highlight_range : bool
         If True, highlights points with energy between 1.5 and 2
+    by_layers : bool
+        If True, create visualizations for each layer in 3D input
     """
+    if by_layers and latents.ndim == 3:
+        n_layers = latents.shape[1]
+        n_cols = 5
+        n_rows = 5
+        fig, axes = plt.subplots(n_rows, n_cols, figsize=(25, 25))
+        plt.subplots_adjust(hspace=0.4, wspace=0.3)
+        
+        if energy.ndim > 1:
+            energy = energy.ravel()
+        
+        highlight_mask = (energy >= 1.5) & (energy <= 2) if highlight_range else np.ones_like(energy, dtype=bool)
+        
+        for layer in range(n_layers):
+            row = layer // n_cols
+            col = layer % n_cols
+            latents_layer = latents[:, layer, :]
+            
+            # PCA
+            pca = PCA(n_components=2)
+            pca_result = pca.fit_transform(latents_layer)
+            
+            if highlight_range:
+                axes[row, col].scatter(pca_result[:, 0], pca_result[:, 1], c='lightgray', alpha=0.5, s=50)
+                im1 = axes[row, col].scatter(pca_result[highlight_mask, 0], pca_result[highlight_mask, 1],
+                                           c=energy[highlight_mask], cmap='viridis', alpha=0.8, s=50)
+            else:
+                im1 = axes[row, col].scatter(pca_result[:, 0], pca_result[:, 1], c=energy, cmap='viridis', alpha=0.8, s=50)
+            
+            axes[row, col].set_title(f'Layer {layer}')
+            fig.colorbar(im1, ax=axes[row, col])
+        
+        # Hide empty subplots
+        for i in range(layer + 1, n_rows * n_cols):
+            row = i // n_cols
+            col = i % n_cols
+            axes[row, col].set_visible(False)
+    
     # Create a figure with 2x2 subplots
     fig, axes = plt.subplots(2, 2, figsize=(20, 16))
     plt.subplots_adjust(hspace=0.3, wspace=0.3)
@@ -183,7 +263,7 @@ def create_multiple_visualizations(latents, energy, highlight_range=False):
     
     return fig
 
-def analyze_embedding_clusters(latents, energy, n_clusters=5):
+def analyze_embedding_clusters(latents, energy, n_clusters=5, by_layers=False):
     """
     Analyze embedding clusters and their relation to energy.
     
@@ -202,9 +282,38 @@ def analyze_embedding_clusters(latents, energy, n_clusters=5):
     if energy.ndim > 1:
         energy = energy.ravel()
     
-    # Perform clustering
-    kmeans = KMeans(n_clusters=n_clusters, random_state=42)
-    clusters = kmeans.fit_predict(latents)
+    if by_layers and latents.ndim == 3:
+        n_layers = latents.shape[1]
+        n_cols = 5
+        n_rows = 5
+        fig, axes = plt.subplots(n_rows, n_cols, figsize=(25, 25))
+        plt.subplots_adjust(hspace=0.4, wspace=0.3)
+        
+        for layer in range(n_layers):
+            row = layer // n_cols
+            col = layer % n_cols
+            latents_layer = latents[:, layer, :]
+            
+            # Perform clustering
+            kmeans = KMeans(n_clusters=n_clusters, random_state=42)
+            clusters = kmeans.fit_predict(latents_layer)
+            
+            # PCA for visualization
+            pca = PCA(n_components=2)
+            pca_result = pca.fit_transform(latents_layer)
+            
+            scatter = axes[row, col].scatter(pca_result[:, 0], pca_result[:, 1], 
+                                           c=clusters, cmap='tab10', alpha=0.8, s=50)
+            axes[row, col].set_title(f'Layer {layer} Clusters')
+            
+        # Hide empty subplots
+        for i in range(layer + 1, n_rows * n_cols):
+            row = i // n_cols
+            col = i % n_cols
+            axes[row, col].set_visible(False)
+        
+        plt.suptitle('Layer-wise Cluster Analysis', fontsize=16)
+        return fig
     
     # Create a figure with 2 subplots
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 8))
@@ -233,7 +342,7 @@ def analyze_embedding_clusters(latents, energy, n_clusters=5):
     
     return fig
 
-def create_tsne_comparison(latents, energy, highlight_range=False):
+def create_tsne_comparison(latents, energy, highlight_range=False, by_layers=False):
     """
     Create multiple t-SNE visualizations with different perplexity values.
     
@@ -292,48 +401,85 @@ def create_tsne_comparison(latents, energy, highlight_range=False):
     
     return fig
 
+# Create output directory if it doesn't exist
+os.makedirs('visuals/128', exist_ok=True)
 
 # Example usage with iterations
-modes = [128]
 highlight_options = [True]
 
-for mode in modes:
-    # Set filename based on mode
-    if mode == 25:
-        filename = 'save_logs/9066/s2ef_predictions.npz' # 31M
-    elif mode == 128:
-        filename = 'logs/2316385/s2ef_predictions.npz' # 153M
-    
-    # Load and reshape data
-    data = np.load(filename)
-    latents = data['latents']
-    energy = data['energy'].reshape(-1, 1)
-    print(latents.shape, energy.shape)
-    print(f"Processing mode {mode}, shape: {latents.shape}, {energy.shape}")
-    
-    for highlight in highlight_options:
-        highlight_str = "highlighted" if highlight else "all"
-        print(f"  Creating visualizations with highlight={highlight}")
-        
-        # Use latents for all visualizations
-        #fig1 = visualize_embeddings(latents, energy, method='pca', highlight_range=highlight)
-        #fig1.savefig(f'visuals/{mode}/catalyst_pca_{highlight_str}.png', dpi=300, bbox_inches='tight')
-        #plt.close(fig1)
-        
-        fig2 = visualize_embeddings(latents, energy, method='tsne', highlight_range=highlight)
-        fig2.savefig(f'visuals/{mode}/catalyst_tsne_{highlight_str}.png', dpi=300, bbox_inches='tight')
-        plt.close(fig2)
-        
-        #fig3 = create_multiple_visualizations(latents, energy, highlight_range=highlight)
-        #fig3.savefig(f'visuals/{mode}/catalyst_multiple_{highlight_str}.png', dpi=300, bbox_inches='tight')
-        #plt.close(fig3)
-        
-        #fig5 = create_tsne_comparison(latents, energy, highlight_range=highlight)
-        #fig5.savefig(f'visuals/{mode}/catalyst_tsne_comparison_{highlight_str}.png', dpi=300, bbox_inches='tight')
-        #plt.close(fig5)
-    
-    # Use latents for cluster analysis too
-    #fig4 = analyze_embedding_clusters(latents, energy)
-    #fig4.savefig(f'visuals/{mode}/catalyst_cluster_analysis.png', dpi=300, bbox_inches='tight')
-    #plt.close(fig4)
+# Set filename based on mode
+filename = 'logs/2316385/s2ef_predictions.npz' # 153M
 
+# Load and reshape data
+data = np.load(filename)
+latents = data['latents'].reshape(-1, 21, 128)
+energy = data['energy'].reshape(-1, 1)
+print(f"Processing mode 128, shape: {latents.shape}, {energy.shape}")
+
+# # Create figure for t-SNE layer visualization
+# fig, axes = plt.subplots(7, 3, figsize=(20, 40))  # 7x3 grid for 21 layers
+# axes = axes.ravel()  # Flatten axes array for easier indexing
+
+# # Process each layer
+# for layer in range(21):
+#     latents_layer = latents[:, layer, :]
+    
+#     # Run t-SNE for each layer
+#     tsne = TSNE(n_components=2, perplexity=30, random_state=42)
+#     tsne_result = tsne.fit_transform(latents_layer)
+    
+#     # Plot in the corresponding subplot
+#     im = axes[layer].scatter(tsne_result[:, 0], tsne_result[:, 1],
+#                            c=energy, cmap='viridis', alpha=0.8, s=50)
+    
+#     axes[layer].set_title(f'Layer {layer}')
+#     axes[layer].set_xlabel('t-SNE Component 1')
+#     axes[layer].set_ylabel('t-SNE Component 2')
+#     fig.colorbar(im, ax=axes[layer], label='Energy')
+
+#     # Generate other visualizations
+#     for highlight in highlight_options:
+#         highlight_str = "highlighted" if highlight else "all"
+#         print(f"  Creating visualizations for layer {layer} with highlight={highlight}")
+        
+        # fig1 = visualize_embeddings(latents_layer, energy, method='pca', highlight_range=highlight)
+        # fig1.savefig(f'visuals/128/layer{layer}_catalyst_pca_{highlight_str}.png', dpi=300, bbox_inches='tight')
+        # plt.close(fig1)
+        
+        # fig2 = visualize_embeddings(latents_layer, energy, method='tsne', highlight_range=highlight)
+        # fig2.savefig(f'visuals/128/layer{layer}_catalyst_tsne_{highlight_str}.png', dpi=300, bbox_inches='tight')
+        # plt.close(fig2)
+        
+    #     fig3 = create_multiple_visualizations(latents_layer, energy, highlight_range=highlight)
+    #     fig3.savefig(f'visuals/128/layer{layer}_catalyst_multiple_{highlight_str}.png', dpi=300, bbox_inches='tight')
+    #     plt.close(fig3)
+    
+    #     fig5 = create_tsne_comparison(latents_layer, energy, highlight_range=highlight)
+    #     fig5.savefig(f'visuals/128/layer{layer}_catalyst_tsne_comparison_{highlight_str}.png', dpi=300, bbox_inches='tight')
+    #     plt.close(fig5)
+
+    # fig4 = analyze_embedding_clusters(latents_layer, energy)
+    # fig4.savefig(f'visuals/128/layer{layer}_catalyst_cluster_analysis.png', dpi=300, bbox_inches='tight')
+    # plt.close(fig4)
+
+# For layer-wise visualization
+
+# fig1 = visualize_embeddings(latents, energy, method='pca', highlight_range=True, by_layers=True)
+# fig1.savefig(f'visuals/128/catalyst_pca_by_layers.png', dpi=300, bbox_inches='tight')
+# plt.close(fig1)
+
+fig2 = visualize_embeddings(latents, energy, method='tsne', highlight_range=True, by_layers=True)
+fig2.savefig(f'visuals/128/catalyst_tsne_by_layers.png', dpi=300, bbox_inches='tight')
+plt.close(fig2)
+
+# fig3 = create_multiple_visualizations(latents, energy, highlight_range=True, by_layers=True)
+# fig3.savefig(f'visuals/128/catalyst_multiple_by_layers.png', dpi=300, bbox_inches='tight')
+# plt.close(fig3)
+
+# fig4 = create_tsne_comparison(latents, energy, highlight_range=True)
+# fig4.savefig(f'visuals/128/catalyst_tsne_comparison_by_layers.png', dpi=300, bbox_inches='tight')
+# plt.close(fig4)
+
+# fig5 = analyze_embedding_clusters(latents, energy, by_layers=True)
+# fig5.savefig(f'visuals/128/catalyst_cluster_analysis_by_layers.png', dpi=300, bbox_inches='tight')
+# plt.close(fig5)
