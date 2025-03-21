@@ -263,25 +263,10 @@ class FlowMatching:
             use_attention=use_attention,
         ).to(device)
         
-        # Setup optimizer with weight decay
-        self.optimizer = optim.AdamW(
-            self.model.parameters(), 
-            lr=lr, 
-            betas=(0.9, 0.999),
-            weight_decay=1e-5
-        )
-        
-        # Cosine annealing with warm restarts
-        self.scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
-            self.optimizer, 
-            T_0=50,  # Restart every 50 epochs
-            T_mult=2  # Double the restart interval after each restart
-        )
-        
         # Set up loss function with spectral normalization option
         self.spectral_norm_weight = 0.01  # Set to 0 to disable
     
-    def train_step(self, x0, x1, t):
+    def train_step(self, x0, x1, t, optimizer, scheduler):
         """
         Training step with various flow matching options.
         """
@@ -335,10 +320,10 @@ class FlowMatching:
             loss = loss + self.spectral_norm_weight * spectral_loss
         
         # Optimization step
-        self.optimizer.zero_grad()
+        optimizer.zero_grad()
         loss.backward()
         torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=0.5)
-        self.optimizer.step()
+        optimizer.step()
         
         return loss.item()
     
@@ -679,17 +664,15 @@ class FlowMatching:
         """Save the model and optimizer state."""
         torch.save({
             'model_state_dict': self.model.state_dict(),
-            'optimizer_state_dict': self.optimizer.state_dict(),
         }, path)
     
     def load_model(self, path):
         """Load the model and optimizer state."""
         checkpoint = torch.load(path)
         self.model.load_state_dict(checkpoint['model_state_dict'])
-        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         
 # Example usage
-def prepare_data(trajectories, train_ratio=0.9):
+def prepare_data(trajectories, train_ratio=0.8):
     """
     Prepare training and validation data.
     
@@ -738,14 +721,27 @@ def train_flow_model(
     # Initialize model with residual architecture
     flow_model = FlowMatching(
         embedding_dim=embedding_dim,
-        hidden_dims=[256, 512, 768, 512, 256],  # Deeper network
-        lr=2e-4,  # Slightly higher LR with cosine schedule
+        hidden_dims=[256, 256, 256, 256, 256],  # Deeper network
+        lr=1e-4,  # Slightly higher LR with cosine schedule
         flow_matching_type=flow_matching_type,
         use_attention=True,
         use_adaptive_solver=True
     )
     # print(f"Model architecture: {flow_model.model}")
     print(f"Model parameters: {sum(p.numel() for p in flow_model.model.parameters())}")
+    
+    optimizer = optim.AdamW(
+        flow_model.model.parameters(), 
+        lr=2e-4, 
+        betas=(0.9, 0.999),
+        weight_decay=1e-5
+    )
+    scheduler = optim.lr_scheduler.OneCycleLR(
+        optimizer,
+        max_lr=2e-4,
+        steps_per_epoch=len(train_data) // batch_size,
+        epochs=num_epochs
+    )
     
     # Try to load existing model if available
     model_path = os.path.join(output_dir, 'flow_matching_model.pt')
@@ -785,7 +781,7 @@ def train_flow_model(
             t = torch.rand(batch_size, 1, device=flow_model.device)
             
             # Train step
-            loss = flow_model.train_step(x0, x1, t)
+            loss = flow_model.train_step(x0, x1, t, optimizer, scheduler)
             epoch_losses.append(loss)
         
         # Calculate average loss
@@ -817,7 +813,7 @@ def train_flow_model(
                 break
         
         # Learning rate scheduler step
-        flow_model.scheduler.step()
+        scheduler.step()
         
         # Visualization at intervals
         if epoch % 50 == 0 or epoch == num_epochs - 1:
