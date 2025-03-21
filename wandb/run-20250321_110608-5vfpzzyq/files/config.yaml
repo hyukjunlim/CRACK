@@ -1,0 +1,58 @@
+_wandb:
+    value:
+        cli_version: 0.19.8
+        m: []
+        python_version: 3.8.13
+        t:
+            "1":
+                - 1
+                - 5
+                - 53
+                - 55
+            "2":
+                - 1
+                - 5
+                - 53
+                - 55
+            "3":
+                - 2
+                - 16
+                - 23
+                - 55
+            "4": 3.8.13
+            "5": 0.19.8
+            "8":
+                - 5
+            "12": 0.19.8
+            "13": linux-x86_64
+batch_size:
+    value: 256
+embedding_shape:
+    value:
+        - 12182
+        - 21
+        - 128
+epochs:
+    value: 100
+hidden_dim:
+    value: 128
+lambda_rect:
+    value: 0.5
+lr:
+    value: 0.0003
+model_depth:
+    value: 4
+noise_scale:
+    value: 0.01
+params:
+    value: 354832
+rectified_flow:
+    value: true
+scheduler_type:
+    value: cosine
+use_attention:
+    value: true
+warmup_epochs:
+    value: 5
+weight_decay:
+    value: 1e-05

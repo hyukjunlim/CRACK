@@ -1,0 +1,29 @@
+2025-03-21 11:06:08,858 INFO    MainThread:78725 [wandb_setup.py:_flush():67] Current SDK version is 0.19.8
+2025-03-21 11:06:08,858 INFO    MainThread:78725 [wandb_setup.py:_flush():67] Configure stats pid to 78725
+2025-03-21 11:06:08,858 INFO    MainThread:78725 [wandb_setup.py:_flush():67] Loading settings from /home/hyukjunlim03/.config/wandb/settings
+2025-03-21 11:06:08,858 INFO    MainThread:78725 [wandb_setup.py:_flush():67] Loading settings from /home/hyukjunlim03/ccel/equiformer_v2/wandb/settings
+2025-03-21 11:06:08,858 INFO    MainThread:78725 [wandb_setup.py:_flush():67] Loading settings from environment variables
+2025-03-21 11:06:08,858 INFO    MainThread:78725 [wandb_init.py:setup_run_log_directory():647] Logging user logs to /home/hyukjunlim03/ccel/equiformer_v2/wandb/run-20250321_110608-5vfpzzyq/logs/debug.log
+2025-03-21 11:06:08,858 INFO    MainThread:78725 [wandb_init.py:setup_run_log_directory():648] Logging internal logs to /home/hyukjunlim03/ccel/equiformer_v2/wandb/run-20250321_110608-5vfpzzyq/logs/debug-internal.log
+2025-03-21 11:06:08,858 INFO    MainThread:78725 [wandb_init.py:init():761] calling init triggers
+2025-03-21 11:06:08,858 INFO    MainThread:78725 [wandb_init.py:init():766] wandb.init called with sweep_config: {}
+config: {'epochs': 100, 'lr': 0.0003, 'batch_size': 256, 'model_depth': 4, 'hidden_dim': 128, 'use_attention': True, 'weight_decay': 1e-05, 'noise_scale': 0.01, 'rectified_flow': True, 'lambda_rect': 0.5, 'scheduler_type': 'cosine', 'warmup_epochs': 5, 'params': 354832, 'embedding_shape': torch.Size([12182, 21, 128]), '_wandb': {}}
+2025-03-21 11:06:08,858 INFO    MainThread:78725 [wandb_init.py:init():784] starting backend
+2025-03-21 11:06:08,858 INFO    MainThread:78725 [wandb_init.py:init():788] sending inform_init request
+2025-03-21 11:06:08,890 INFO    MainThread:78725 [backend.py:_multiprocessing_setup():101] multiprocessing start_methods=fork,spawn,forkserver, using: spawn
+2025-03-21 11:06:08,890 INFO    MainThread:78725 [wandb_init.py:init():798] backend started and connected
+2025-03-21 11:06:08,893 INFO    MainThread:78725 [wandb_init.py:init():891] updated telemetry
+2025-03-21 11:06:08,968 INFO    MainThread:78725 [wandb_init.py:init():915] communicating run to backend with 90.0 second timeout
+2025-03-21 11:06:09,429 INFO    MainThread:78725 [wandb_init.py:init():990] starting run threads in backend
+2025-03-21 11:06:09,567 INFO    MainThread:78725 [wandb_run.py:_console_start():2375] atexit reg
+2025-03-21 11:06:09,567 INFO    MainThread:78725 [wandb_run.py:_redirect():2227] redirect: wrap_raw
+2025-03-21 11:06:09,567 INFO    MainThread:78725 [wandb_run.py:_redirect():2292] Wrapping output streams.
+2025-03-21 11:06:09,567 INFO    MainThread:78725 [wandb_run.py:_redirect():2315] Redirects installed.
+2025-03-21 11:06:09,570 INFO    MainThread:78725 [wandb_init.py:init():1032] run started, returning control to user process
+2025-03-21 11:14:50,345 INFO    MainThread:78725 [wandb_run.py:_finish():2112] finishing run hyukjunlim-seoul-national-university/advanced-equiformer-flow-matching/5vfpzzyq
+2025-03-21 11:14:50,345 INFO    MainThread:78725 [wandb_run.py:_atexit_cleanup():2340] got exitcode: 0
+2025-03-21 11:14:50,346 INFO    MainThread:78725 [wandb_run.py:_restore():2322] restore
+2025-03-21 11:14:50,346 INFO    MainThread:78725 [wandb_run.py:_restore():2328] restore done
+2025-03-21 11:14:51,668 INFO    MainThread:78725 [wandb_run.py:_footer_history_summary_info():3956] rendering history
+2025-03-21 11:14:51,669 INFO    MainThread:78725 [wandb_run.py:_footer_history_summary_info():3988] rendering summary
+2025-03-21 11:14:51,669 INFO    MainThread:78725 [wandb_run.py:_footer_sync_info():3917] logging synced files
