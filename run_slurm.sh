@@ -8,4 +8,6 @@
 #SBATCH -e output/%x.%N.%j.err   # STDERR with job name in output directory
 #SBATCH --gres=gpu:1       # Request 1 A5000 GPU
 
+nvidia-smi
+
 python train_flow_matching.py

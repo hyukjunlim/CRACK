@@ -13,7 +13,7 @@ from torch.optim.lr_scheduler import OneCycleLR
 
 class ResidualFlowMatchingNetwork(nn.Module):
     """
-    Enhanced neural network for conditional flow matching with residual connections, 
+    Neural network for conditional flow matching with residual connections, 
     normalization, and attention mechanisms.
     """
     def __init__(
@@ -37,7 +37,7 @@ class ResidualFlowMatchingNetwork(nn.Module):
         self.use_layer_norm = use_layer_norm
         self.use_skip_connections = use_skip_connections
         
-        # Enhanced time embedding with learnable parameters
+        # Time embedding with learnable parameters
         self.time_embedding = nn.Sequential(
             SinusoidalTimeEmbedding(time_embed_dim),
             nn.Linear(time_embed_dim, time_embed_dim * 2),
@@ -45,7 +45,7 @@ class ResidualFlowMatchingNetwork(nn.Module):
             nn.Linear(time_embed_dim * 2, time_embed_dim)
         )
         
-        # Enhanced context network with normalization
+        # Context network with normalization
         self.time_context_net = nn.Sequential(
             nn.LayerNorm(time_embed_dim),
             nn.Linear(time_embed_dim, time_embed_dim * 2),
@@ -65,11 +65,11 @@ class ResidualFlowMatchingNetwork(nn.Module):
             nn.Dropout(dropout)
         )
         
-        # Residual blocks with enhanced architecture
+        # Residual blocks
         self.residual_blocks = nn.ModuleList()
         for i in range(len(hidden_dims) - 1):
             self.residual_blocks.append(
-                EnhancedResidualBlock(
+                ResidualBlock(
                     hidden_dims[i], 
                     hidden_dims[i+1],
                     time_embed_dim,
@@ -79,7 +79,7 @@ class ResidualFlowMatchingNetwork(nn.Module):
                 )
             )
         
-        # Multiple attention layers
+        # Attention layers
         if use_attention:
             self.attention_layers = nn.ModuleList([
                 AttentionBlock(
@@ -118,7 +118,7 @@ class ResidualFlowMatchingNetwork(nn.Module):
         for block in self.residual_blocks[:-1]:
             h = block(h, time_scale, time_shift)
         
-        # Multiple attention layers
+        # Attention layers
         if self.use_attention:
             for attn_layer in self.attention_layers:
                 h = attn_layer(h)
@@ -132,8 +132,8 @@ class ResidualFlowMatchingNetwork(nn.Module):
         return velocity
 
 
-class EnhancedResidualBlock(nn.Module):
-    """Enhanced residual block with additional features"""
+class ResidualBlock(nn.Module):
+    """Residual block with additional features"""
     def __init__(self, in_dim, out_dim, time_dim, dropout=0.2, use_layer_norm=True, activation=nn.SiLU()):
         super().__init__()
         self.use_layer_norm = use_layer_norm
@@ -144,7 +144,7 @@ class EnhancedResidualBlock(nn.Module):
             activation
         )
         
-        # Main blocks with enhanced architecture
+        # Main blocks with residual architecture
         self.block1 = nn.Sequential(
             nn.LayerNorm(in_dim) if use_layer_norm else nn.Identity(),
             nn.Linear(in_dim, out_dim),
@@ -175,7 +175,7 @@ class EnhancedResidualBlock(nn.Module):
         # Main path
         h = self.block1(x)
         
-        # Enhanced time conditioning
+        # Time conditioning
         time_embeddings = self.time_mlp(time_scale)
         scale, shift = torch.chunk(time_embeddings, 2, dim=1)
         h = h * (1 + scale) + shift
@@ -186,7 +186,7 @@ class EnhancedResidualBlock(nn.Module):
 
 
 class AttentionBlock(nn.Module):
-    """Enhanced attention block with additional features"""
+    """Attention block with additional features"""
     def __init__(self, dim, num_heads=8, dropout=0.2, use_layer_norm=True):
         super().__init__()
         self.use_layer_norm = use_layer_norm
@@ -208,7 +208,7 @@ class AttentionBlock(nn.Module):
 
 
 class SinusoidalTimeEmbedding(nn.Module):
-    """Enhanced time embedding with extended frequency range."""
+    """Time embedding with extended frequency range."""
     def __init__(self, dim, max_period=10000.0):
         super().__init__()
         self.dim = dim
@@ -257,7 +257,7 @@ class FlowMatching:
         self.flow_matching_type = flow_matching_type
         self.use_adaptive_solver = use_adaptive_solver
         
-        # Initialize the enhanced network
+        # Initialize the residual flow matching network
         self.model = ResidualFlowMatchingNetwork(
             embedding_dim=embedding_dim,
             use_attention=use_attention,
@@ -283,7 +283,7 @@ class FlowMatching:
     
     def train_step(self, x0, x1, t):
         """
-        Enhanced training step with various flow matching options.
+        Training step with various flow matching options.
         """
         batch_size = x0.shape[0]
         
@@ -344,7 +344,7 @@ class FlowMatching:
     
     def sample_trajectory(self, x0, steps=100, method="dopri5", solver_rtol=1e-5, solver_atol=1e-5):
         """
-        Enhanced trajectory sampling with modern ODE solvers.
+        Trajectory sampling with modern ODE solvers.
         
         Args:
             x0: Initial state [batch_size, embedding_dim]
@@ -427,7 +427,7 @@ class FlowMatching:
     @torch.no_grad()
     def visualize(self, trajectories, step=50, output_dir='flow_output', plots=["2d", "3d", "tsne"]):
         """
-        Enhanced visualization with multiple plotting options and statistical analysis
+        Visualization with multiple plotting options and statistical analysis
         
         Args:
             trajectories: Ground truth trajectories
@@ -735,7 +735,7 @@ def train_flow_model(
     # Prepare data with stratified split
     train_data, val_data = prepare_data(trajectories, train_ratio=0.8)
     
-    # Initialize model with enhanced architecture
+    # Initialize model with residual architecture
     flow_model = FlowMatching(
         embedding_dim=embedding_dim,
         hidden_dims=[256, 512, 768, 512, 256],  # Deeper network
@@ -744,7 +744,7 @@ def train_flow_model(
         use_attention=True,
         use_adaptive_solver=True
     )
-    print(f"Model architecture: {flow_model.model}")
+    # print(f"Model architecture: {flow_model.model}")
     print(f"Model parameters: {sum(p.numel() for p in flow_model.model.parameters())}")
     
     # Try to load existing model if available
@@ -924,7 +924,7 @@ if __name__ == "__main__":
     
     print(f"Loaded trajectories shape: {trajectories.shape}")
     
-    # Train the enhanced flow matching model
+    # Train the residual flow matching model
     embedding_dim = 128  # Matches your latent dimension
     num_epochs = 500
     batch_size = 64
