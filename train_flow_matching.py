@@ -10,232 +10,343 @@ import os
 from sklearn.decomposition import PCA
 from torch.optim.lr_scheduler import OneCycleLR
 
-
-class ResidualFlowMatchingNetwork(nn.Module):
+class MPFlow(nn.Module):
     """
-    Neural network for conditional flow matching with residual connections, 
-    normalization, and attention mechanisms.
+    Message Passing Flow model for learning continuous transformations between GNN embeddings.
+    Uses a sophisticated architecture combining transformers with time conditioning and residual connections.
     """
     def __init__(
         self, 
         embedding_dim, 
-        hidden_dims=[256, 512, 768, 512, 256], 
-        time_embed_dim=128,
+        hidden_dims=[256] * 6, 
         use_attention=True,
+        time_embedding_dim=128,
         num_heads=8,
-        dropout=0.2,
-        activation=nn.SiLU(),
-        use_layer_norm=True,
-        attention_layers=2
+        dropout_rate=0.1,
+        activation=nn.SiLU()  # SiLU/Swish activation for smoother gradients
     ):
-        super().__init__()
+        super(MPFlow, self).__init__()
+        
         self.embedding_dim = embedding_dim
-        self.time_embed_dim = time_embed_dim
-        self.activation = activation
         self.use_attention = use_attention
-        self.use_layer_norm = use_layer_norm
+        self.time_embedding_dim = time_embedding_dim
         
-        # Time embedding with learnable parameters
-        self.time_embedding = nn.Sequential(
-            SinusoidalTimeEmbedding(time_embed_dim),
-            nn.Linear(time_embed_dim, time_embed_dim * 2),
-            nn.SiLU(),
-            nn.Linear(time_embed_dim * 2, time_embed_dim)
-        )
+        # Time embedding with sinusoidal positional encoding (similar to transformer)
+        self.time_embed = TimeEmbedding(time_embedding_dim)
         
-        # Context network with normalization
-        self.time_context_net = nn.Sequential(
-            nn.LayerNorm(time_embed_dim),
-            nn.Linear(time_embed_dim, time_embed_dim * 2),
-            nn.SiLU(),
-            nn.Dropout(dropout),
-            nn.Linear(time_embed_dim * 2, time_embed_dim * 4),
-            nn.SiLU(),
-            nn.Dropout(dropout),
-            nn.Linear(time_embed_dim * 4, time_embed_dim * 2)
-        )
+        # Initial projection
+        self.input_proj = nn.Linear(embedding_dim, hidden_dims[0])
         
-        # Input processing
-        self.input_layer = nn.Sequential(
-            nn.Linear(embedding_dim, hidden_dims[0]),
-            nn.LayerNorm(hidden_dims[0]) if use_layer_norm else nn.Identity(),
-            activation,
-            nn.Dropout(dropout)
-        )
+        # Main network layers
+        self.layers = nn.ModuleList()
         
-        # Residual blocks
-        self.residual_blocks = nn.ModuleList()
         for i in range(len(hidden_dims) - 1):
-            self.residual_blocks.append(
-                ResidualBlock(
-                    hidden_dims[i], 
-                    hidden_dims[i+1],
-                    time_embed_dim,
-                    dropout=dropout,
-                    use_layer_norm=use_layer_norm,
-                    activation=activation
-                )
+            # Create a flow block with time conditioning
+            layer = FlowBlock(
+                in_dim=hidden_dims[i],
+                out_dim=hidden_dims[i+1],
+                time_dim=time_embedding_dim,
+                use_attention=use_attention and i % 2 == 0,  # Use attention in alternate layers
+                num_heads=num_heads,
+                dropout_rate=dropout_rate,
+                activation=activation
             )
+            self.layers.append(layer)
         
-        # Attention layers
-        if use_attention:
-            self.attention_layers = nn.ModuleList([
-                AttentionBlock(
-                    hidden_dims[-2],
-                    num_heads=num_heads,
-                    dropout=dropout,
-                    use_layer_norm=use_layer_norm
-                )
-                for _ in range(attention_layers)
-            ])
+        # Final projection back to embedding space
+        self.output_proj = nn.Sequential(
+            nn.Linear(hidden_dims[-1], embedding_dim),
+            nn.Tanh()  # Bounded output for stable vector field
+        )
         
-        # Output processing with multiple layers
-        output_layers = []
-        if use_layer_norm:
-            output_layers.append(nn.LayerNorm(hidden_dims[-1]))
-        output_layers.extend([
-            nn.Linear(hidden_dims[-1], hidden_dims[-1] // 2),
-            activation,
-            nn.Dropout(dropout),
-            nn.Linear(hidden_dims[-1] // 2, embedding_dim)
-        ])
-        self.output_layer = nn.Sequential(*output_layers)
+        # Initialize weights for better convergence
+        self.apply(self._init_weights)
+    
+    def _init_weights(self, module):
+        """Initialize weights using best practices for flow models"""
+        if isinstance(module, nn.Linear):
+            # Slight asymmetry in initialization helps with flow models
+            torch.nn.init.xavier_uniform_(module.weight, gain=0.2)
+            if module.bias is not None:
+                torch.nn.init.zeros_(module.bias)
+        elif isinstance(module, nn.LayerNorm):
+            module.bias.data.zero_()
+            module.weight.data.fill_(1.0)
     
     def forward(self, x, t):
-        # Time embedding with gradient scaling
-        t_emb = self.time_embedding(t)
-        context = self.time_context_net(t_emb)
-        time_scale, time_shift = torch.chunk(context, 2, dim=-1)
+        """
+        Forward pass through the flow network.
         
-        # Input processing with residual connection
-        h = self.input_layer(x)
+        Args:
+            x: Tensor of shape [batch_size, embedding_dim] - Current point in the flow
+            t: Tensor of shape [batch_size, 1] - Current time step in [0, 1]
         
-        # Process through residual blocks
-        for block in self.residual_blocks[:-1]:
-            h = block(h, time_scale, time_shift)
+        Returns:
+            velocity: Tensor of shape [batch_size, embedding_dim] - Predicted velocity vector
+        """
+        # Embed time using sinusoidal encoding
+        t_embed = self.time_embed(t)
         
-        # Attention layers
-        if self.use_attention:
-            for attn_layer in self.attention_layers:
-                h = attn_layer(h)
+        # Initial projection
+        h = self.input_proj(x)
         
-        # Final residual block
-        h = self.residual_blocks[-1](h, time_scale, time_shift)
+        # Process through flow blocks with residual connections
+        for layer in self.layers:
+            h = layer(h, t_embed)
         
-        # Output processing
-        velocity = self.output_layer(h)
+        # Project back to embedding space to get velocity
+        velocity = self.output_proj(h)
         
         return velocity
 
 
-class ResidualBlock(nn.Module):
-    """Residual block with additional features"""
-    def __init__(self, in_dim, out_dim, time_dim, dropout=0.2, use_layer_norm=True, activation=nn.SiLU()):
-        super().__init__()
-        self.use_layer_norm = use_layer_norm
+class TimeEmbedding(nn.Module):
+    """
+    Sinusoidal time embedding similar to positional encodings in transformers,
+    but specifically designed for continuous time values in [0,1].
+    """
+    def __init__(self, dim):
+        super(TimeEmbedding, self).__init__()
+        self.dim = dim
+        
+        # Project scalar time to higher dimensions with non-linear transform
+        self.time_projection = nn.Sequential(
+            nn.Linear(1, dim // 2),
+            nn.SiLU(),
+            nn.Linear(dim // 2, dim),
+            nn.SiLU()
+        )
+        
+        # Additional MLP for further processing
+        self.time_embedding = nn.Sequential(
+            nn.Linear(dim, dim),
+            nn.SiLU(),
+            nn.Linear(dim, dim)
+        )
+        
+        # Frequency bands for sinusoidal embedding
+        freq_bands = torch.linspace(1.0, 100.0, dim // 4)
+        self.register_buffer("freq_bands", freq_bands)
+    
+    def forward(self, t):
+        """
+        Args:
+            t: Time values of shape [batch_size, 1]
+        Returns:
+            Time embedding of shape [batch_size, dim]
+        """
+        # Basic projection
+        t_proj = self.time_projection(t)
+        
+        # Add sinusoidal features
+        batch_size = t.shape[0]
+        t_expanded = t.view(batch_size, 1)  # [B, 1]
+        
+        # Create sinusoidal encoding
+        sin_embed = torch.sin(t_expanded * self.freq_bands.view(1, -1))  # [B, dim//4]
+        cos_embed = torch.cos(t_expanded * self.freq_bands.view(1, -1))  # [B, dim//4]
+        
+        # Combine projections and sinusoidal embeddings
+        pos_embed = torch.cat([t_proj, sin_embed, cos_embed], dim=-1)  # [B, dim]
+        
+        # Ensure correct dimension
+        if pos_embed.shape[1] < self.dim:
+            padding = torch.zeros(batch_size, self.dim - pos_embed.shape[1], device=t.device)
+            pos_embed = torch.cat([pos_embed, padding], dim=1)
+        
+        # Final embedding transformation
+        t_embed = self.time_embedding(pos_embed[:, :self.dim])
+        
+        return t_embed
+
+
+class FlowBlock(nn.Module):
+    """
+    Core building block for the flow model, combining:
+    1. Time conditioning
+    2. Optional multi-head self-attention
+    3. Feed-forward networks
+    4. Normalizations and residual connections
+    """
+    def __init__(
+        self,
+        in_dim,
+        out_dim,
+        time_dim,
+        use_attention=True,
+        num_heads=4,
+        dropout_rate=0.1,
+        activation=nn.SiLU()
+    ):
+        super(FlowBlock, self).__init__()
+        
+        self.use_attention = use_attention
+        
+        # Layer normalization for stability
+        self.norm1 = nn.LayerNorm(in_dim)
         
         # Time conditioning
         self.time_mlp = nn.Sequential(
-            nn.Linear(time_dim, out_dim * 2),
-            activation
-        )
-        
-        # Main blocks with residual architecture
-        self.block1 = nn.Sequential(
-            nn.LayerNorm(in_dim) if use_layer_norm else nn.Identity(),
-            nn.Linear(in_dim, out_dim),
             activation,
-            nn.Dropout(dropout)
+            nn.Linear(time_dim, in_dim)
         )
         
-        self.block2 = nn.Sequential(
-            nn.LayerNorm(out_dim) if use_layer_norm else nn.Identity(),
-            nn.Linear(out_dim, out_dim),
+        # First part: time-conditioned MLP
+        hidden_dim = max(in_dim, out_dim)
+        self.ff1 = nn.Sequential(
             activation,
-            nn.Dropout(dropout),
-            nn.Linear(out_dim, out_dim)
+            nn.Linear(in_dim, hidden_dim),
+            activation,
+            nn.Dropout(dropout_rate),
+            nn.Linear(hidden_dim, in_dim)
         )
         
-        # Shortcut with normalization
-        if in_dim != out_dim:
-            self.shortcut = nn.Sequential(
-                nn.LayerNorm(in_dim) if use_layer_norm else nn.Identity(),
-                nn.Linear(in_dim, out_dim)
+        # Optional multi-head self-attention
+        if use_attention:
+            self.norm2 = nn.LayerNorm(in_dim)
+            
+            # Ensure dimensions work for multi-head attention
+            assert in_dim % num_heads == 0, f"Input dimension {in_dim} must be divisible by num_heads {num_heads}"
+            
+            self.attention = MultiHeadAttention(
+                dim=in_dim,
+                num_heads=num_heads,
+                dropout_rate=dropout_rate
             )
-        else:
-            self.shortcut = nn.Identity()
-    
-    def forward(self, x, time_scale, time_shift):
-        identity = self.shortcut(x)
         
-        # Main path
-        h = self.block1(x)
-        
-        # Time conditioning
-        time_embeddings = self.time_mlp(time_scale)
-        scale, shift = torch.chunk(time_embeddings, 2, dim=1)
-        h = h * (1 + scale) + shift
-        
-        h = self.block2(h)
-        
-        return h + identity
-
-
-class AttentionBlock(nn.Module):
-    """Attention block with additional features"""
-    def __init__(self, dim, num_heads=8, dropout=0.2, use_layer_norm=True):
-        super().__init__()
-        self.use_layer_norm = use_layer_norm
-        
-        self.norm = nn.LayerNorm(dim) if use_layer_norm else nn.Identity()
-        self.attention = nn.MultiheadAttention(
-            dim, 
-            num_heads=num_heads, 
-            dropout=dropout,
-            batch_first=True
+        # Output projection with layer norm
+        self.norm3 = nn.LayerNorm(in_dim)
+        self.ff2 = nn.Sequential(
+            activation,
+            nn.Linear(in_dim, hidden_dim),
+            activation,
+            nn.Dropout(dropout_rate),
+            nn.Linear(hidden_dim, out_dim)
         )
-        self.dropout = nn.Dropout(dropout)
+        
+        # Residual connection handling when dimensions change
+        self.skip_connection = nn.Identity() if in_dim == out_dim else nn.Linear(in_dim, out_dim)
+    
+    def forward(self, x, t_embed):
+        """
+        Args:
+            x: Input of shape [batch_size, in_dim]
+            t_embed: Time embedding of shape [batch_size, time_dim]
+        Returns:
+            Output of shape [batch_size, out_dim]
+        """
+        # Time conditioning
+        time_signal = self.time_mlp(t_embed).unsqueeze(1) if len(x.shape) > 2 else self.time_mlp(t_embed)
+        
+        # First MLP block with time conditioning and residual
+        h = self.norm1(x)
+        h = self.ff1(h)
+        h = h + time_signal  # Add time signal
+        h = h + x  # Residual connection
+        
+        # Optional attention block
+        if self.use_attention:
+            # Reshape for attention if needed
+            original_shape = h.shape
+            
+            if len(h.shape) == 2:
+                # For 2D input [batch, dim], add sequence dimension for attention
+                h = h.unsqueeze(1)  # [batch, 1, dim]
+            
+            h_norm = self.norm2(h)
+            h = h + self.attention(h_norm)  # Residual connection
+            
+            # Restore original shape if it was changed
+            if len(original_shape) == 2:
+                h = h.squeeze(1)
+        
+        # Final MLP block
+        y = self.norm3(h)
+        y = self.ff2(y)
+        
+        # Skip connection with optional projection
+        result = y + self.skip_connection(x)
+        
+        return result
+
+
+class MultiHeadAttention(nn.Module):
+    """
+    Custom multi-head self-attention module designed specifically for flow matching.
+    Handles both sequence inputs and single vectors.
+    """
+    def __init__(self, dim, num_heads=4, dropout_rate=0.1):
+        super(MultiHeadAttention, self).__init__()
+        
+        self.dim = dim
+        self.num_heads = num_heads
+        self.head_dim = dim // num_heads
+        
+        assert self.head_dim * num_heads == dim, "Dimension must be divisible by number of heads"
+        
+        # Linear projections for Q, K, V
+        self.q_proj = nn.Linear(dim, dim)
+        self.k_proj = nn.Linear(dim, dim)
+        self.v_proj = nn.Linear(dim, dim)
+        
+        # Output projection
+        self.out_proj = nn.Linear(dim, dim)
+        
+        # Attention dropout
+        self.dropout = nn.Dropout(dropout_rate)
     
     def forward(self, x):
-        identity = x
-        x = self.norm(x)
-        attn_out, _ = self.attention(x, x, x)
-        return identity + self.dropout(attn_out)
-
-
-class SinusoidalTimeEmbedding(nn.Module):
-    """Time embedding with extended frequency range."""
-    def __init__(self, dim, max_period=10000.0):
-        super().__init__()
-        self.dim = dim
-        self.max_period = max_period
+        """
+        Args:
+            x: Input of shape [batch_size, seq_len, dim] or [batch_size, dim]
+        Returns:
+            Attention output of same shape as input
+        """
+        # Handle case when input doesn't have sequence dimension
+        original_shape = x.shape
+        if len(x.shape) == 2:
+            # If input is [batch, dim], reshape to [batch, 1, dim]
+            x = x.unsqueeze(1)
         
-    def forward(self, t):
-        # t: (batch_size, 1)
-        device = t.device
-        half_dim = self.dim // 2
+        batch_size, seq_len, _ = x.shape
         
-        # Wider range of frequencies for better signal
-        frequencies = torch.exp(
-            torch.linspace(
-                0., 
-                np.log(self.max_period), 
-                half_dim, 
-                device=device
-            )
-        )
+        # Project to queries, keys, values
+        q = self.q_proj(x)  # [batch, seq_len, dim]
+        k = self.k_proj(x)  # [batch, seq_len, dim]
+        v = self.v_proj(x)  # [batch, seq_len, dim]
         
-        # Create positions
-        args = t * frequencies
-        embedding = torch.cat([torch.sin(args), torch.cos(args)], dim=-1)
+        # Reshape for multi-head attention
+        q = q.view(batch_size, seq_len, self.num_heads, self.head_dim).transpose(1, 2)  # [batch, heads, seq_len, head_dim]
+        k = k.view(batch_size, seq_len, self.num_heads, self.head_dim).transpose(1, 2)  # [batch, heads, seq_len, head_dim]
+        v = v.view(batch_size, seq_len, self.num_heads, self.head_dim).transpose(1, 2)  # [batch, heads, seq_len, head_dim]
         
-        # Apply additional transformation for better expressivity
-        if self.dim % 2 == 1:
-            embedding = F.pad(embedding, (0, 1, 0, 0))
+        # Compute attention scores
+        # Scale queries for numerical stability
+        q = q / (self.head_dim ** 0.5)
+        
+        # Compute attention scores
+        attention_scores = torch.matmul(q, k.transpose(-2, -1))  # [batch, heads, seq_len, seq_len]
+        
+        # Apply softmax
+        attention_probs = F.softmax(attention_scores, dim=-1)
+        attention_probs = self.dropout(attention_probs)
+        
+        # Weight values by attention
+        context = torch.matmul(attention_probs, v)  # [batch, heads, seq_len, head_dim]
+        
+        # Reshape back
+        context = context.transpose(1, 2).contiguous().view(batch_size, seq_len, self.dim)  # [batch, seq_len, dim]
+        
+        # Final projection
+        output = self.out_proj(context)  # [batch, seq_len, dim]
+        
+        # Return to original shape if needed
+        if len(original_shape) == 2:
+            output = output.squeeze(1)
             
-        return embedding
-
-
+        return output
+    
+    
 class FlowMatching:
     """Manager class for flow matching on message passing trajectories."""
     def __init__(
@@ -254,7 +365,7 @@ class FlowMatching:
         self.use_adaptive_solver = use_adaptive_solver
         
         # Initialize the residual flow matching network
-        self.model = ResidualFlowMatchingNetwork(
+        self.model = MPFlow(
             embedding_dim=embedding_dim,
             hidden_dims=hidden_dims,
             use_attention=use_attention,
@@ -308,8 +419,10 @@ class FlowMatching:
         predicted_ut = self.model(xt, t)
         
         # Flow matching loss 
-        loss = F.mse_loss(predicted_ut, ut)
-        
+        mse_loss = F.mse_loss(predicted_ut, ut)
+        # direction_loss = (1 - torch.cosine_similarity(predicted_ut, ut, dim=1)).mean()
+        # loss = mse_loss + direction_loss * 0.005
+        loss = mse_loss
         # Optional spectral normalization for stability
         if self.spectral_norm_weight > 0:
             # Calculate Jacobian regularization
@@ -737,7 +850,7 @@ def train_flow_model(
     flow_model = FlowMatching(
         embedding_dim=embedding_dim,
         hidden_dims=hidden_dims,  # Deeper network
-        lr=2e-4,  # Slightly higher LR with cosine schedule
+        lr=1e-4,
         flow_matching_type=flow_matching_type,
         use_attention=True,
         use_adaptive_solver=True
@@ -746,7 +859,7 @@ def train_flow_model(
     print(f"Model parameters: {sum(p.numel() for p in flow_model.model.parameters())}", flush=True)
     
     # Try to load existing model if available
-    model_path = os.path.join(output_dir, 'best_flow_model.pt')
+    model_path = os.path.join(output_dir, 'flow_matching_model.pt')
     if os.path.exists(model_path):
         try:
             flow_model.load_model(model_path)
@@ -906,7 +1019,10 @@ def validate_model(flow_model, val_data, batch_size=32):
                 predicted_ut = flow_model.model(xt, t)
                 
                 # Calculate MSE loss
-                loss = F.mse_loss(predicted_ut, ut)
+                mse_loss = F.mse_loss(predicted_ut, ut)
+                # direction_loss = (1 - torch.cosine_similarity(predicted_ut, ut, dim=1)).mean()
+                # loss = mse_loss + direction_loss * 0.005
+                loss = mse_loss
                 val_losses.append(loss.item())
     
     # Return average validation loss
@@ -914,7 +1030,7 @@ def validate_model(flow_model, val_data, batch_size=32):
 
 if __name__ == "__main__":
     # Load the NPZ file
-    output_dir = 'flow_output'
+    output_dir = 'flow_output/exp6'
     os.makedirs(output_dir, exist_ok=True)
     
     data = np.load('logs/2316385/s2ef_predictions.npz')
@@ -924,9 +1040,9 @@ if __name__ == "__main__":
     
     # Train the residual flow matching model
     embedding_dim = 128  # Matches your latent dimension
-    num_epochs = 750
+    num_epochs = 1550
     batch_size = 64
-    hidden_dims = [256] * 8
+    hidden_dims = [256] * 6
     
     # Choose flow matching types
     # "standard" - OT/straight line
@@ -955,3 +1071,4 @@ if __name__ == "__main__":
     )
     
     print("Training completed and model saved!", flush=True)
+
