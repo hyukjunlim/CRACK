@@ -19,14 +19,13 @@ class ResidualFlowMatchingNetwork(nn.Module):
     def __init__(
         self, 
         embedding_dim, 
-        hidden_dims=[256, 512, 512, 256], 
+        hidden_dims=[256, 512, 768, 512, 256], 
         time_embed_dim=128,
         use_attention=True,
         num_heads=8,
         dropout=0.2,
         activation=nn.SiLU(),
         use_layer_norm=True,
-        use_skip_connections=True,
         attention_layers=2
     ):
         super().__init__()
@@ -35,7 +34,6 @@ class ResidualFlowMatchingNetwork(nn.Module):
         self.activation = activation
         self.use_attention = use_attention
         self.use_layer_norm = use_layer_norm
-        self.use_skip_connections = use_skip_connections
         
         # Time embedding with learnable parameters
         self.time_embedding = nn.Sequential(
@@ -111,8 +109,6 @@ class ResidualFlowMatchingNetwork(nn.Module):
         
         # Input processing with residual connection
         h = self.input_layer(x)
-        if self.use_skip_connections and h.shape == x.shape:
-            h = h + x
         
         # Process through residual blocks
         for block in self.residual_blocks[:-1]:
@@ -245,7 +241,7 @@ class FlowMatching:
     def __init__(
         self, 
         embedding_dim, 
-        hidden_dims=[256, 512, 512, 256], 
+        hidden_dims=[256, 512, 768, 512, 256], 
         lr=1e-4, 
         flow_matching_type="rectified",  # "standard", "rectified", "stochastic"
         use_attention=True,
@@ -260,13 +256,29 @@ class FlowMatching:
         # Initialize the residual flow matching network
         self.model = ResidualFlowMatchingNetwork(
             embedding_dim=embedding_dim,
+            hidden_dims=hidden_dims,
             use_attention=use_attention,
         ).to(device)
+        
+        # Setup optimizer with weight decay
+        self.optimizer = optim.AdamW(
+            self.model.parameters(), 
+            lr=lr, 
+            betas=(0.9, 0.999),
+            weight_decay=1e-5
+        )
+        
+        # Cosine annealing with warm restarts
+        self.scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
+            self.optimizer, 
+            T_0=50,  # Restart every 50 epochs
+            T_mult=2  # Double the restart interval after each restart
+        )
         
         # Set up loss function with spectral normalization option
         self.spectral_norm_weight = 0.01  # Set to 0 to disable
     
-    def train_step(self, x0, x1, t, optimizer, scheduler):
+    def train_step(self, x0, x1, t):
         """
         Training step with various flow matching options.
         """
@@ -320,10 +332,10 @@ class FlowMatching:
             loss = loss + self.spectral_norm_weight * spectral_loss
         
         # Optimization step
-        optimizer.zero_grad()
+        self.optimizer.zero_grad()
         loss.backward()
         torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=0.5)
-        optimizer.step()
+        self.optimizer.step()
         
         return loss.item()
     
@@ -375,7 +387,7 @@ class FlowMatching:
                 return trajectory
                 
             except ImportError:
-                print("torchdiffeq not installed, falling back to RK4")
+                print("torchdiffeq not installed, falling back to RK4", flush=True)
                 method = "rk4"
         
         # Fixed step solvers (existing implementation)
@@ -603,7 +615,7 @@ class FlowMatching:
             plt.savefig(os.path.join(output_dir, f"flow_trajectories_3d_{step}.png"), dpi=300, bbox_inches='tight')
             plt.close()
         except Exception as e:
-            print(f"Error creating 3D plot: {e}")
+            print(f"Error creating 3D plot: {e}", flush=True)
 
     def _create_tsne_plot(self, ground_truth, sampled_trajectories, step, output_dir):
         """Create t-SNE visualization of trajectories"""
@@ -658,18 +670,20 @@ class FlowMatching:
             plt.savefig(os.path.join(output_dir, f"tsne_visualization_{step}.png"), dpi=300, bbox_inches='tight')
             plt.close()
         except Exception as e:
-            print(f"Error creating t-SNE plot: {e}")
+            print(f"Error creating t-SNE plot: {e}", flush=True)
 
     def save_model(self, path):
         """Save the model and optimizer state."""
         torch.save({
             'model_state_dict': self.model.state_dict(),
+            'optimizer_state_dict': self.optimizer.state_dict(),
         }, path)
     
     def load_model(self, path):
         """Load the model and optimizer state."""
         checkpoint = torch.load(path)
         self.model.load_state_dict(checkpoint['model_state_dict'])
+        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         
 # Example usage
 def prepare_data(trajectories, train_ratio=0.8):
@@ -694,11 +708,12 @@ def prepare_data(trajectories, train_ratio=0.8):
 def train_flow_model(
     trajectories, 
     embedding_dim, 
-    num_epochs=100, 
-    batch_size=64, 
+    num_epochs=1000, 
+    batch_size=32, 
     output_dir='flow_output',
     flow_matching_type="rectified",
-    validation_interval=10
+    validation_interval=10,
+    hidden_dims=[256, 512, 768, 512, 256]
 ):
     """
     Train a flow matching model.
@@ -721,42 +736,29 @@ def train_flow_model(
     # Initialize model with residual architecture
     flow_model = FlowMatching(
         embedding_dim=embedding_dim,
-        hidden_dims=[256, 256, 256, 256, 256],  # Deeper network
-        lr=1e-4,  # Slightly higher LR with cosine schedule
+        hidden_dims=hidden_dims,  # Deeper network
+        lr=2e-4,  # Slightly higher LR with cosine schedule
         flow_matching_type=flow_matching_type,
         use_attention=True,
         use_adaptive_solver=True
     )
-    # print(f"Model architecture: {flow_model.model}")
-    print(f"Model parameters: {sum(p.numel() for p in flow_model.model.parameters())}")
-    
-    optimizer = optim.AdamW(
-        flow_model.model.parameters(), 
-        lr=2e-4, 
-        betas=(0.9, 0.999),
-        weight_decay=1e-5
-    )
-    scheduler = optim.lr_scheduler.OneCycleLR(
-        optimizer,
-        max_lr=2e-4,
-        steps_per_epoch=len(train_data) // batch_size,
-        epochs=num_epochs
-    )
+    # print(f"Model architecture: {flow_model.model}", flush=True)
+    print(f"Model parameters: {sum(p.numel() for p in flow_model.model.parameters())}", flush=True)
     
     # Try to load existing model if available
-    model_path = os.path.join(output_dir, 'flow_matching_model.pt')
+    model_path = os.path.join(output_dir, 'best_flow_model.pt')
     if os.path.exists(model_path):
         try:
             flow_model.load_model(model_path)
-            print("Loaded existing model for continued training.")
+            print("Loaded existing model for continued training.", flush=True)
         except:
-            print("Could not load existing model, starting fresh.")
+            print("Could not load existing model, starting fresh.", flush=True)
     
     # Setup for training
     train_losses = []
     val_losses = []
     best_val_loss = float('inf')
-    patience = 30  # For early stopping
+    patience = 100  # For early stopping
     patience_counter = 0
     
     # Training loop with progress bar
@@ -781,7 +783,7 @@ def train_flow_model(
             t = torch.rand(batch_size, 1, device=flow_model.device)
             
             # Train step
-            loss = flow_model.train_step(x0, x1, t, optimizer, scheduler)
+            loss = flow_model.train_step(x0, x1, t)
             epoch_losses.append(loss)
         
         # Calculate average loss
@@ -790,14 +792,14 @@ def train_flow_model(
         
         # Log training progress
         if (epoch + 1) % 5 == 0 or epoch == num_epochs - 1:
-            print(f"Epoch {epoch + 1}/{num_epochs}, Loss: {avg_loss:.6f}")
+            print(f"Epoch {epoch + 1}/{num_epochs}, Loss: {avg_loss:.6f}", flush=True)
         
         # Validation at intervals
         if (epoch + 1) % validation_interval == 0 or epoch == num_epochs - 1:
             val_loss = validate_model(flow_model, val_data, batch_size)
             val_losses.append(val_loss)
             
-            print(f"Validation Loss: {val_loss:.6f}")
+            print(f"Validation Loss: {val_loss:.6f}", flush=True)
             
             # Save best model
             if val_loss < best_val_loss:
@@ -809,14 +811,14 @@ def train_flow_model(
             
             # Early stopping
             if patience_counter >= patience:
-                print(f"Early stopping triggered after {epoch} epochs")
+                print(f"Early stopping triggered after {epoch} epochs", flush=True)
                 break
         
         # Learning rate scheduler step
-        scheduler.step()
+        flow_model.scheduler.step()
         
         # Visualization at intervals
-        if epoch % 50 == 0 or epoch == num_epochs - 1:
+        if (epoch + 1) % 50 == 0 or epoch == num_epochs - 1:
             flow_model.visualize(
                 val_data[:50],  # Use subset of validation data
                 step=val_data.shape[1]-1,
@@ -857,7 +859,7 @@ def train_flow_model(
     return flow_model, {'train': train_losses, 'val': val_losses}
 
 
-def validate_model(flow_model, val_data, batch_size=64):
+def validate_model(flow_model, val_data, batch_size=32):
     """
     Validate the flow matching model on validation data.
     
@@ -918,14 +920,15 @@ if __name__ == "__main__":
     data = np.load('logs/2316385/s2ef_predictions.npz')
     trajectories = data['latents'].reshape(-1, 21, 128)
     
-    print(f"Loaded trajectories shape: {trajectories.shape}")
+    print(f"Loaded trajectories shape: {trajectories.shape}", flush=True)
     
     # Train the residual flow matching model
     embedding_dim = 128  # Matches your latent dimension
-    num_epochs = 500
+    num_epochs = 750
     batch_size = 64
+    hidden_dims = [256] * 8
     
-    # Choose flow matching type
+    # Choose flow matching types
     # "standard" - OT/straight line
     # "rectified" - Better sample quality with sigmoid acceleration
     # "stochastic" - Adds noise to paths, good for exploration
@@ -938,7 +941,8 @@ if __name__ == "__main__":
         num_epochs=num_epochs,
         batch_size=batch_size,
         flow_matching_type=flow_matching_type,
-        output_dir=output_dir
+        output_dir=output_dir,
+        hidden_dims=hidden_dims
     )
     
     # Create comprehensive visualizations
@@ -950,4 +954,4 @@ if __name__ == "__main__":
         plots=["2d", "3d", "tsne"]
     )
     
-    print("Training completed and model saved!")
+    print("Training completed and model saved!", flush=True)
