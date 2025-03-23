@@ -470,7 +470,7 @@ class EquiformerV2_OC20(BaseModel):
         # energy = torch.zeros(len(data.natoms), device=node_energy.device, dtype=node_energy.dtype)
         # energy.index_add_(0, data.batch, node_energy.view(-1))
         # energy = energy / _AVG_NUM_NODES
-        energy = torch.zeros(len(data.natoms), device=x.embedding.device, dtype=x.embedding.dtype)
+        energy = torch.zeros(data.batch.max() + 1, device=x.embedding.device, dtype=x.embedding.dtype)
 
         ###############################################################
         # Force estimation
