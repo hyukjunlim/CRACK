@@ -375,7 +375,8 @@ class EquiformerV2_OC20(BaseModel):
         ###############################################################
         # Initialize data structures
         ###############################################################
-
+        ############
+        
         # Compute 3x3 rotation matrix per edge
         edge_rot_mat = self._init_edge_rot_mat(
             data, edge_index, edge_distance_vec
@@ -388,6 +389,8 @@ class EquiformerV2_OC20(BaseModel):
         ###############################################################
         # Initialize node embeddings
         ###############################################################
+        import time
+        start_time = time.time()
 
         # Init per node representations using an atomic number based embedding
         offset = 0
@@ -431,9 +434,11 @@ class EquiformerV2_OC20(BaseModel):
         ###############################################################
         # Update spherical node embeddings
         ###############################################################
+        end_time_1 = time.time()
+        time_first = torch.tensor([end_time_1 - start_time], device=x.embedding.device, dtype=x.embedding.dtype)
 
         latent_rep = torch.zeros(
-            (self.num_layers + 1, x.embedding.size(0), x.embedding.size(2)),
+            (2, x.embedding.size(0), x.embedding.size(2)),
             device=x.embedding.device,
             dtype=x.embedding.dtype
         )
@@ -446,7 +451,11 @@ class EquiformerV2_OC20(BaseModel):
                 edge_index,
                 batch=data.batch    # for GraphDropPath
             )
-            latent_rep[i + 1] = self.embedding_pooling(x.embedding)
+        latent_rep[1] = self.embedding_pooling(x.embedding)
+        
+        end_time_2 = time.time()
+        time_last = torch.tensor([end_time_2 - start_time], device=x.embedding.device, dtype=x.embedding.dtype)
+        
         # Final layer norm
         x.embedding = self.norm(x.embedding)
         latent_rep = latent_rep.transpose(0, 1)
@@ -474,9 +483,9 @@ class EquiformerV2_OC20(BaseModel):
             forces = forces.view(-1, 3)            
             
         if not self.regress_forces:
-            return energy, latent_rep
+            return energy, latent_rep, time_first, time_last
         else:
-            return energy, forces, latent_rep
+            return energy, forces, latent_rep, time_first, time_last
 
     def embedding_pooling(self, embeddings: torch.Tensor) -> torch.Tensor:
         """
