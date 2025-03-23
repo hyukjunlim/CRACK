@@ -435,7 +435,7 @@ class EquiformerV2_OC20(BaseModel):
         # Update spherical node embeddings
         ###############################################################
         end_time_1 = time.time()
-        time_first = torch.tensor([end_time_1 - start_time], device=x.embedding.device, dtype=x.embedding.dtype)
+        time_first = torch.full((len(data.natoms),), end_time_1 - start_time, device=x.embedding.device, dtype=x.embedding.dtype)
 
         latent_rep = torch.zeros(
             (2, x.embedding.size(0), x.embedding.size(2)),
@@ -454,7 +454,7 @@ class EquiformerV2_OC20(BaseModel):
         # latent_rep[1] = self.embedding_pooling(x.embedding)
         
         end_time_2 = time.time()
-        time_last = torch.tensor([end_time_2 - start_time], device=x.embedding.device, dtype=x.embedding.dtype)
+        time_last = torch.full((len(data.natoms),), end_time_2 - start_time, device=x.embedding.device, dtype=x.embedding.dtype)
         
         # Final layer norm
         x.embedding = self.norm(x.embedding)

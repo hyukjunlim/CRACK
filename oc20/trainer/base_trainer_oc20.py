@@ -769,10 +769,6 @@ class BaseTrainer(ABC):
                         np.array(gather_results[k])[idx]
                     )[:-1]
                 else:
-                    print(k)
-                    print(gather_results[k].shape)
-                    print(np.array(gather_results[k]).shape)
-                    print(idx.shape)
                     gather_results[k] = np.array(gather_results[k])[idx]
 
             logging.info(f"Writing results to {full_path}")
