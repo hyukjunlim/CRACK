@@ -643,7 +643,7 @@ if __name__ == "__main__":
     4. Saves results and model checkpoints
     """
     # Load the NPZ file
-    output_dir = 'flow_output/exp2'
+    output_dir = 'flow_output'
     os.makedirs(output_dir, exist_ok=True)
     
     data = np.load('logs/2316385/s2ef_predictions.npz')
