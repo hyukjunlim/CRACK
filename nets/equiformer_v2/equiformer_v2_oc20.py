@@ -352,18 +352,6 @@ class EquiformerV2_OC20(BaseModel):
         self.apply(self._init_weights)
         self.apply(self._uniform_init_rad_func_linear_weights)
 
-        # Pre-compute channel information
-        self._channel_sizes = []
-        self._channel_indices = [0]
-        total = 0
-        for lmax in self.lmax_list:
-            for l in range(lmax + 1):
-                size = 2 * l + 1
-                self._channel_sizes.append(size)
-                total += size
-                self._channel_indices.append(total)
-        self._num_bands = len(self._channel_sizes)
-
 
     @conditional_grad(torch.enable_grad())
     def forward(self, data):
@@ -518,15 +506,43 @@ class EquiformerV2_OC20(BaseModel):
         Raises:
             ValueError: If embedding shape is incorrect or doesn't match expected dimensions
         """
-        if embeddings.shape[1] != self._channel_indices[-1]:
-            raise ValueError(f"Expected {self._channel_indices[-1]} channels, got {embeddings.shape[1]}")
+        # Input validation
+        if not isinstance(embeddings, torch.Tensor):
+            raise ValueError("Input must be a torch.Tensor")
+        if len(embeddings.shape) != 3:
+            raise ValueError(f"Expected 3D tensor, got shape {embeddings.shape}")
         
-        # Process all bands at once using pre-computed indices
-        bands = [embeddings[:, start:end] for start, end in zip(self._channel_indices[:-1], self._channel_indices[1:])]
-        global_embeddings = torch.stack([band.mean(dim=1) for band in bands]).mean(dim=0)
+        # Calculate channel sizes for each l value in lmax_list
+        channel_sizes = []
+        for lmax in self.lmax_list:
+            for l in range(lmax + 1):
+                # For each l, we have (2l + 1) channels
+                channel_sizes.append(2 * l + 1)
         
-        # In-place normalization
-        global_embeddings.div_(global_embeddings.norm(dim=1, keepdim=True).clamp_min(1e-12))
+        total_channels = sum(channel_sizes)
+        if embeddings.shape[1] != total_channels:
+            raise ValueError(f"Expected {total_channels} channels, got {embeddings.shape[1]}")
+        
+        # Initialize output tensor
+        batch_size = embeddings.shape[0]
+        global_embeddings = torch.zeros((batch_size, embeddings.shape[2]), 
+                                      dtype=embeddings.dtype,
+                                      device=embeddings.device)
+        
+        # Process each frequency band with weighted averaging
+        channel_idx = 0
+        for size in channel_sizes:
+            end_idx = channel_idx + size
+            band_channels = embeddings[:, channel_idx:end_idx]
+            # Use weighted average based on number of frequency bands
+            global_embeddings += torch.mean(band_channels, dim=1) / len(channel_sizes)
+            channel_idx = end_idx
+        
+        # Normalize each embedding (with epsilon to prevent division by zero)
+        norms = torch.norm(global_embeddings, dim=1, keepdim=True)
+        global_embeddings = torch.where(norms > 1e-12, 
+                                      global_embeddings / norms, 
+                                      global_embeddings)
         
         return global_embeddings
 
