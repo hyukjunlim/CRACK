@@ -726,10 +726,24 @@ class BaseTrainer(ABC):
             self.config["cmd"]["results_dir"],
             f"{self.name}_{results_file}_{distutils.get_rank()}.npz",
         )
+        
+        # Handle batched predictions - ensure all data is properly flattened
+        flat_predictions = {}
+        flat_predictions["ids"] = predictions["id"].reshape(-1)
+        for key in keys:
+            if isinstance(predictions[key], (list, np.ndarray, torch.Tensor)):
+                # Flatten the batch dimension for arrays/tensors
+                if isinstance(predictions[key], torch.Tensor):
+                    flat_predictions[key] = predictions[key].reshape(len(flat_predictions["ids"]), -1).cpu().numpy()
+                else:
+                    flat_predictions[key] = np.array(predictions[key]).reshape(len(flat_predictions["ids"]), -1)
+            else:
+                flat_predictions[key] = predictions[key]
+
         np.savez_compressed(
             results_file_path,
-            ids=predictions["id"],
-            **{key: predictions[key] for key in keys},
+            ids=flat_predictions["ids"],
+            **{key: flat_predictions[key] for key in keys},
         )
 
         distutils.synchronize()
@@ -755,21 +769,19 @@ class BaseTrainer(ABC):
             # might be repeated to make no. of samples even across GPUs.
             _, idx = np.unique(gather_results["ids"], return_index=True)
             gather_results["ids"] = np.array(gather_results["ids"])[idx]
+            
             for k in keys:
-                if k == "forces":
-                    gather_results[k] = np.concatenate(
-                        np.array(gather_results[k])[idx]
-                    )
-                elif k == "latents":
-                    gather_results[k] = np.concatenate(
-                        np.array(gather_results[k])[idx]
-                    )
+                data = np.array(gather_results[k])[idx]
+                if k in ["forces", "latents"]:
+                    # Ensure proper concatenation for batched force/latent predictions
+                    if len(data.shape) > 1:
+                        gather_results[k] = data
+                    else:
+                        gather_results[k] = np.concatenate(data)
                 elif k == "chunk_idx":
-                    gather_results[k] = np.cumsum(
-                        np.array(gather_results[k])[idx]
-                    )[:-1]
+                    gather_results[k] = np.cumsum(data)[:-1]
                 else:
-                    gather_results[k] = np.array(gather_results[k])[idx]
+                    gather_results[k] = data
 
             logging.info(f"Writing results to {full_path}")
             np.savez_compressed(full_path, **gather_results)
