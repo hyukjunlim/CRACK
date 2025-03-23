@@ -217,21 +217,20 @@ class ForcesTrainerV2(BaseTrainerV2):
                 predictions["energy"].extend(
                     out["energy"].to(torch.float16).tolist()
                 )
-                
                 predictions["latents"].extend(
                     out["latents"].cpu().detach().numpy()
                 )
-                
                 predictions["time_first"].extend(
                     out["time_first"].to(torch.float16).tolist()
                 )
                 predictions["time_last"].extend(
                     out["time_last"].to(torch.float16).tolist()
                 )
-                
+                raise Exception(len(predictions["energy"]), len(predictions["latents"]), len(predictions["time_first"]), len(predictions["time_last"]))
                 batch_natoms = torch.cat(
                     [batch.natoms for batch in batch_list]
                 )
+                
                 batch_fixed = torch.cat([batch.fixed for batch in batch_list])
                 forces = out["forces"].cpu().detach().to(torch.float16)
                 per_image_forces = torch.split(forces, batch_natoms.tolist())
