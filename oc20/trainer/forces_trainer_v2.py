@@ -226,7 +226,6 @@ class ForcesTrainerV2(BaseTrainerV2):
                 predictions["time_last"].extend(
                     out["time_last"].to(torch.float16).tolist()
                 )
-                raise Exception(len(predictions["energy"]), len(predictions["latents"]), len(predictions["time_first"]), len(predictions["time_last"]))
                 batch_natoms = torch.cat(
                     [batch.natoms for batch in batch_list]
                 )
