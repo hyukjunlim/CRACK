@@ -9,7 +9,8 @@ import os
 filename = 'logs/2521783/s2ef_predictions.npz' # 153M
 
 # Load and reshape data
-data = np.load(filename, allow_pickle=False)
+data = np.load(filename)
+
 print(data['energy'].shape)
 print(data['forces'].shape)
 print(data['id'].shape)
