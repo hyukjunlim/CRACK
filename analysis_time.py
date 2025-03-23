@@ -6,7 +6,7 @@ import seaborn as sns
 import os
 
 # Set filename based on mode
-filename = 'logs/2621144/s2ef_predictions.npz' # 153M
+filename = 'logs/2621144/s2ef_predictions.npz'
 
 # Load and reshape data
 data = np.load(filename)
