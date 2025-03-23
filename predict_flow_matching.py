@@ -62,7 +62,7 @@ def calculate_metrics(model, data, batch_size=32, device="cuda"):
 def main():
     # Configuration
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    model_path = "flow_output/exp2/best_flow_model.pt"
+    model_path = "flow_output/exp2/flow_matching_model.pt"
     data_path = "logs/2316385/s2ef_predictions.npz"
     embedding_dim = 128
     batch_size = 12182

@@ -1,0 +1,43 @@
+Running on host: n011.hpc
+Job started at: Sun Mar 23 03:15:34 PM KST 2025
+Running script: full_train_flow_matching.py
+Job name: full_train_flow_matching
+Loaded trajectories shape: (12182, 21, 128)
+Model parameters: 4856448
+Epoch 5/1550, Loss: 0.002635
+Epoch 10/1550, Loss: 0.001794
+Epoch 15/1550, Loss: 0.001491
+Epoch 20/1550, Loss: 0.001309
+Epoch 25/1550, Loss: 0.001225
+Epoch 30/1550, Loss: 0.001158
+Epoch 35/1550, Loss: 0.001116
+Epoch 40/1550, Loss: 0.001096
+Epoch 45/1550, Loss: 0.001085
+Epoch 50/1550, Loss: 0.001079
+Epoch 55/1550, Loss: 0.000366
+Epoch 60/1550, Loss: 0.000302
+Epoch 65/1550, Loss: 0.000267
+Epoch 70/1550, Loss: 0.000241
+Epoch 75/1550, Loss: 0.000218
+Epoch 80/1550, Loss: 0.000195
+Epoch 85/1550, Loss: 0.000185
+Epoch 90/1550, Loss: 0.000175
+Epoch 95/1550, Loss: 0.000155
+Epoch 100/1550, Loss: 0.000143
+Epoch 105/1550, Loss: 0.000138
+Epoch 110/1550, Loss: 0.000126
+Epoch 115/1550, Loss: 0.000119
+Epoch 120/1550, Loss: 0.000113
+Epoch 125/1550, Loss: 0.000110
+Epoch 130/1550, Loss: 0.000106
+Epoch 135/1550, Loss: 0.000103
+Epoch 140/1550, Loss: 0.000101
+Epoch 145/1550, Loss: 0.000101
+Epoch 150/1550, Loss: 0.000100
+Epoch 155/1550, Loss: 0.000153
+Epoch 160/1550, Loss: 0.000149
+Epoch 165/1550, Loss: 0.000136
+Epoch 170/1550, Loss: 0.000145
+Epoch 175/1550, Loss: 0.000133
+Epoch 180/1550, Loss: 0.000120
+Epoch 185/1550, Loss: 0.000127
