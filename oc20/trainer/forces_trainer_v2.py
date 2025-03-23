@@ -243,7 +243,6 @@ class ForcesTrainerV2(BaseTrainerV2):
                         force.numpy() for force in per_image_forces
                     ]
                     
-                    evalAI only requires forces on free atoms
                     if results_file is not None:
                         _per_image_fixed = torch.split(
                             batch_fixed, batch_natoms.tolist()
