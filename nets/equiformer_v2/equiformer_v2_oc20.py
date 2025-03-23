@@ -389,6 +389,7 @@ class EquiformerV2_OC20(BaseModel):
         ###############################################################
         # Initialize node embeddings
         ###############################################################
+        use_all_layers = False
         import time
         start_time = time.time()
 
@@ -435,26 +436,29 @@ class EquiformerV2_OC20(BaseModel):
         # Update spherical node embeddings
         ###############################################################
         end_time_1 = time.time()
-        time_first = torch.full((len(data.natoms),), end_time_1 - start_time, device=x.embedding.device, dtype=x.embedding.dtype)
+        time_first = torch.full((data.batch.max() + 1,), end_time_1 - start_time, device=x.embedding.device, dtype=x.embedding.dtype)
 
-        latent_rep = torch.zeros(
-            (2, x.embedding.size(0), x.embedding.size(2)),
-            device=x.embedding.device,
-            dtype=x.embedding.dtype
-        )
-        latent_rep[0] = self.embedding_pooling(x.embedding)
-        # for i in range(self.num_layers):
-        #     x = self.blocks[i](
-        #         x,                  # SO3_Embedding
-        #         atomic_numbers,
-        #         edge_distance,
-        #         edge_index,
-        #         batch=data.batch    # for GraphDropPath
-        #     )
-        # latent_rep[1] = self.embedding_pooling(x.embedding)
+        if use_all_layers:
+            latent_rep = torch.zeros(
+                (self.num_layers + 1, x.embedding.size(0), x.embedding.size(2)),
+                device=x.embedding.device,
+                dtype=x.embedding.dtype
+            )
+            latent_rep[0] = self.embedding_pooling(x.embedding)
+            for i in range(self.num_layers):
+                x = self.blocks[i](
+                    x,                  # SO3_Embedding
+                    atomic_numbers,
+                    edge_distance,
+                    edge_index,
+                    batch=data.batch    # for GraphDropPath
+                )
+                latent_rep[i + 1] = self.embedding_pooling(x.embedding)
+        else:
+            latent_rep = self.embedding_pooling(x.embedding).unsqueeze(0)
         
         end_time_2 = time.time()
-        time_last = torch.full((len(data.natoms),), end_time_2 - start_time, device=x.embedding.device, dtype=x.embedding.dtype)
+        time_last = torch.full((data.batch.max() + 1,), end_time_2 - start_time, device=x.embedding.device, dtype=x.embedding.dtype)
         
         # Final layer norm
         x.embedding = self.norm(x.embedding)
@@ -465,24 +469,28 @@ class EquiformerV2_OC20(BaseModel):
         ###############################################################
         # Energy estimation
         ###############################################################
-        # node_energy = self.energy_block(x) 
-        # node_energy = node_energy.embedding.narrow(1, 0, 1)
-        # energy = torch.zeros(len(data.natoms), device=node_energy.device, dtype=node_energy.dtype)
-        # energy.index_add_(0, data.batch, node_energy.view(-1))
-        # energy = energy / _AVG_NUM_NODES
-        energy = torch.zeros(data.batch.max() + 1, device=x.embedding.device, dtype=x.embedding.dtype)
+        if use_all_layers:
+            node_energy = self.energy_block(x) 
+            node_energy = node_energy.embedding.narrow(1, 0, 1)
+            energy = torch.zeros(data.batch.max() + 1, device=node_energy.device, dtype=node_energy.dtype)
+            energy.index_add_(0, data.batch, node_energy.view(-1))
+            energy = energy / _AVG_NUM_NODES
+        else:
+            energy = torch.zeros(data.batch.max() + 1, device=x.embedding.device, dtype=x.embedding.dtype)
 
         ###############################################################
         # Force estimation
         ###############################################################
-        # if self.regress_forces:
-        #     forces = self.force_block(x,
-        #         atomic_numbers,
-        #         edge_distance,
-        #         edge_index)
-        #     forces = forces.embedding.narrow(1, 1, 3)
-        #     forces = forces.view(-1, 3)            
-        forces = torch.zeros(len(data.natoms), 3, device=x.embedding.device, dtype=x.embedding.dtype)
+        if self.regress_forces:
+            if use_all_layers:
+                forces = self.force_block(x,
+                    atomic_numbers,
+                    edge_distance,
+                    edge_index)
+                forces = forces.embedding.narrow(1, 1, 3)
+                forces = forces.view(-1, 3)            
+            else:
+                forces = torch.zeros(len(data.natoms), 3, device=x.embedding.device, dtype=x.embedding.dtype)
         
         if not self.regress_forces:
             return energy, latent_rep, time_first, time_last
