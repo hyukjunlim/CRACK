@@ -450,7 +450,7 @@ class EquiformerV2_OC20(BaseModel):
             end_time_1 = time.time()
             time_first = torch.full((data.batch.max() + 1,), end_time_1 - start_time, device=x.embedding.device, dtype=x.embedding.dtype)
         else:
-            time_first = None
+            time_first = torch.zeros(data.batch.max() + 1, device=x.embedding.device, dtype=x.embedding.dtype)
 
         if use_all_layers:
             latent_rep = torch.zeros(
@@ -480,7 +480,7 @@ class EquiformerV2_OC20(BaseModel):
             end_time_2 = time.time()
             time_last = torch.full((data.batch.max() + 1,), end_time_2 - start_time, device=x.embedding.device, dtype=x.embedding.dtype)
         else:
-            time_last = None
+            time_last = torch.zeros(data.batch.max() + 1, device=x.embedding.device, dtype=x.embedding.dtype)
         
         # Final layer norm
         x.embedding = self.norm(x.embedding)
@@ -498,7 +498,7 @@ class EquiformerV2_OC20(BaseModel):
             energy.index_add_(0, data.batch, node_energy.view(-1))
             energy = energy / _AVG_NUM_NODES
         else:
-            energy = None
+            energy = torch.zeros(data.batch.max() + 1, device=x.embedding.device, dtype=x.embedding.dtype)
 
         ###############################################################
         # Force estimation
@@ -512,7 +512,7 @@ class EquiformerV2_OC20(BaseModel):
                 forces = forces.embedding.narrow(1, 1, 3)
                 forces = forces.view(-1, 3)            
         else:
-            forces = None
+            forces = torch.zeros(len(data.natoms), 3, device=x.embedding.device, dtype=x.embedding.dtype)
         
         if not self.regress_forces:
             return energy, latent_rep, time_first, time_last
