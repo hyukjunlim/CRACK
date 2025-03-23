@@ -187,11 +187,8 @@ class ForcesTrainerV2(BaseTrainerV2):
             self.normalizers["target"].to(self.device)
             self.normalizers["grad_target"].to(self.device)
 
-        use_all_layers = False
-        if use_all_layers:
-            predictions = {"id": [], "energy": [], "forces": [], "chunk_idx": [], "latents": [], "time_first": [], "time_last": []}
-        else:
-            predictions = {"id": [], "latents": []}
+        # predictions = {"id": [], "energy": [], "forces": [], "chunk_idx": [], "latents": [], "time_first": [], "time_last": []}
+        predictions = {"id": [], "latents": [], "time_first": [], "time_last": []}
 
         for i, batch_list in tqdm(
             enumerate(data_loader),
@@ -203,14 +200,13 @@ class ForcesTrainerV2(BaseTrainerV2):
             with torch.cuda.amp.autocast(enabled=self.scaler is not None):
                 out = self._forward(batch_list)
 
-            if use_all_layers:
-                if self.normalizers is not None and "target" in self.normalizers:
-                    out["energy"] = self.normalizers["target"].denorm(
-                        out["energy"]
-                    )
-                out["forces"] = self.normalizers["grad_target"].denorm(
-                    out["forces"]
-                )
+            # if self.normalizers is not None and "target" in self.normalizers:
+            #     out["energy"] = self.normalizers["target"].denorm(
+            #         out["energy"]
+            #     )
+            # out["forces"] = self.normalizers["grad_target"].denorm(
+            #     out["forces"]
+            # )
             if per_image:
                 systemids = [
                     str(i) + "_" + str(j)
@@ -219,77 +215,70 @@ class ForcesTrainerV2(BaseTrainerV2):
                     )
                 ]
                 predictions["id"].extend(systemids)
+                # predictions["energy"].extend(
+                #     out["energy"].to(torch.float16).tolist()
+                # )
                 predictions["latents"].extend(
                     out["latents"].cpu().detach().numpy()
                 )
-                if use_all_layers:
-                    predictions["energy"].extend(
-                        out["energy"].to(torch.float16).tolist()
-                    )
-                    predictions["time_first"].extend(
-                        out["time_first"].to(torch.float16).tolist()
-                    )
-                    predictions["time_last"].extend(
-                        out["time_last"].to(torch.float16).tolist()
-                    )
-                    batch_natoms = torch.cat(
-                        [batch.natoms for batch in batch_list]
-                    )
-                    
-                    batch_fixed = torch.cat([batch.fixed for batch in batch_list])
-                    forces = out["forces"].cpu().detach().to(torch.float16)
-                    per_image_forces = torch.split(forces, batch_natoms.tolist())
-                    per_image_forces = [
-                        force.numpy() for force in per_image_forces
-                    ]
-                    
-                    if results_file is not None:
-                        _per_image_fixed = torch.split(
-                            batch_fixed, batch_natoms.tolist()
-                        )
-                        _per_image_free_forces = [
-                            force[(fixed == 0).tolist()]
-                            for force, fixed in zip(
-                                per_image_forces, _per_image_fixed
-                            )
-                        ]
-                    _chunk_idx = np.array(
-                        [
-                            free_force.shape[0]
-                            for free_force in _per_image_free_forces
-                        ]
-                    )
-                    per_image_forces = _per_image_free_forces
-                    predictions["chunk_idx"].extend(_chunk_idx)
-                    predictions["forces"].extend(per_image_forces)
+                predictions["time_first"].extend(
+                    out["time_first"].to(torch.float16).tolist()
+                )
+                predictions["time_last"].extend(
+                    out["time_last"].to(torch.float16).tolist()
+                )
+                # batch_natoms = torch.cat(
+                #     [batch.natoms for batch in batch_list]
+                # )
+                
+                # batch_fixed = torch.cat([batch.fixed for batch in batch_list])
+                # forces = out["forces"].cpu().detach().to(torch.float16)
+                # per_image_forces = torch.split(forces, batch_natoms.tolist())
+                # per_image_forces = [
+                #     force.numpy() for force in per_image_forces
+                # ]
+                
+                # evalAI only requires forces on free atoms
+                # if results_file is not None:
+                #     _per_image_fixed = torch.split(
+                #         batch_fixed, batch_natoms.tolist()
+                #     )
+                #     _per_image_free_forces = [
+                #         force[(fixed == 0).tolist()]
+                #         for force, fixed in zip(
+                #             per_image_forces, _per_image_fixed
+                #         )
+                #     ]
+                # _chunk_idx = np.array(
+                #     [
+                #         free_force.shape[0]
+                #         for free_force in _per_image_free_forces
+                #     ]
+                # )
+                # per_image_forces = _per_image_free_forces
+                # predictions["chunk_idx"].extend(_chunk_idx)
+                # predictions["forces"].extend(per_image_forces)
             else:
+                # predictions["energy"] = out["energy"].detach()
+                # predictions["forces"] = out["forces"].detach()
                 predictions["latents"] = out["latents"].detach()
-                if use_all_layers:
-                    predictions["energy"] = out["energy"].detach()
-                    predictions["forces"] = out["forces"].detach()
-                    predictions["time_first"] = out["time_first"].detach()
-                    predictions["time_last"] = out["time_last"].detach()
+                predictions["time_first"] = out["time_first"].detach()
+                predictions["time_last"] = out["time_last"].detach()
                 if self.ema:
                     self.ema.restore()
                 return predictions
 
+        # predictions["forces"] = np.array(predictions["forces"])
+        # predictions["chunk_idx"] = np.array(predictions["chunk_idx"])
+        # predictions["energy"] = np.array(predictions["energy"])
+        # predictions["id"] = np.array(predictions["id"])
         predictions["latents"] = np.array(predictions["latents"])
-        predictions["id"] = np.array(predictions["id"])
-        if use_all_layers:
-            predictions["forces"] = np.array(predictions["forces"])
-            predictions["chunk_idx"] = np.array(predictions["chunk_idx"])
-            predictions["energy"] = np.array(predictions["energy"])
-            predictions["time_first"] = np.array(predictions["time_first"])
-            predictions["time_last"] = np.array(predictions["time_last"])
-            
-        if use_all_layers:
-            self.save_results(
-                predictions, results_file, keys=["id", "energy", "forces", "chunk_idx", "latents", "time_first", "time_last"]
-            )
-        else:
-            self.save_results(
-                predictions, results_file, keys=["id", "latents"]
-            )
+        predictions["time_first"] = np.array(predictions["time_first"])
+        predictions["time_last"] = np.array(predictions["time_last"])
+        self.save_results(
+            predictions, results_file, keys=["latents", "time_first", "time_last"]
+            # predictions, results_file, keys=["energy", "forces", "chunk_idx", "latents", "time_first", "time_last"]
+        )
 
         if self.ema:
             self.ema.restore()
