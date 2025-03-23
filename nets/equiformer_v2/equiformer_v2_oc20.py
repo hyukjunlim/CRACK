@@ -389,7 +389,7 @@ class EquiformerV2_OC20(BaseModel):
         ###############################################################
         # Initialize node embeddings
         ###############################################################
-        use_all_layers = False
+        use_all_layers = True
         import time
         start_time = time.time()
 
