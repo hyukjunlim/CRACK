@@ -352,6 +352,18 @@ class EquiformerV2_OC20(BaseModel):
         self.apply(self._init_weights)
         self.apply(self._uniform_init_rad_func_linear_weights)
 
+        # Pre-compute channel information
+        self._channel_sizes = []
+        self._channel_indices = [0]
+        total = 0
+        for lmax in self.lmax_list:
+            for l in range(lmax + 1):
+                size = 2 * l + 1
+                self._channel_sizes.append(size)
+                total += size
+                self._channel_indices.append(total)
+        self._num_bands = len(self._channel_sizes)
+
 
     @conditional_grad(torch.enable_grad())
     def forward(self, data):
@@ -389,7 +401,7 @@ class EquiformerV2_OC20(BaseModel):
         ###############################################################
         # Initialize node embeddings
         ###############################################################
-        import time
+        use_all_layers = False
         start_time = time.time()
 
         # Init per node representations using an atomic number based embedding
@@ -434,27 +446,41 @@ class EquiformerV2_OC20(BaseModel):
         ###############################################################
         # Update spherical node embeddings
         ###############################################################
-        end_time_1 = time.time()
-        time_first = torch.full((len(data.natoms),), end_time_1 - start_time, device=x.embedding.device, dtype=x.embedding.dtype)
+        if use_all_layers:
+            end_time_1 = time.time()
+            time_first = torch.full((data.batch.max() + 1,), end_time_1 - start_time, device=x.embedding.device, dtype=x.embedding.dtype)
+        else:
+            time_first = None
 
-        latent_rep = torch.zeros(
-            (2, x.embedding.size(0), x.embedding.size(2)),
-            device=x.embedding.device,
-            dtype=x.embedding.dtype
-        )
-        latent_rep[0] = self.embedding_pooling(x.embedding)
-        # for i in range(self.num_layers):
-        #     x = self.blocks[i](
-        #         x,                  # SO3_Embedding
-        #         atomic_numbers,
-        #         edge_distance,
-        #         edge_index,
-        #         batch=data.batch    # for GraphDropPath
-        #     )
-        # latent_rep[1] = self.embedding_pooling(x.embedding)
+        if use_all_layers:
+            latent_rep = torch.zeros(
+                (self.num_layers + 1, x.embedding.size(0), x.embedding.size(2)),
+                device=x.embedding.device,
+                dtype=x.embedding.dtype
+            )
+            latent_rep[0] = self.embedding_pooling(x.embedding)
+            for i in range(self.num_layers):
+                x = self.blocks[i](
+                    x,                  # SO3_Embedding
+                    atomic_numbers,
+                    edge_distance,
+                    edge_index,
+                    batch=data.batch    # for GraphDropPath
+                )
+                latent_rep[i + 1] = self.embedding_pooling(x.embedding)
+        else:
+            latent_rep = torch.zeros(
+                (1, x.embedding.size(0), x.embedding.size(2)),
+                device=x.embedding.device,
+                dtype=x.embedding.dtype
+            )
+            latent_rep[0] = self.embedding_pooling(x.embedding)
         
-        end_time_2 = time.time()
-        time_last = torch.full((len(data.natoms),), end_time_2 - start_time, device=x.embedding.device, dtype=x.embedding.dtype)
+        if use_all_layers:
+            end_time_2 = time.time()
+            time_last = torch.full((data.batch.max() + 1,), end_time_2 - start_time, device=x.embedding.device, dtype=x.embedding.dtype)
+        else:
+            time_last = None
         
         # Final layer norm
         x.embedding = self.norm(x.embedding)
@@ -465,24 +491,28 @@ class EquiformerV2_OC20(BaseModel):
         ###############################################################
         # Energy estimation
         ###############################################################
-        # node_energy = self.energy_block(x) 
-        # node_energy = node_energy.embedding.narrow(1, 0, 1)
-        # energy = torch.zeros(len(data.natoms), device=node_energy.device, dtype=node_energy.dtype)
-        # energy.index_add_(0, data.batch, node_energy.view(-1))
-        # energy = energy / _AVG_NUM_NODES
-        energy = torch.zeros(data.batch.max() + 1, device=x.embedding.device, dtype=x.embedding.dtype)
+        if use_all_layers:
+            node_energy = self.energy_block(x) 
+            node_energy = node_energy.embedding.narrow(1, 0, 1)
+            energy = torch.zeros(len(data.natoms), device=node_energy.device, dtype=node_energy.dtype)
+            energy.index_add_(0, data.batch, node_energy.view(-1))
+            energy = energy / _AVG_NUM_NODES
+        else:
+            energy = None
 
         ###############################################################
         # Force estimation
         ###############################################################
-        # if self.regress_forces:
-        #     forces = self.force_block(x,
-        #         atomic_numbers,
-        #         edge_distance,
-        #         edge_index)
-        #     forces = forces.embedding.narrow(1, 1, 3)
-        #     forces = forces.view(-1, 3)            
-        forces = torch.zeros(len(data.natoms), 3, device=x.embedding.device, dtype=x.embedding.dtype)
+        if use_all_layers:
+            if self.regress_forces:
+                forces = self.force_block(x,
+                    atomic_numbers,
+                    edge_distance,
+                    edge_index)
+                forces = forces.embedding.narrow(1, 1, 3)
+                forces = forces.view(-1, 3)            
+        else:
+            forces = None
         
         if not self.regress_forces:
             return energy, latent_rep, time_first, time_last
@@ -506,43 +536,15 @@ class EquiformerV2_OC20(BaseModel):
         Raises:
             ValueError: If embedding shape is incorrect or doesn't match expected dimensions
         """
-        # Input validation
-        if not isinstance(embeddings, torch.Tensor):
-            raise ValueError("Input must be a torch.Tensor")
-        if len(embeddings.shape) != 3:
-            raise ValueError(f"Expected 3D tensor, got shape {embeddings.shape}")
+        if embeddings.shape[1] != self._channel_indices[-1]:
+            raise ValueError(f"Expected {self._channel_indices[-1]} channels, got {embeddings.shape[1]}")
         
-        # Calculate channel sizes for each l value in lmax_list
-        channel_sizes = []
-        for lmax in self.lmax_list:
-            for l in range(lmax + 1):
-                # For each l, we have (2l + 1) channels
-                channel_sizes.append(2 * l + 1)
+        # Process all bands at once using pre-computed indices
+        bands = [embeddings[:, start:end] for start, end in zip(self._channel_indices[:-1], self._channel_indices[1:])]
+        global_embeddings = torch.stack([band.mean(dim=1) for band in bands]).mean(dim=0)
         
-        total_channels = sum(channel_sizes)
-        if embeddings.shape[1] != total_channels:
-            raise ValueError(f"Expected {total_channels} channels, got {embeddings.shape[1]}")
-        
-        # Initialize output tensor
-        batch_size = embeddings.shape[0]
-        global_embeddings = torch.zeros((batch_size, embeddings.shape[2]), 
-                                      dtype=embeddings.dtype,
-                                      device=embeddings.device)
-        
-        # Process each frequency band with weighted averaging
-        channel_idx = 0
-        for size in channel_sizes:
-            end_idx = channel_idx + size
-            band_channels = embeddings[:, channel_idx:end_idx]
-            # Use weighted average based on number of frequency bands
-            global_embeddings += torch.mean(band_channels, dim=1) / len(channel_sizes)
-            channel_idx = end_idx
-        
-        # Normalize each embedding (with epsilon to prevent division by zero)
-        norms = torch.norm(global_embeddings, dim=1, keepdim=True)
-        global_embeddings = torch.where(norms > 1e-12, 
-                                      global_embeddings / norms, 
-                                      global_embeddings)
+        # In-place normalization
+        global_embeddings.div_(global_embeddings.norm(dim=1, keepdim=True).clamp_min(1e-12))
         
         return global_embeddings
 
