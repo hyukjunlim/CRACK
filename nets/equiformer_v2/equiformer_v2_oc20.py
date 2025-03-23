@@ -443,15 +443,15 @@ class EquiformerV2_OC20(BaseModel):
             dtype=x.embedding.dtype
         )
         latent_rep[0] = self.embedding_pooling(x.embedding)
-        for i in range(self.num_layers):
-            x = self.blocks[i](
-                x,                  # SO3_Embedding
-                atomic_numbers,
-                edge_distance,
-                edge_index,
-                batch=data.batch    # for GraphDropPath
-            )
-        latent_rep[1] = self.embedding_pooling(x.embedding)
+        # for i in range(self.num_layers):
+        #     x = self.blocks[i](
+        #         x,                  # SO3_Embedding
+        #         atomic_numbers,
+        #         edge_distance,
+        #         edge_index,
+        #         batch=data.batch    # for GraphDropPath
+        #     )
+        # latent_rep[1] = self.embedding_pooling(x.embedding)
         
         end_time_2 = time.time()
         time_last = torch.tensor([end_time_2 - start_time], device=x.embedding.device, dtype=x.embedding.dtype)
