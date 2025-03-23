@@ -223,10 +223,10 @@ class ForcesTrainerV2(BaseTrainerV2):
                 )
                 
                 predictions["time_first"].extend(
-                    out["time_first"].cpu().detach().numpy()
+                    out["time_first"].to(torch.float16).tolist()
                 )
                 predictions["time_last"].extend(
-                    out["time_last"].cpu().detach().numpy()
+                    out["time_last"].to(torch.float16).tolist()
                 )
                 
                 batch_natoms = torch.cat(
