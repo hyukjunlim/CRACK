@@ -729,14 +729,15 @@ class BaseTrainer(ABC):
         
         # Handle batched predictions - ensure all data is properly flattened
         flat_predictions = {}
-        flat_predictions["ids"] = predictions["id"].reshape(-1)
+        flat_predictions["ids"] = predictions["id"].reshape(-1) if isinstance(predictions["id"], (np.ndarray, torch.Tensor)) else predictions["id"]
+        
         for key in keys:
-            if isinstance(predictions[key], (list, np.ndarray, torch.Tensor)):
-                # Flatten the batch dimension for arrays/tensors
-                if isinstance(predictions[key], torch.Tensor):
-                    flat_predictions[key] = predictions[key].reshape(len(flat_predictions["ids"]), -1).cpu().numpy()
-                else:
-                    flat_predictions[key] = np.array(predictions[key]).reshape(len(flat_predictions["ids"]), -1)
+            if isinstance(predictions[key], torch.Tensor):
+                # Convert torch tensor to numpy and keep original shape
+                flat_predictions[key] = predictions[key].cpu().numpy()
+            elif isinstance(predictions[key], (list, np.ndarray)):
+                # Keep original shape for numpy arrays
+                flat_predictions[key] = np.array(predictions[key])
             else:
                 flat_predictions[key] = predictions[key]
 
@@ -762,7 +763,12 @@ class BaseTrainer(ABC):
                 rank_results = np.load(rank_path, allow_pickle=True)
                 gather_results["ids"].extend(rank_results["ids"])
                 for key in keys:
-                    gather_results[key].extend(rank_results[key])
+                    if isinstance(rank_results[key], np.ndarray):
+                        # If it's already an array, append as is
+                        gather_results[key].append(rank_results[key])
+                    else:
+                        # Otherwise extend the list
+                        gather_results[key].extend(rank_results[key])
                 os.remove(rank_path)
 
             # Because of how distributed sampler works, some system ids
@@ -771,17 +777,25 @@ class BaseTrainer(ABC):
             gather_results["ids"] = np.array(gather_results["ids"])[idx]
             
             for k in keys:
-                data = np.array(gather_results[k])[idx]
                 if k in ["forces", "latents"]:
-                    # Ensure proper concatenation for batched force/latent predictions
-                    if len(data.shape) > 1:
-                        gather_results[k] = data
-                    else:
-                        gather_results[k] = np.concatenate(data)
+                    # For forces and latents, concatenate along the first dimension
+                    gather_results[k] = np.concatenate([
+                        arr for i, arr in enumerate(gather_results[k]) 
+                        if i in idx
+                    ])
                 elif k == "chunk_idx":
-                    gather_results[k] = np.cumsum(data)[:-1]
+                    filtered_data = [arr for i, arr in enumerate(gather_results[k]) if i in idx]
+                    if filtered_data:
+                        gather_results[k] = np.cumsum(np.concatenate(filtered_data))[:-1]
+                    else:
+                        gather_results[k] = np.array([])
                 else:
-                    gather_results[k] = data
+                    # For other keys, filter by index
+                    filtered_data = [arr for i, arr in enumerate(gather_results[k]) if i in idx]
+                    if filtered_data:
+                        gather_results[k] = np.concatenate(filtered_data)
+                    else:
+                        gather_results[k] = np.array([])
 
             logging.info(f"Writing results to {full_path}")
             np.savez_compressed(full_path, **gather_results)
