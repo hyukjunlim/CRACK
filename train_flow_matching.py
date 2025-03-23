@@ -9,359 +9,38 @@ from tqdm import tqdm
 import os
 from sklearn.decomposition import PCA
 from torch.optim.lr_scheduler import OneCycleLR
-
-class MPFlow(nn.Module):
-    """
-    Message Passing Flow model for learning continuous transformations between GNN embeddings.
-    Uses a sophisticated architecture combining transformers with time conditioning and residual connections.
-    """
-    def __init__(
-        self, 
-        embedding_dim, 
-        hidden_dims=[256] * 6, 
-        use_attention=True,
-        time_embedding_dim=128,
-        num_heads=8,
-        dropout_rate=0.1,
-        activation=nn.SiLU()  # SiLU/Swish activation for smoother gradients
-    ):
-        super(MPFlow, self).__init__()
-        
-        self.embedding_dim = embedding_dim
-        self.use_attention = use_attention
-        self.time_embedding_dim = time_embedding_dim
-        
-        # Time embedding with sinusoidal positional encoding (similar to transformer)
-        self.time_embed = TimeEmbedding(time_embedding_dim)
-        
-        # Initial projection
-        self.input_proj = nn.Linear(embedding_dim, hidden_dims[0])
-        
-        # Main network layers
-        self.layers = nn.ModuleList()
-        
-        for i in range(len(hidden_dims) - 1):
-            # Create a flow block with time conditioning
-            layer = FlowBlock(
-                in_dim=hidden_dims[i],
-                out_dim=hidden_dims[i+1],
-                time_dim=time_embedding_dim,
-                use_attention=use_attention and i % 2 == 0,  # Use attention in alternate layers
-                num_heads=num_heads,
-                dropout_rate=dropout_rate,
-                activation=activation
-            )
-            self.layers.append(layer)
-        
-        # Final projection back to embedding space
-        self.output_proj = nn.Sequential(
-            nn.Linear(hidden_dims[-1], embedding_dim),
-            nn.Tanh()  # Bounded output for stable vector field
-        )
-        
-        # Initialize weights for better convergence
-        self.apply(self._init_weights)
-    
-    def _init_weights(self, module):
-        """Initialize weights using best practices for flow models"""
-        if isinstance(module, nn.Linear):
-            # Slight asymmetry in initialization helps with flow models
-            torch.nn.init.xavier_uniform_(module.weight, gain=0.2)
-            if module.bias is not None:
-                torch.nn.init.zeros_(module.bias)
-        elif isinstance(module, nn.LayerNorm):
-            module.bias.data.zero_()
-            module.weight.data.fill_(1.0)
-    
-    def forward(self, x, t):
-        """
-        Forward pass through the flow network.
-        
-        Args:
-            x: Tensor of shape [batch_size, embedding_dim] - Current point in the flow
-            t: Tensor of shape [batch_size, 1] - Current time step in [0, 1]
-        
-        Returns:
-            velocity: Tensor of shape [batch_size, embedding_dim] - Predicted velocity vector
-        """
-        # Embed time using sinusoidal encoding
-        t_embed = self.time_embed(t)
-        
-        # Initial projection
-        h = self.input_proj(x)
-        
-        # Process through flow blocks with residual connections
-        for layer in self.layers:
-            h = layer(h, t_embed)
-        
-        # Project back to embedding space to get velocity
-        velocity = self.output_proj(h)
-        
-        return velocity
-
-
-class TimeEmbedding(nn.Module):
-    """
-    Sinusoidal time embedding similar to positional encodings in transformers,
-    but specifically designed for continuous time values in [0,1].
-    """
-    def __init__(self, dim):
-        super(TimeEmbedding, self).__init__()
-        self.dim = dim
-        
-        # Project scalar time to higher dimensions with non-linear transform
-        self.time_projection = nn.Sequential(
-            nn.Linear(1, dim // 2),
-            nn.SiLU(),
-            nn.Linear(dim // 2, dim),
-            nn.SiLU()
-        )
-        
-        # Additional MLP for further processing
-        self.time_embedding = nn.Sequential(
-            nn.Linear(dim, dim),
-            nn.SiLU(),
-            nn.Linear(dim, dim)
-        )
-        
-        # Frequency bands for sinusoidal embedding
-        freq_bands = torch.linspace(1.0, 100.0, dim // 4)
-        self.register_buffer("freq_bands", freq_bands)
-    
-    def forward(self, t):
-        """
-        Args:
-            t: Time values of shape [batch_size, 1]
-        Returns:
-            Time embedding of shape [batch_size, dim]
-        """
-        # Basic projection
-        t_proj = self.time_projection(t)
-        
-        # Add sinusoidal features
-        batch_size = t.shape[0]
-        t_expanded = t.view(batch_size, 1)  # [B, 1]
-        
-        # Create sinusoidal encoding
-        sin_embed = torch.sin(t_expanded * self.freq_bands.view(1, -1))  # [B, dim//4]
-        cos_embed = torch.cos(t_expanded * self.freq_bands.view(1, -1))  # [B, dim//4]
-        
-        # Combine projections and sinusoidal embeddings
-        pos_embed = torch.cat([t_proj, sin_embed, cos_embed], dim=-1)  # [B, dim]
-        
-        # Ensure correct dimension
-        if pos_embed.shape[1] < self.dim:
-            padding = torch.zeros(batch_size, self.dim - pos_embed.shape[1], device=t.device)
-            pos_embed = torch.cat([pos_embed, padding], dim=1)
-        
-        # Final embedding transformation
-        t_embed = self.time_embedding(pos_embed[:, :self.dim])
-        
-        return t_embed
-
-
-class FlowBlock(nn.Module):
-    """
-    Core building block for the flow model, combining:
-    1. Time conditioning
-    2. Optional multi-head self-attention
-    3. Feed-forward networks
-    4. Normalizations and residual connections
-    """
-    def __init__(
-        self,
-        in_dim,
-        out_dim,
-        time_dim,
-        use_attention=True,
-        num_heads=4,
-        dropout_rate=0.1,
-        activation=nn.SiLU()
-    ):
-        super(FlowBlock, self).__init__()
-        
-        self.use_attention = use_attention
-        
-        # Layer normalization for stability
-        self.norm1 = nn.LayerNorm(in_dim)
-        
-        # Time conditioning
-        self.time_mlp = nn.Sequential(
-            activation,
-            nn.Linear(time_dim, in_dim)
-        )
-        
-        # First part: time-conditioned MLP
-        hidden_dim = max(in_dim, out_dim)
-        self.ff1 = nn.Sequential(
-            activation,
-            nn.Linear(in_dim, hidden_dim),
-            activation,
-            nn.Dropout(dropout_rate),
-            nn.Linear(hidden_dim, in_dim)
-        )
-        
-        # Optional multi-head self-attention
-        if use_attention:
-            self.norm2 = nn.LayerNorm(in_dim)
-            
-            # Ensure dimensions work for multi-head attention
-            assert in_dim % num_heads == 0, f"Input dimension {in_dim} must be divisible by num_heads {num_heads}"
-            
-            self.attention = MultiHeadAttention(
-                dim=in_dim,
-                num_heads=num_heads,
-                dropout_rate=dropout_rate
-            )
-        
-        # Output projection with layer norm
-        self.norm3 = nn.LayerNorm(in_dim)
-        self.ff2 = nn.Sequential(
-            activation,
-            nn.Linear(in_dim, hidden_dim),
-            activation,
-            nn.Dropout(dropout_rate),
-            nn.Linear(hidden_dim, out_dim)
-        )
-        
-        # Residual connection handling when dimensions change
-        self.skip_connection = nn.Identity() if in_dim == out_dim else nn.Linear(in_dim, out_dim)
-    
-    def forward(self, x, t_embed):
-        """
-        Args:
-            x: Input of shape [batch_size, in_dim]
-            t_embed: Time embedding of shape [batch_size, time_dim]
-        Returns:
-            Output of shape [batch_size, out_dim]
-        """
-        # Time conditioning
-        time_signal = self.time_mlp(t_embed).unsqueeze(1) if len(x.shape) > 2 else self.time_mlp(t_embed)
-        
-        # First MLP block with time conditioning and residual
-        h = self.norm1(x)
-        h = self.ff1(h)
-        h = h + time_signal  # Add time signal
-        h = h + x  # Residual connection
-        
-        # Optional attention block
-        if self.use_attention:
-            # Reshape for attention if needed
-            original_shape = h.shape
-            
-            if len(h.shape) == 2:
-                # For 2D input [batch, dim], add sequence dimension for attention
-                h = h.unsqueeze(1)  # [batch, 1, dim]
-            
-            h_norm = self.norm2(h)
-            h = h + self.attention(h_norm)  # Residual connection
-            
-            # Restore original shape if it was changed
-            if len(original_shape) == 2:
-                h = h.squeeze(1)
-        
-        # Final MLP block
-        y = self.norm3(h)
-        y = self.ff2(y)
-        
-        # Skip connection with optional projection
-        result = y + self.skip_connection(x)
-        
-        return result
-
-
-class MultiHeadAttention(nn.Module):
-    """
-    Custom multi-head self-attention module designed specifically for flow matching.
-    Handles both sequence inputs and single vectors.
-    """
-    def __init__(self, dim, num_heads=4, dropout_rate=0.1):
-        super(MultiHeadAttention, self).__init__()
-        
-        self.dim = dim
-        self.num_heads = num_heads
-        self.head_dim = dim // num_heads
-        
-        assert self.head_dim * num_heads == dim, "Dimension must be divisible by number of heads"
-        
-        # Linear projections for Q, K, V
-        self.q_proj = nn.Linear(dim, dim)
-        self.k_proj = nn.Linear(dim, dim)
-        self.v_proj = nn.Linear(dim, dim)
-        
-        # Output projection
-        self.out_proj = nn.Linear(dim, dim)
-        
-        # Attention dropout
-        self.dropout = nn.Dropout(dropout_rate)
-    
-    def forward(self, x):
-        """
-        Args:
-            x: Input of shape [batch_size, seq_len, dim] or [batch_size, dim]
-        Returns:
-            Attention output of same shape as input
-        """
-        # Handle case when input doesn't have sequence dimension
-        original_shape = x.shape
-        if len(x.shape) == 2:
-            # If input is [batch, dim], reshape to [batch, 1, dim]
-            x = x.unsqueeze(1)
-        
-        batch_size, seq_len, _ = x.shape
-        
-        # Project to queries, keys, values
-        q = self.q_proj(x)  # [batch, seq_len, dim]
-        k = self.k_proj(x)  # [batch, seq_len, dim]
-        v = self.v_proj(x)  # [batch, seq_len, dim]
-        
-        # Reshape for multi-head attention
-        q = q.view(batch_size, seq_len, self.num_heads, self.head_dim).transpose(1, 2)  # [batch, heads, seq_len, head_dim]
-        k = k.view(batch_size, seq_len, self.num_heads, self.head_dim).transpose(1, 2)  # [batch, heads, seq_len, head_dim]
-        v = v.view(batch_size, seq_len, self.num_heads, self.head_dim).transpose(1, 2)  # [batch, heads, seq_len, head_dim]
-        
-        # Compute attention scores
-        # Scale queries for numerical stability
-        q = q / (self.head_dim ** 0.5)
-        
-        # Compute attention scores
-        attention_scores = torch.matmul(q, k.transpose(-2, -1))  # [batch, heads, seq_len, seq_len]
-        
-        # Apply softmax
-        attention_probs = F.softmax(attention_scores, dim=-1)
-        attention_probs = self.dropout(attention_probs)
-        
-        # Weight values by attention
-        context = torch.matmul(attention_probs, v)  # [batch, heads, seq_len, head_dim]
-        
-        # Reshape back
-        context = context.transpose(1, 2).contiguous().view(batch_size, seq_len, self.dim)  # [batch, seq_len, dim]
-        
-        # Final projection
-        output = self.out_proj(context)  # [batch, seq_len, dim]
-        
-        # Return to original shape if needed
-        if len(original_shape) == 2:
-            output = output.squeeze(1)
-            
-        return output
+from MPFlow import MPFlow
     
     
 class FlowMatching:
-    """Manager class for flow matching on message passing trajectories."""
+    """
+    A class to manage flow matching on message passing trajectories.
+    Implements training, sampling, and visualization of flow-based trajectories.
+    
+    Key features:
+    - Supports multiple sampling methods (euler, rk4)
+    - Includes visualization tools (2D PCA, 3D PCA, t-SNE)
+    - Implements cosine annealing with warm restarts
+    
+    Args:
+        embedding_dim: Dimension of the embedding
+        hidden_dims: List of hidden dimensions
+        lr: Learning rate
+        use_attention: Whether to use attention
+        use_adaptive_solver: Whether to use an adaptive solver
+        device: Device to run the model on
+    """
     def __init__(
         self, 
         embedding_dim, 
-        hidden_dims=[256, 512, 768, 512, 256], 
+        hidden_dims=[256, 512, 512, 256], 
         lr=1e-4, 
-        flow_matching_type="rectified",  # "standard", "rectified", "stochastic"
         use_attention=True,
         use_adaptive_solver=True,
         device="cuda" if torch.cuda.is_available() else "cpu"
     ):
         self.device = device
         self.embedding_dim = embedding_dim
-        self.flow_matching_type = flow_matching_type
         self.use_adaptive_solver = use_adaptive_solver
         
         # Initialize the residual flow matching network
@@ -385,64 +64,25 @@ class FlowMatching:
             T_0=50,  # Restart every 50 epochs
             T_mult=2  # Double the restart interval after each restart
         )
-        
-        # Set up loss function with spectral normalization option
-        self.spectral_norm_weight = 0.01  # Set to 0 to disable
     
     def train_step(self, x0, x1, t):
         """
-        Training step with various flow matching options.
+        Performs a single training step using flow matching loss.
+        Combines MSE loss with directional loss for better trajectory learning.
+        Loss = MSE + 0.005 * DirectionalLoss
         """
         batch_size = x0.shape[0]
         
-        # Different types of flow matching
-        if self.flow_matching_type == "standard":
-            # Standard OT flow matching (straight line)
-            ut = x1 - x0
-            xt = x0 + t * ut
+        ut = x1 - x0
+        xt = x0 + t * ut
             
-        elif self.flow_matching_type == "rectified":
-            # Rectified flow matching (improves sample quality)
-            # Use sigmoid-based acceleration of trajectories
-            sigmoid_t = torch.sigmoid(5 * (t - 0.5))  # Steeper sigmoid for more pronounced effect
-            xt = x0 + sigmoid_t * (x1 - x0)
-            ut = x1 - x0  # Target velocity is still the same
-            
-        elif self.flow_matching_type == "stochastic":
-            # Stochastic flow matching - adds noise to the path
-            noise_scale = 0.1 * (1.0 - t)  # Noise decreases as t increases
-            noise = torch.randn_like(x0) * noise_scale
-            xt = x0 + t * (x1 - x0) + noise
-            ut = x1 - x0  # Target velocity
-        
         # Get the model's prediction
         predicted_ut = self.model(xt, t)
         
         # Flow matching loss 
         mse_loss = F.mse_loss(predicted_ut, ut)
-        # direction_loss = (1 - torch.cosine_similarity(predicted_ut, ut, dim=1)).mean()
-        # loss = mse_loss + direction_loss * 0.005
-        loss = mse_loss
-        # Optional spectral normalization for stability
-        if self.spectral_norm_weight > 0:
-            # Calculate Jacobian regularization
-            x_detached = xt.clone().detach().requires_grad_(True)
-            t_detached = t.clone().detach()
-            vector_field = self.model(x_detached, t_detached)
-            
-            # Get batch gradient
-            grad_outputs = torch.ones_like(vector_field)
-            gradients = torch.autograd.grad(
-                outputs=vector_field,
-                inputs=x_detached,
-                grad_outputs=grad_outputs,
-                create_graph=True,
-                retain_graph=True
-            )[0]
-            
-            # Add Frobenius norm of Jacobian regularization
-            spectral_loss = torch.sum(gradients**2) / batch_size
-            loss = loss + self.spectral_norm_weight * spectral_loss
+        direction_loss = (1 - torch.cosine_similarity(predicted_ut, ut, dim=1)).mean()
+        loss = mse_loss + direction_loss * 0.005
         
         # Optimization step
         self.optimizer.zero_grad()
@@ -452,119 +92,86 @@ class FlowMatching:
         
         return loss.item()
     
-    def sample_trajectory(self, x0, steps=100, method="dopri5", solver_rtol=1e-5, solver_atol=1e-5):
+    def sample_trajectory(self, x0, steps=2, method="rk4", solver_rtol=1e-5, solver_atol=1e-5):
         """
-        Trajectory sampling with modern ODE solvers.
-        
-        Args:
-            x0: Initial state [batch_size, embedding_dim]
-            steps: Number of steps (used for fixed step solvers)
-            method: "euler", "rk4", "dopri5" (adaptive)
-            solver_rtol, solver_atol: Tolerances for adaptive solvers
+        Samples a trajectory from start to end points.
+        Supports multiple integration methods:
+        - euler: Simple first-order method
+        - rk4: 4th order Runge-Kutta (more accurate)
+        Returns only start and end points for efficiency.
         """
         self.model.eval()
-        
         batch_size = x0.shape[0]
         device = x0.device
-        
-        # For adaptive solvers, import torchdiffeq
-        if method == "dopri5" and self.use_adaptive_solver:
-            try:
-                from torchdiffeq import odeint
-                
-                # Define ODE function
-                def ode_func(t, x):
-                    # Reshape x if needed for batch processing
-                    x_reshaped = x.view(batch_size, -1)
-                    t_tensor = torch.ones((batch_size, 1), device=device) * t
-                    return self.model(x_reshaped, t_tensor).view(-1)
-                
-                # Initial state
-                x0_flat = x0.reshape(-1)
-                
-                # Integration times
-                t_span = torch.linspace(0, 1, steps+1, device=device)
-                
-                # Solve ODE with adaptive solver
-                trajectory_flat = odeint(
-                    ode_func, 
-                    x0_flat, 
-                    t_span, 
-                    method=method,
-                    rtol=solver_rtol, 
-                    atol=solver_atol
-                )
-                
-                # Reshape to original dimensions
-                trajectory = trajectory_flat.view(-1, batch_size, self.embedding_dim).permute(1, 0, 2)
-                return trajectory
-                
-            except ImportError:
-                print("torchdiffeq not installed, falling back to RK4", flush=True)
-                method = "rk4"
-        
-        # Fixed step solvers (existing implementation)
-        ts = torch.linspace(0, 1, steps+1, device=device)
-        dt = 1.0 / steps
-        
-        trajectory = torch.zeros((batch_size, steps+1, self.embedding_dim), device=device)
-        trajectory[:, 0] = x0
-        
+
+        # For fixed step methods, just compute the final point
         x = x0.clone()
         
         with torch.no_grad():
-            for i in range(steps):
-                t = ts[i] * torch.ones((batch_size, 1), device=device)
+            if method == "euler":
+                # Single large step
+                t = torch.ones((batch_size, 1), device=device)
+                velocity = self.model(x, t)
+                x = x + velocity  # Single step from 0 to 1
                 
-                if method == "euler":
-                    # Euler integration
-                    velocity = self.model(x, t)
-                    x = x + dt * velocity
-                    
-                elif method == "rk4":
-                    # 4th order Runge-Kutta
-                    k1 = self.model(x, t)
-                    k2 = self.model(x + dt * k1 / 2, t + dt / 2)
-                    k3 = self.model(x + dt * k2 / 2, t + dt / 2)
-                    k4 = self.model(x + dt * k3, t + dt)
-                    
-                    x = x + (dt / 6) * (k1 + 2*k2 + 2*k3 + k4)
+            elif method == "rk4":
+                # Single RK4 step from t=0 to t=1
+                t = torch.zeros((batch_size, 1), device=device)
+                k1 = self.model(x, t)
+                k2 = self.model(x + 0.5 * k1, t + 0.5)
+                k3 = self.model(x + 0.5 * k2, t + 0.5)
+                k4 = self.model(x + k3, t + 1.0)
                 
-                trajectory[:, i+1] = x
+                x = x + (1.0 / 6.0) * (k1 + 2*k2 + 2*k3 + k4)
         
+        # Return start and end points only
+        trajectory = torch.stack([x0, x], dim=1)  # [batch, 2, dim]
         return trajectory
 
-    @torch.no_grad()
-    def visualize(self, trajectories, step=50, output_dir='flow_output', plots=["2d", "3d", "tsne"]):
+    def visualize(self, trajectories, step=100, output_dir='flow_output', plots=["2d", "3d", "tsne"]):
         """
-        Visualization with multiple plotting options and statistical analysis
-        
-        Args:
-            trajectories: Ground truth trajectories
-            step: Number of steps for sampled trajectories
-            output_dir: Directory to save outputs
-            plots: List of plot types to create
+        Creates comprehensive visualizations of trajectories.
+        Generates multiple plot types:
+        - 2D PCA: Principal component projection
+        - 3D PCA: 3D visualization of main components
+        - t-SNE: Non-linear dimensionality reduction
+        Also computes and saves trajectory statistics.
         """
         # convert trajectories to torch tensor
         trajectories = torch.tensor(trajectories, dtype=torch.float32, device=self.device)
         
         # Select samples to visualize
-        viz_samples = min(12, len(trajectories))
-        indices = np.random.choice(len(trajectories), viz_samples, replace=False)
+        viz_samples = min(8, len(trajectories))
+        indices = np.arange(viz_samples)  # Use first viz_samples trajectories
         
         # Get ground truth trajectories for selected indices
         ground_truth = trajectories[indices]
-        n_timesteps = ground_truth.shape[1]
         
-        # Sample trajectories with same number of steps as ground truth
+        # Sample trajectories with fixed number of steps
         x0 = ground_truth[:, 0].to(self.device)
         x1 = ground_truth[:, -1].to(self.device)  # For reference only
+        x1_gt = ground_truth[:, -1].to(self.device)  # Ground truth final state
         
-        # Generate sampled trajectories with same number of steps as ground truth
-        sampled_trajectories = self.sample_trajectory(x0, steps=n_timesteps-1, method="dopri5")
+        # Use fixed number of steps (e.g., 100) instead of matching ground truth
+        sampled_trajectories = self.sample_trajectory(x0, steps=step, method="rk4")
+        
+        # For comparison with ground truth, we can interpolate if needed
+        # This step is optional and only needed if you want to compute exact MSE
+        if ground_truth.shape[1] != sampled_trajectories.shape[1]:
+            # Interpolate sampled trajectories to match ground truth timesteps
+            sampled_interp = F.interpolate(
+                sampled_trajectories.permute(0, 2, 1),  # [batch, embedding_dim, time]
+                size=ground_truth.shape[1],
+                mode='linear',
+                align_corners=True
+            ).permute(0, 2, 1)  # [batch, time, embedding_dim]
+            
+            # Calculate MSE using interpolated trajectories
+            mse_per_sample = torch.mean((x1_gt.cpu() - sampled_interp[:, -1, :].cpu())**2, dim=1)
+        else:
+            mse_per_sample = torch.mean((x1_gt.cpu() - sampled_trajectories[:, -1, :].cpu())**2, dim=1)
         
         # Calculate statistics
-        mse_per_sample = torch.mean((ground_truth.cpu() - sampled_trajectories.cpu())**2, dim=(1, 2))
         avg_mse = mse_per_sample.mean().item()
         
         # Directory for this visualization run
@@ -586,29 +193,34 @@ class FlowMatching:
             self._create_tsne_plot(ground_truth, sampled_trajectories, step, output_dir)
 
     def _create_2d_pca_plot(self, ground_truth, sampled_trajectories, step, output_dir):
-        """Create 2D PCA visualization of trajectories"""
-        # Combine for consistent PCA
-        combined = torch.cat([ground_truth.cpu(), sampled_trajectories.cpu()], dim=0)
-        combined_flat = combined.reshape(-1, combined.shape[-1])
+        """
+        Creates 2D PCA visualization comparing ground truth vs sampled trajectories.
+        Shows both full ground truth paths and sampled endpoints.
+        Includes variance ratios for interpretability.
+        """
+        # Combine for consistent PCA - need to handle different timesteps
+        gt_flat = ground_truth.cpu().reshape(-1, ground_truth.shape[-1])
+        sampled_flat = sampled_trajectories.cpu().reshape(-1, sampled_trajectories.shape[-1])
         
-        # Apply PCA
+        # Apply PCA on all points
         pca = PCA(n_components=2)
-        combined_2d = pca.fit_transform(combined_flat.numpy())
+        gt_2d = pca.fit_transform(gt_flat.numpy())
+        sampled_2d = pca.transform(sampled_flat.numpy())
         
-        # Split back
+        # Reshape back
         n_samples = ground_truth.shape[0]
-        gt_len = ground_truth.shape[1]
-        sampled_len = sampled_trajectories.shape[1]
+        gt_timesteps = ground_truth.shape[1]  # 21 steps
+        sampled_timesteps = sampled_trajectories.shape[1]  # 2 steps (start/end)
         
-        gt_2d = combined_2d[:n_samples * gt_len].reshape(n_samples, gt_len, 2)
-        sampled_2d = combined_2d[n_samples * gt_len:].reshape(n_samples, sampled_len, 2)
+        gt_2d = gt_2d.reshape(n_samples, gt_timesteps, 2)
+        sampled_2d = sampled_2d.reshape(n_samples, sampled_timesteps, 2)
         
         # Create plot
         plt.figure(figsize=(12, 10))
         colors = plt.cm.tab20(np.linspace(0, 1, n_samples))
         
         for i in range(n_samples):
-            # Ground truth
+            # Ground truth - full trajectory
             plt.plot(
                 gt_2d[i, :, 0], 
                 gt_2d[i, :, 1], 
@@ -619,7 +231,7 @@ class FlowMatching:
                 label=f'GT {i+1}' if i == 0 else None
             )
             
-            # Sampled
+            # Sampled - start to end only
             plt.plot(
                 sampled_2d[i, :, 0], 
                 sampled_2d[i, :, 1], 
@@ -630,41 +242,52 @@ class FlowMatching:
                 label=f'Sampled {i+1}' if i == 0 else None
             )
             
-            # Mark start and end
-            plt.scatter(gt_2d[i, 0, 0], gt_2d[i, 0, 1], color='blue', s=100, marker='o')
-            plt.scatter(gt_2d[i, -1, 0], gt_2d[i, -1, 1], color='red', s=100, marker='o')
+            # Mark start and end points (all circles)
+            plt.scatter(gt_2d[i, 0, 0], gt_2d[i, 0, 1], color='blue', s=50, marker='o')
+            plt.scatter(gt_2d[i, -1, 0], gt_2d[i, -1, 1], color='red', s=50, marker='o')
+            plt.scatter(sampled_2d[i, 0, 0], sampled_2d[i, 0, 1], color='blue', s=50, marker='o')
+            plt.scatter(sampled_2d[i, -1, 0], sampled_2d[i, -1, 1], color='black', s=25, marker='x')
         
-        plt.title('Flow Trajectories - PCA Projection')
+        plt.title('Flow Trajectories - PCA Projection\n(Full GT vs Sampled Start/End)')
         plt.xlabel(f'PC1 ({pca.explained_variance_ratio_[0]:.1%})')
         plt.ylabel(f'PC2 ({pca.explained_variance_ratio_[1]:.1%})')
         plt.grid(True, alpha=0.3)
         
-        # Only show first pair in legend
-        plt.legend(["Ground Truth", "Sampled"], loc='upper right')
+        plt.legend([
+            "Ground Truth (21 steps)", 
+            "Sampled (start/end)",
+            "Start Points",
+            "End Points"
+        ], loc='upper right')
         
         plt.savefig(os.path.join(output_dir, f"flow_trajectories_2d_{step}.png"), dpi=300, bbox_inches='tight')
         plt.close()
 
     def _create_3d_pca_plot(self, ground_truth, sampled_trajectories, step, output_dir):
-        """Create 3D PCA visualization of trajectories"""
+        """
+        Generates 3D PCA plots with interactive viewing capabilities.
+        Visualizes trajectories in 3D space with custom legends and markers.
+        Handles potential 3D plotting errors gracefully.
+        """
         try:
             from mpl_toolkits.mplot3d import Axes3D
             
-            # Combine for consistent PCA
-            combined = torch.cat([ground_truth.cpu(), sampled_trajectories.cpu()], dim=0)
-            combined_flat = combined.reshape(-1, combined.shape[-1])
+            # Apply PCA on all points
+            gt_flat = ground_truth.cpu().reshape(-1, ground_truth.shape[-1])
+            sampled_flat = sampled_trajectories.cpu().reshape(-1, sampled_trajectories.shape[-1])
             
             # Apply PCA for 3D
             pca = PCA(n_components=3)
-            combined_3d = pca.fit_transform(combined_flat.numpy())
+            gt_3d = pca.fit_transform(gt_flat.numpy())
+            sampled_3d = pca.transform(sampled_flat.numpy())
             
-            # Split back
+            # Reshape back
             n_samples = ground_truth.shape[0]
-            gt_len = ground_truth.shape[1]
-            sampled_len = sampled_trajectories.shape[1]
+            gt_timesteps = ground_truth.shape[1]  # 21 steps
+            sampled_timesteps = sampled_trajectories.shape[1]  # 2 steps
             
-            gt_3d = combined_3d[:n_samples * gt_len].reshape(n_samples, gt_len, 3)
-            sampled_3d = combined_3d[n_samples * gt_len:].reshape(n_samples, sampled_len, 3)
+            gt_3d = gt_3d.reshape(n_samples, gt_timesteps, 3)
+            sampled_3d = sampled_3d.reshape(n_samples, sampled_timesteps, 3)
             
             # Create plot
             fig = plt.figure(figsize=(14, 12))
@@ -672,7 +295,7 @@ class FlowMatching:
             colors = plt.cm.tab20(np.linspace(0, 1, n_samples))
             
             for i in range(n_samples):
-                # Ground truth
+                # Ground truth - full trajectory
                 ax.plot(
                     gt_3d[i, :, 0], 
                     gt_3d[i, :, 1], 
@@ -683,7 +306,7 @@ class FlowMatching:
                     linewidth=2
                 )
                 
-                # Sampled
+                # Sampled - start to end only
                 ax.plot(
                     sampled_3d[i, :, 0], 
                     sampled_3d[i, :, 1], 
@@ -694,13 +317,13 @@ class FlowMatching:
                     linewidth=2
                 )
                 
-                # Mark start and end
+                # Mark all points with circles
                 ax.scatter(
                     gt_3d[i, 0, 0], 
                     gt_3d[i, 0, 1], 
                     gt_3d[i, 0, 2], 
                     color='blue', 
-                    s=100, 
+                    s=50, 
                     marker='o'
                 )
                 ax.scatter(
@@ -708,11 +331,27 @@ class FlowMatching:
                     gt_3d[i, -1, 1], 
                     gt_3d[i, -1, 2], 
                     color='red', 
-                    s=100, 
+                    s=50, 
                     marker='o'
                 )
+                ax.scatter(
+                    sampled_3d[i, 0, 0], 
+                    sampled_3d[i, 0, 1], 
+                    sampled_3d[i, 0, 2], 
+                    color='blue', 
+                    s=50, 
+                    marker='o'
+                )
+                ax.scatter(
+                    sampled_3d[i, -1, 0], 
+                    sampled_3d[i, -1, 1], 
+                    sampled_3d[i, -1, 2], 
+                    color='black', 
+                    s=25, 
+                    marker='x'
+                )
             
-            ax.set_title('Flow Trajectories - 3D PCA Projection')
+            ax.set_title('Flow Trajectories - 3D PCA Projection\n(Full GT vs Sampled Start/End)')
             ax.set_xlabel(f'PC1 ({pca.explained_variance_ratio_[0]:.1%})')
             ax.set_ylabel(f'PC2 ({pca.explained_variance_ratio_[1]:.1%})')
             ax.set_zlabel(f'PC3 ({pca.explained_variance_ratio_[2]:.1%})')
@@ -721,9 +360,16 @@ class FlowMatching:
             from matplotlib.lines import Line2D
             custom_lines = [
                 Line2D([0], [0], linestyle='--', color='gray', linewidth=2),
-                Line2D([0], [0], linestyle='-', color='gray', linewidth=2)
+                Line2D([0], [0], linestyle='-', color='gray', linewidth=2),
+                Line2D([0], [0], linestyle='none', marker='o', color='blue', markersize=10),
+                Line2D([0], [0], linestyle='none', marker='o', color='red', markersize=10)
             ]
-            ax.legend(custom_lines, ['Ground Truth', 'Sampled'])
+            ax.legend(custom_lines, [
+                'Ground Truth (21 steps)', 
+                'Sampled (start/end)',
+                'Start Points',
+                'End Points'
+            ])
             
             plt.savefig(os.path.join(output_dir, f"flow_trajectories_3d_{step}.png"), dpi=300, bbox_inches='tight')
             plt.close()
@@ -731,7 +377,11 @@ class FlowMatching:
             print(f"Error creating 3D plot: {e}", flush=True)
 
     def _create_tsne_plot(self, ground_truth, sampled_trajectories, step, output_dir):
-        """Create t-SNE visualization of trajectories"""
+        """
+        Creates t-SNE visualization for non-linear trajectory analysis.
+        Automatically handles large datasets by sampling.
+        Maintains temporal consistency in the visualization.
+        """
         try:
             from sklearn.manifold import TSNE
             
@@ -741,10 +391,17 @@ class FlowMatching:
             
             # Take a subset for t-SNE if data is large
             max_points = 5000
+            n_samples = ground_truth.shape[0]
+            gt_timesteps = ground_truth.shape[1]
+            sampled_timesteps = sampled_trajectories.shape[1]
+            
             if gt_flat.shape[0] > max_points:
-                indices = np.random.choice(gt_flat.shape[0], max_points, replace=False)
-                gt_flat = gt_flat[indices]
-                sampled_flat = sampled_flat[indices]
+                # Sample trajectories, but keep all timesteps for each selected trajectory
+                n_trajectories = max_points // gt_timesteps
+                selected_indices = np.random.choice(n_samples, n_trajectories, replace=False)
+                gt_flat = gt_flat.reshape(n_samples, gt_timesteps, -1)[selected_indices].reshape(-1, ground_truth.shape[-1])
+                sampled_flat = sampled_flat.reshape(n_samples, sampled_timesteps, -1)[selected_indices].reshape(-1, sampled_trajectories.shape[-1])
+                n_samples = n_trajectories
             
             # Combine for consistent transformation
             combined = np.vstack([gt_flat, sampled_flat])
@@ -754,31 +411,49 @@ class FlowMatching:
             combined_tsne = tsne.fit_transform(combined)
             
             # Split back
-            gt_tsne = combined_tsne[:gt_flat.shape[0]]
-            sampled_tsne = combined_tsne[gt_flat.shape[0]:]
+            gt_tsne = combined_tsne[:gt_flat.shape[0]].reshape(n_samples, gt_timesteps, 2)
+            sampled_tsne = combined_tsne[gt_flat.shape[0]:].reshape(n_samples, sampled_timesteps, 2)
             
             # Plot
             plt.figure(figsize=(12, 10))
+            colors = plt.cm.tab20(np.linspace(0, 1, n_samples))
             
-            plt.scatter(
-                gt_tsne[:, 0], 
-                gt_tsne[:, 1], 
-                alpha=0.6, 
-                label='Ground Truth',
-                s=20
-            )
+            for i in range(n_samples):
+                # Ground truth - full trajectory
+                plt.plot(
+                    gt_tsne[i, :, 0],
+                    gt_tsne[i, :, 1],
+                    '--',
+                    color=colors[i],
+                    alpha=0.7,
+                    linewidth=2
+                )
+                
+                # Sampled - start to end only
+                plt.plot(
+                    sampled_tsne[i, :, 0],
+                    sampled_tsne[i, :, 1],
+                    '-',
+                    color=colors[i],
+                    alpha=0.9,
+                    linewidth=2
+                )
+                
+                # Mark all points with circles
+                plt.scatter(gt_tsne[i, 0, 0], gt_tsne[i, 0, 1], color='blue', s=50, marker='o')
+                plt.scatter(gt_tsne[i, -1, 0], gt_tsne[i, -1, 1], color='red', s=50, marker='o')
+                plt.scatter(sampled_tsne[i, 0, 0], sampled_tsne[i, 0, 1], color='blue', s=50, marker='o')
+                plt.scatter(sampled_tsne[i, -1, 0], sampled_tsne[i, -1, 1], color='black', s=25, marker='x')
             
-            plt.scatter(
-                sampled_tsne[:, 0], 
-                sampled_tsne[:, 1], 
-                alpha=0.6, 
-                label='Sampled',
-                s=20
-            )
-            
-            plt.title('t-SNE Visualization of Embeddings')
+            plt.title('t-SNE Visualization\n(Full GT vs Sampled Start/End)')
             plt.grid(True, alpha=0.3)
-            plt.legend()
+            
+            plt.legend([
+                "Ground Truth (21 steps)",
+                "Sampled (start/end)",
+                "Start Points",
+                "End Points"
+            ], loc='upper right')
             
             plt.savefig(os.path.join(output_dir, f"tsne_visualization_{step}.png"), dpi=300, bbox_inches='tight')
             plt.close()
@@ -801,14 +476,9 @@ class FlowMatching:
 # Example usage
 def prepare_data(trajectories, train_ratio=0.8):
     """
-    Prepare training and validation data.
-    
-    Args:
-        trajectories: NumPy array of shape [n_samples, n_layers, embedding_dim]
-        train_ratio: Ratio of data to use for training
-        
-    Returns:
-        train_data, val_data: Training and validation datasets
+    Splits trajectory data into training and validation sets.
+    Simple split without shuffling to maintain temporal order.
+    Returns: (train_data, val_data) tuple
     """
     n_samples = trajectories.shape[0]
     n_train = int(n_samples * train_ratio)
@@ -824,41 +494,31 @@ def train_flow_model(
     num_epochs=1000, 
     batch_size=32, 
     output_dir='flow_output',
-    flow_matching_type="rectified",
     validation_interval=10,
     hidden_dims=[256, 512, 768, 512, 256]
 ):
     """
-    Train a flow matching model.
-    
-    Args:
-        trajectories: NumPy array of shape [n_samples, n_layers, embedding_dim]
-        embedding_dim: Dimension of the embeddings
-        num_epochs: Number of training epochs
-        batch_size: Batch size for training
-        output_dir: Directory to save outputs
-        flow_matching_type: Type of flow matching to use
-        validation_interval: Interval for validation checks
+    Main training loop for the flow matching model.
+    Features:
+    - Early stopping with patience
+    - Model checkpointing
+    - Progress visualization
+    - Learning rate scheduling
+    - Validation monitoring
+    Returns: (trained_model, loss_history)
     """
-    # Create output directory
     os.makedirs(output_dir, exist_ok=True)
-    
-    # Prepare data with stratified split
     train_data, val_data = prepare_data(trajectories, train_ratio=0.8)
     
-    # Initialize model with residual architecture
     flow_model = FlowMatching(
         embedding_dim=embedding_dim,
-        hidden_dims=hidden_dims,  # Deeper network
+        hidden_dims=hidden_dims,
         lr=1e-4,
-        flow_matching_type=flow_matching_type,
         use_attention=True,
         use_adaptive_solver=True
     )
-    # print(f"Model architecture: {flow_model.model}", flush=True)
     print(f"Model parameters: {sum(p.numel() for p in flow_model.model.parameters())}", flush=True)
     
-    # Try to load existing model if available
     model_path = os.path.join(output_dir, 'flow_matching_model.pt')
     if os.path.exists(model_path):
         try:
@@ -867,54 +527,35 @@ def train_flow_model(
         except:
             print("Could not load existing model, starting fresh.", flush=True)
     
-    # Setup for training
-    train_losses = []
-    val_losses = []
+    train_losses, val_losses = [], []
     best_val_loss = float('inf')
-    patience = 100  # For early stopping
-    patience_counter = 0
+    patience, patience_counter = 100, 0
     
-    # Training loop with progress bar
     for epoch in tqdm(range(num_epochs)):
         epoch_losses = []
-        
-        # Process in batches
         num_batches = len(train_data) // batch_size
+        
         for i in range(num_batches):
-            # Get batch
             batch_indices = np.random.choice(len(train_data), batch_size, replace=False)
-            batch_data = train_data[batch_indices]
+            batch_tensor = torch.tensor(train_data[batch_indices], dtype=torch.float32, device=flow_model.device)
             
-            # Convert to torch tensors
-            batch_tensor = torch.tensor(batch_data, dtype=torch.float32, device=flow_model.device)
-            
-            # Get start and end states
-            x0 = batch_tensor[:, 0]  # First layer
-            x1 = batch_tensor[:, -1]  # Last layer
-            
-            # Sample random times for flow matching
+            x0, x1 = batch_tensor[:, 0], batch_tensor[:, -1]
             t = torch.rand(batch_size, 1, device=flow_model.device)
             
-            # Train step
             loss = flow_model.train_step(x0, x1, t)
             epoch_losses.append(loss)
         
-        # Calculate average loss
         avg_loss = sum(epoch_losses) / len(epoch_losses)
         train_losses.append(avg_loss)
         
-        # Log training progress
         if (epoch + 1) % 5 == 0 or epoch == num_epochs - 1:
             print(f"Epoch {epoch + 1}/{num_epochs}, Loss: {avg_loss:.6f}", flush=True)
         
-        # Validation at intervals
         if (epoch + 1) % validation_interval == 0 or epoch == num_epochs - 1:
             val_loss = validate_model(flow_model, val_data, batch_size)
             val_losses.append(val_loss)
-            
             print(f"Validation Loss: {val_loss:.6f}", flush=True)
             
-            # Save best model
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
                 flow_model.save_model(os.path.join(output_dir, 'best_flow_model.pt'))
@@ -922,115 +563,87 @@ def train_flow_model(
             else:
                 patience_counter += 1
             
-            # Early stopping
             if patience_counter >= patience:
                 print(f"Early stopping triggered after {epoch} epochs", flush=True)
                 break
         
-        # Learning rate scheduler step
         flow_model.scheduler.step()
         
-        # Visualization at intervals
         if (epoch + 1) % 50 == 0 or epoch == num_epochs - 1:
             flow_model.visualize(
-                val_data[:50],  # Use subset of validation data
+                val_data[:50],
                 step=val_data.shape[1]-1,
                 output_dir=output_dir,
                 plots=["2d", "3d"]
             )
     
-    # Save final model
     flow_model.save_model(os.path.join(output_dir, 'flow_matching_model.pt'))
     
-    # Create separate plots for training and validation losses
-    # Training loss plot
+    # Plot training loss
     plt.figure(figsize=(12, 6))
     plt.plot(train_losses, 'b-', linewidth=2)
-    plt.xlabel('Epoch')
-    plt.ylabel('Loss')
+    plt.xlabel('Epoch'), plt.ylabel('Loss')
     plt.title('Training Loss Progress')
     plt.grid(True, alpha=0.3)
     plt.savefig(os.path.join(output_dir, 'training_loss_curve.png'))
     plt.close()
     
-    # Validation loss plot
+    # Plot validation loss
     plt.figure(figsize=(12, 6))
     val_epochs = list(range(0, num_epochs, validation_interval))
     if len(val_losses) > len(val_epochs):
         val_epochs.append(num_epochs - 1)
     plt.plot(val_epochs[:len(val_losses)], val_losses, 'r-', linewidth=2)
-    plt.xlabel('Epoch')
-    plt.ylabel('Loss')
+    plt.xlabel('Epoch'), plt.ylabel('Loss')
     plt.title('Validation Loss Progress')
     plt.grid(True, alpha=0.3)
     plt.savefig(os.path.join(output_dir, 'validation_loss_curve.png'))
     plt.close()
     
-    # Load best model for return
     flow_model.load_model(os.path.join(output_dir, 'best_flow_model.pt'))
-    
     return flow_model, {'train': train_losses, 'val': val_losses}
-
 
 def validate_model(flow_model, val_data, batch_size=32):
     """
-    Validate the flow matching model on validation data.
-    
-    Args:
-        flow_model: Trained flow matching model
-        val_data: Validation data
-        batch_size: Batch size for validation
-        
-    Returns:
-        val_loss: Validation loss
+    Evaluates model performance on validation data.
+    Uses multiple time points for robust evaluation.
+    Returns average loss across all validation samples.
     """
     flow_model.model.eval()
     val_losses = []
     
     with torch.no_grad():
-        # Process in batches
         num_batches = len(val_data) // batch_size + (1 if len(val_data) % batch_size != 0 else 0)
         
         for i in range(num_batches):
-            # Get batch
             start_idx = i * batch_size
             end_idx = min(start_idx + batch_size, len(val_data))
-            batch_data = val_data[start_idx:end_idx]
+            batch_tensor = torch.tensor(val_data[start_idx:end_idx], dtype=torch.float32, device=flow_model.device)
             
-            # Convert to torch tensors
-            batch_tensor = torch.tensor(batch_data, dtype=torch.float32, device=flow_model.device)
-            
-            # Get start and end states
-            x0 = batch_tensor[:, 0]  # First layer
-            x1 = batch_tensor[:, -1]  # Last layer
-            
-            # Sample times - use fixed grid for validation
+            x0, x1 = batch_tensor[:, 0], batch_tensor[:, -1]
             batch_size_actual = x0.shape[0]
             t_values = torch.linspace(0.1, 0.9, 5).repeat(batch_size_actual, 1).to(flow_model.device)
             
             for t_idx in range(t_values.shape[1]):
                 t = t_values[:, t_idx:t_idx+1]
-                
-                # Straight-line interpolation
-                ut = x1 - x0  # Target velocity
-                xt = x0 + t * ut  # Current point
-                
-                # Get model prediction
+                ut = x1 - x0
+                xt = x0 + t * ut
                 predicted_ut = flow_model.model(xt, t)
-                
-                # Calculate MSE loss
-                mse_loss = F.mse_loss(predicted_ut, ut)
-                # direction_loss = (1 - torch.cosine_similarity(predicted_ut, ut, dim=1)).mean()
-                # loss = mse_loss + direction_loss * 0.005
-                loss = mse_loss
+                loss = F.mse_loss(predicted_ut, ut)
                 val_losses.append(loss.item())
     
-    # Return average validation loss
     return sum(val_losses) / len(val_losses)
 
 if __name__ == "__main__":
+    """
+    Example usage of the flow matching framework:
+    1. Loads trajectory data
+    2. Initializes and trains the model
+    3. Creates visualizations
+    4. Saves results and model checkpoints
+    """
     # Load the NPZ file
-    output_dir = 'flow_output/exp6'
+    output_dir = 'flow_output/exp2'
     os.makedirs(output_dir, exist_ok=True)
     
     data = np.load('logs/2316385/s2ef_predictions.npz')
@@ -1041,14 +654,8 @@ if __name__ == "__main__":
     # Train the residual flow matching model
     embedding_dim = 128  # Matches your latent dimension
     num_epochs = 1550
-    batch_size = 64
-    hidden_dims = [256] * 6
-    
-    # Choose flow matching types
-    # "standard" - OT/straight line
-    # "rectified" - Better sample quality with sigmoid acceleration
-    # "stochastic" - Adds noise to paths, good for exploration
-    flow_matching_type = "rectified"
+    batch_size = 32
+    hidden_dims = [256, 512, 512, 256]
     
     # Train flow matching model
     flow_model, losses = train_flow_model(
@@ -1056,7 +663,6 @@ if __name__ == "__main__":
         embedding_dim=embedding_dim,
         num_epochs=num_epochs,
         batch_size=batch_size,
-        flow_matching_type=flow_matching_type,
         output_dir=output_dir,
         hidden_dims=hidden_dims
     )
