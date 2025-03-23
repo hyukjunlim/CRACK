@@ -465,23 +465,25 @@ class EquiformerV2_OC20(BaseModel):
         ###############################################################
         # Energy estimation
         ###############################################################
-        node_energy = self.energy_block(x) 
-        node_energy = node_energy.embedding.narrow(1, 0, 1)
-        energy = torch.zeros(len(data.natoms), device=node_energy.device, dtype=node_energy.dtype)
-        energy.index_add_(0, data.batch, node_energy.view(-1))
-        energy = energy / _AVG_NUM_NODES
+        # node_energy = self.energy_block(x) 
+        # node_energy = node_energy.embedding.narrow(1, 0, 1)
+        # energy = torch.zeros(len(data.natoms), device=node_energy.device, dtype=node_energy.dtype)
+        # energy.index_add_(0, data.batch, node_energy.view(-1))
+        # energy = energy / _AVG_NUM_NODES
+        energy = torch.zeros(len(data.natoms), device=x.embedding.device, dtype=x.embedding.dtype)
 
         ###############################################################
         # Force estimation
         ###############################################################
-        if self.regress_forces:
-            forces = self.force_block(x,
-                atomic_numbers,
-                edge_distance,
-                edge_index)
-            forces = forces.embedding.narrow(1, 1, 3)
-            forces = forces.view(-1, 3)            
-            
+        # if self.regress_forces:
+        #     forces = self.force_block(x,
+        #         atomic_numbers,
+        #         edge_distance,
+        #         edge_index)
+        #     forces = forces.embedding.narrow(1, 1, 3)
+        #     forces = forces.view(-1, 3)            
+        forces = torch.zeros(len(data.natoms), 3, device=x.embedding.device, dtype=x.embedding.dtype)
+        
         if not self.regress_forces:
             return energy, latent_rep, time_first, time_last
         else:
