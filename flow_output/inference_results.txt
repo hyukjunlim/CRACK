@@ -1,4 +1,4 @@
 Total samples: 12182
-Total inference time: 0.82 seconds
+Total inference time: 0.85 seconds
 Average time per sample: 0.07 milliseconds
-Mean Squared Error: 0.000128
+Mean Squared Error: 0.000114

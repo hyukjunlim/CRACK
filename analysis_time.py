@@ -11,6 +11,9 @@ filename = 'logs/9583/s2ef_predictions.npz' # 153M
 # Load and reshape data
 data = np.load(filename)
 
+print(data["time_first"].shape)
+print(data["time_last"].shape)
+
 print(f'Time first: {data["time_first"].mean():.4f} ± {data["time_first"].std():.4f} s')
 print(f'Time last: {data["time_last"].mean():.4f} ± {data["time_last"].std():.4f} s')
 
