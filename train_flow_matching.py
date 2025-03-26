@@ -9,148 +9,95 @@ from tqdm import tqdm
 import os
 from sklearn.decomposition import PCA
 from torch.optim.lr_scheduler import OneCycleLR
-from MPFlow import MPFlow, EnergyPredictionHead
-
-
-class MPFlowEnergyPredictor:
+from MPFlow import MPFlow
+    
+    
+class FlowMatching:
     """
-    Model that combines flow matching for trajectory generation with energy prediction.
+    A class to manage flow matching on message passing trajectories.
+    Implements training, sampling, and visualization of flow-based trajectories.
     
     Key features:
-    - Uses MPFlow for trajectory prediction (initial → final embedding)
-    - Adds energy prediction head to predict scalar energy values
-    - Can be trained end-to-end or with pretrained flow matching
+    - Supports multiple sampling methods (euler, rk4)
+    - Includes visualization tools (2D PCA, 3D PCA, t-SNE)
+    - Implements cosine annealing with warm restarts
     
     Args:
         embedding_dim: Dimension of the embedding
-        flow_hidden_dims: Hidden dimensions for the flow matching model
-        energy_hidden_dims: Hidden dimensions for the energy prediction head
-        flow_lr: Learning rate for flow matching model
-        energy_lr: Learning rate for energy prediction head
-        use_attention: Whether to use attention in MPFlow
+        hidden_dims: List of hidden dimensions
+        lr: Learning rate
+        use_attention: Whether to use attention
         device: Device to run the model on
     """
     def __init__(
         self, 
         embedding_dim, 
-        flow_hidden_dims=[256, 512, 512, 256],
-        energy_hidden_dims=[256, 128, 64],
-        flow_lr=1e-4,
-        energy_lr=1e-4,
+        hidden_dims=[256, 512, 512, 256], 
+        lr=1e-4, 
         use_attention=True,
         device="cuda" if torch.cuda.is_available() else "cpu"
     ):
         self.device = device
         self.embedding_dim = embedding_dim
         
-        # Initialize the flow matching network
-        self.flow_model = MPFlow(
+        # Initialize the residual flow matching network
+        self.model = MPFlow(
             embedding_dim=embedding_dim,
-            hidden_dims=flow_hidden_dims,
+            hidden_dims=hidden_dims,
             use_attention=use_attention,
         ).to(device)
         
-        # Initialize the energy prediction head
-        self.energy_head = EnergyPredictionHead(
-            embedding_dim=embedding_dim,
-            hidden_dims=energy_hidden_dims
-        ).to(device)
-        
-        # Setup optimizers with weight decay
-        self.flow_optimizer = optim.AdamW(
-            self.flow_model.parameters(), 
-            lr=flow_lr, 
+        # Setup optimizer with weight decay
+        self.optimizer = optim.AdamW(
+            self.model.parameters(), 
+            lr=lr, 
             betas=(0.9, 0.999),
             weight_decay=1e-5
         )
         
-        self.energy_optimizer = optim.AdamW(
-            self.energy_head.parameters(), 
-            lr=energy_lr, 
-            betas=(0.9, 0.999),
-            weight_decay=1e-5
-        )
-        
-        # Schedulers
-        self.flow_scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
-            self.flow_optimizer, 
-            T_0=50,
-            T_mult=2
-        )
-        
-        self.energy_scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
-            self.energy_optimizer, 
-            T_0=50,
-            T_mult=2
+        # Cosine annealing with warm restarts
+        self.scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
+            self.optimizer, 
+            T_0=50,  # Restart every 50 epochs
+            T_mult=2  # Double the restart interval after each restart
         )
     
-    def train_step(self, x0, x1, energies, t, flow_weight=1.0, energy_weight=0.001):
+    def train_step(self, x0, x1, t):
         """
-        Performs a joint training step for both flow matching and energy prediction.
-        
-        Args:
-            x0: Initial embeddings of shape [batch_size, embedding_dim]
-            x1: Final embeddings of shape [batch_size, embedding_dim]
-            energies: Target energy values of shape [batch_size, 1]
-            t: Time points of shape [batch_size, 1]
-            flow_weight: Weight for flow matching loss
-            energy_weight: Weight for energy prediction loss
-            
-        Returns:
-            Total loss value and component losses
+        Performs a single training step using flow matching loss.
+        Combines MSE loss with directional loss for better trajectory learning.
+        Loss = MSE + 0.005 * DirectionalLoss
         """
-        self.flow_model.train()
-        self.energy_head.train()
+        batch_size = x0.shape[0]
         
-        # Flow matching forward pass
         ut = x1 - x0
         xt = x0 + t * ut
-        predicted_ut = self.flow_model(xt, t)
+            
+        # Get the model's prediction
+        predicted_ut = self.model(xt, t)
         
-        # Flow matching loss
+        # Flow matching loss 
         mse_loss = F.mse_loss(predicted_ut, ut)
         direction_loss = (1 - torch.cosine_similarity(predicted_ut, ut, dim=1)).mean()
-        flow_loss = mse_loss + direction_loss * 0.005
-        
-        # Generate final embeddings for energy prediction
-        # Use detached x1 to avoid backpropagating through the ground truth
-        # This ensures we're evaluating energy prediction on flow-generated embeddings
-        with torch.no_grad():
-            final_embeddings = self.sample_trajectory(x0, method="rk4")[:, -1]
-        
-        # Energy prediction
-        predicted_energies = self.energy_head(final_embeddings)
-        energy_loss = F.mse_loss(predicted_energies, energies)
-        
-        # Combined loss
-        total_loss = flow_weight * flow_loss + energy_weight * energy_loss
+        loss = mse_loss + direction_loss * 0.005
         
         # Optimization step
-        self.flow_optimizer.zero_grad()
-        self.energy_optimizer.zero_grad()
-        total_loss.backward()
+        self.optimizer.zero_grad()
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=0.5)
+        self.optimizer.step()
         
-        torch.nn.utils.clip_grad_norm_(self.flow_model.parameters(), max_norm=0.5)
-        torch.nn.utils.clip_grad_norm_(self.energy_head.parameters(), max_norm=0.5)
-        
-        self.flow_optimizer.step()
-        self.energy_optimizer.step()
-        
-        return total_loss.item(), flow_loss.item(), energy_loss.item()
+        return loss.item()
     
-    def sample_trajectory(self, x0, steps=2, method="rk4"):
+    def sample_trajectory(self, x0, steps=2, method="rk4", solver_rtol=1e-5, solver_atol=1e-5):
         """
-        Samples a trajectory from the flow matching model.
-        
-        Args:
-            x0: Initial embeddings of shape [batch_size, embedding_dim]
-            steps: Number of steps (currently only supports 2 for start/end)
-            method: Integration method ("euler" or "rk4")
-            
-        Returns:
-            Trajectory tensor of shape [batch_size, steps, embedding_dim]
+        Samples a trajectory from start to end points.
+        Supports multiple integration methods:
+        - euler: Simple first-order method
+        - rk4: 4th order Runge-Kutta (more accurate)
+        Returns only start and end points for efficiency.
         """
-        self.flow_model.eval()
+        self.model.eval()
         batch_size = x0.shape[0]
         device = x0.device
 
@@ -161,92 +108,23 @@ class MPFlowEnergyPredictor:
             if method == "euler":
                 # Single large step
                 t = torch.ones((batch_size, 1), device=device)
-                velocity = self.flow_model(x, t)
+                velocity = self.model(x, t)
                 x = x + velocity  # Single step from 0 to 1
                 
             elif method == "rk4":
                 # Single RK4 step from t=0 to t=1
                 t = torch.zeros((batch_size, 1), device=device)
-                k1 = self.flow_model(x, t)
-                k2 = self.flow_model(x + 0.5 * k1, t + 0.5)
-                k3 = self.flow_model(x + 0.5 * k2, t + 0.5)
-                k4 = self.flow_model(x + k3, t + 1.0)
+                k1 = self.model(x, t)
+                k2 = self.model(x + 0.5 * k1, t + 0.5)
+                k3 = self.model(x + 0.5 * k2, t + 0.5)
+                k4 = self.model(x + k3, t + 1.0)
                 
                 x = x + (1.0 / 6.0) * (k1 + 2*k2 + 2*k3 + k4)
         
         # Return start and end points only
         trajectory = torch.stack([x0, x], dim=1)  # [batch, 2, dim]
         return trajectory
-    
-    def predict_energy(self, x0, method="rk4"):
-        """
-        Predicts energy values for given initial embeddings.
-        
-        Args:
-            x0: Initial embeddings of shape [batch_size, embedding_dim]
-            method: Integration method for generating final embeddings
-            
-        Returns:
-            Predicted energy values of shape [batch_size, 1]
-        """
-        self.flow_model.eval()
-        self.energy_head.eval()
-        
-        with torch.no_grad():
-            # Generate final embeddings
-            final_embeddings = self.sample_trajectory(x0, method=method)[:, -1]
-            
-            # Predict energies
-            energies = self.energy_head(final_embeddings)
-        
-        return energies
-    
-    def save_model(self, path, save_flow=True, save_energy=True):
-        """
-        Saves the model state.
-        
-        Args:
-            path: Base path for saving model files
-            save_flow: Whether to save flow matching model
-            save_energy: Whether to save energy prediction head
-        """
-        if save_flow:
-            flow_path = f"{path}_flow.pt"
-            torch.save({
-                'model_state_dict': self.flow_model.state_dict(),
-                'optimizer_state_dict': self.flow_optimizer.state_dict(),
-            }, flow_path)
-        
-        if save_energy:
-            energy_path = f"{path}_energy.pt"
-            torch.save({
-                'model_state_dict': self.energy_head.state_dict(),
-                'optimizer_state_dict': self.energy_optimizer.state_dict(),
-            }, energy_path)
-    
-    def load_model(self, path, load_flow=True, load_energy=True):
-        """
-        Loads the model state.
-        
-        Args:
-            path: Base path for loading model files
-            load_flow: Whether to load flow matching model
-            load_energy: Whether to load energy prediction head
-        """
-        if load_flow:
-            flow_path = f"{path}_flow.pt"
-            if os.path.exists(flow_path):
-                checkpoint = torch.load(flow_path)
-                self.flow_model.load_state_dict(checkpoint['model_state_dict'])
-                self.flow_optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        
-        if load_energy:
-            energy_path = f"{path}_energy.pt"
-            if os.path.exists(energy_path):
-                checkpoint = torch.load(energy_path)
-                self.energy_head.load_state_dict(checkpoint['model_state_dict'])
-                self.energy_optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-    
+
     def visualize(self, trajectories, step=100, output_dir='flow_output', plots=["2d", "3d", "tsne"]):
         """
         Creates comprehensive visualizations of trajectories.
@@ -254,49 +132,82 @@ class MPFlowEnergyPredictor:
         - 2D PCA: Principal component projection
         - 3D PCA: 3D visualization of main components
         - t-SNE: Non-linear dimensionality reduction
+        Also computes and saves trajectory statistics.
         """
-        # Convert trajectories to torch tensor
+        # convert trajectories to torch tensor
         trajectories = torch.tensor(trajectories, dtype=torch.float32, device=self.device)
         
         # Select samples to visualize
         viz_samples = min(8, len(trajectories))
-        indices = np.arange(viz_samples)
+        indices = np.arange(viz_samples)  # Use first viz_samples trajectories
         
         # Get ground truth trajectories for selected indices
         ground_truth = trajectories[indices]
         
         # Sample trajectories with fixed number of steps
         x0 = ground_truth[:, 0].to(self.device)
-        x1 = ground_truth[:, -1].to(self.device)
+        x1 = ground_truth[:, -1].to(self.device)  # For reference only
+        x1_gt = ground_truth[:, -1].to(self.device)  # Ground truth final state
         
-        # Sample trajectories
-        sampled_trajectories = self.sample_trajectory(x0, steps=2, method="rk4")
+        # Use fixed number of steps (e.g., 100) instead of matching ground truth
+        sampled_trajectories = self.sample_trajectory(x0, steps=step, method="rk4")
+        
+        # For comparison with ground truth, we can interpolate if needed
+        # This step is optional and only needed if you want to compute exact MSE
+        if ground_truth.shape[1] != sampled_trajectories.shape[1]:
+            # Interpolate sampled trajectories to match ground truth timesteps
+            sampled_interp = F.interpolate(
+                sampled_trajectories.permute(0, 2, 1),  # [batch, embedding_dim, time]
+                size=ground_truth.shape[1],
+                mode='linear',
+                align_corners=True
+            ).permute(0, 2, 1)  # [batch, time, embedding_dim]
+            
+            # Calculate MSE using interpolated trajectories
+            mse_per_sample = torch.mean((x1_gt.cpu() - sampled_interp[:, -1, :].cpu())**2, dim=1)
+        else:
+            mse_per_sample = torch.mean((x1_gt.cpu() - sampled_trajectories[:, -1, :].cpu())**2, dim=1)
+        
+        # Calculate statistics
+        avg_mse = mse_per_sample.mean().item()
+        
+        # Directory for this visualization run
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # Save statistics to file
+        with open(os.path.join(output_dir, f"trajectory_stats_{step}.txt"), "w") as f:
+            f.write(f"Average MSE: {avg_mse:.6f}\n")
+            f.write(f"Per-sample MSE: {mse_per_sample.numpy()}\n")
         
         # Create visualizations
         if "2d" in plots:
-            self._create_2d_pca_plot(ground_truth, sampled_trajectories, output_dir)
+            self._create_2d_pca_plot(ground_truth, sampled_trajectories, step, output_dir)
         
         if "3d" in plots:
-            self._create_3d_pca_plot(ground_truth, sampled_trajectories, output_dir)
+            self._create_3d_pca_plot(ground_truth, sampled_trajectories, step, output_dir)
         
         if "tsne" in plots:
-            self._create_tsne_plot(ground_truth, sampled_trajectories, output_dir)
+            self._create_tsne_plot(ground_truth, sampled_trajectories, step, output_dir)
 
-    def _create_2d_pca_plot(self, ground_truth, sampled_trajectories, output_dir):
-        """Creates 2D PCA visualization comparing ground truth vs sampled trajectories."""
-        # Combine for consistent PCA
+    def _create_2d_pca_plot(self, ground_truth, sampled_trajectories, step, output_dir):
+        """
+        Creates 2D PCA visualization comparing ground truth vs sampled trajectories.
+        Shows both full ground truth paths and sampled endpoints.
+        Includes variance ratios for interpretability.
+        """
+        # Combine for consistent PCA - need to handle different timesteps
         gt_flat = ground_truth.cpu().reshape(-1, ground_truth.shape[-1])
         sampled_flat = sampled_trajectories.cpu().reshape(-1, sampled_trajectories.shape[-1])
         
-        # Apply PCA
+        # Apply PCA on all points
         pca = PCA(n_components=2)
         gt_2d = pca.fit_transform(gt_flat.numpy())
         sampled_2d = pca.transform(sampled_flat.numpy())
         
         # Reshape back
         n_samples = ground_truth.shape[0]
-        gt_timesteps = ground_truth.shape[1]
-        sampled_timesteps = sampled_trajectories.shape[1]
+        gt_timesteps = ground_truth.shape[1]  # 21 steps
+        sampled_timesteps = sampled_trajectories.shape[1]  # 2 steps (start/end)
         
         gt_2d = gt_2d.reshape(n_samples, gt_timesteps, 2)
         sampled_2d = sampled_2d.reshape(n_samples, sampled_timesteps, 2)
@@ -306,15 +217,29 @@ class MPFlowEnergyPredictor:
         colors = plt.cm.tab20(np.linspace(0, 1, n_samples))
         
         for i in range(n_samples):
-            # Ground truth trajectory
-            plt.plot(gt_2d[i, :, 0], gt_2d[i, :, 1], '--', color=colors[i], alpha=0.7, 
-                    linewidth=2, label=f'GT {i+1}' if i == 0 else None)
+            # Ground truth - full trajectory
+            plt.plot(
+                gt_2d[i, :, 0], 
+                gt_2d[i, :, 1], 
+                '--', 
+                color=colors[i], 
+                alpha=0.7, 
+                linewidth=2,
+                label=f'GT {i+1}' if i == 0 else None
+            )
             
-            # Sampled trajectory
-            plt.plot(sampled_2d[i, :, 0], sampled_2d[i, :, 1], '-', color=colors[i], 
-                    alpha=0.9, linewidth=2, label=f'Sampled {i+1}' if i == 0 else None)
+            # Sampled - start to end only
+            plt.plot(
+                sampled_2d[i, :, 0], 
+                sampled_2d[i, :, 1], 
+                '-', 
+                color=colors[i], 
+                alpha=0.9,
+                linewidth=2,
+                label=f'Sampled {i+1}' if i == 0 else None
+            )
             
-            # Mark points
+            # Mark start and end points (all circles)
             plt.scatter(gt_2d[i, 0, 0], gt_2d[i, 0, 1], color='blue', s=50, marker='o')
             plt.scatter(gt_2d[i, -1, 0], gt_2d[i, -1, 1], color='red', s=50, marker='o')
             plt.scatter(sampled_2d[i, 0, 0], sampled_2d[i, 0, 1], color='blue', s=50, marker='o')
@@ -324,27 +249,39 @@ class MPFlowEnergyPredictor:
         plt.xlabel(f'PC1 ({pca.explained_variance_ratio_[0]:.1%})')
         plt.ylabel(f'PC2 ({pca.explained_variance_ratio_[1]:.1%})')
         plt.grid(True, alpha=0.3)
-        plt.legend(['Ground Truth', 'Sampled', 'Start Points', 'End Points'])
-        plt.savefig(os.path.join(output_dir, f"flow_trajectories_2d.png"), dpi=300, bbox_inches='tight')
+        
+        plt.legend([
+            "Ground Truth (21 steps)", 
+            "Sampled (start/end)",
+            "Start Points",
+            "End Points"
+        ], loc='upper right')
+        
+        plt.savefig(os.path.join(output_dir, f"flow_trajectories_2d_{step}.png"), dpi=300, bbox_inches='tight')
         plt.close()
 
-    def _create_3d_pca_plot(self, ground_truth, sampled_trajectories, output_dir):
-        """Creates 3D PCA visualization."""
+    def _create_3d_pca_plot(self, ground_truth, sampled_trajectories, step, output_dir):
+        """
+        Generates 3D PCA plots with interactive viewing capabilities.
+        Visualizes trajectories in 3D space with custom legends and markers.
+        Handles potential 3D plotting errors gracefully.
+        """
         try:
             from mpl_toolkits.mplot3d import Axes3D
             
-            # Apply PCA
+            # Apply PCA on all points
             gt_flat = ground_truth.cpu().reshape(-1, ground_truth.shape[-1])
             sampled_flat = sampled_trajectories.cpu().reshape(-1, sampled_trajectories.shape[-1])
             
+            # Apply PCA for 3D
             pca = PCA(n_components=3)
             gt_3d = pca.fit_transform(gt_flat.numpy())
             sampled_3d = pca.transform(sampled_flat.numpy())
             
             # Reshape back
             n_samples = ground_truth.shape[0]
-            gt_timesteps = ground_truth.shape[1]
-            sampled_timesteps = sampled_trajectories.shape[1]
+            gt_timesteps = ground_truth.shape[1]  # 21 steps
+            sampled_timesteps = sampled_trajectories.shape[1]  # 2 steps
             
             gt_3d = gt_3d.reshape(n_samples, gt_timesteps, 3)
             sampled_3d = sampled_3d.reshape(n_samples, sampled_timesteps, 3)
@@ -355,24 +292,68 @@ class MPFlowEnergyPredictor:
             colors = plt.cm.tab20(np.linspace(0, 1, n_samples))
             
             for i in range(n_samples):
-                # Plot trajectories and points
-                ax.plot(gt_3d[i, :, 0], gt_3d[i, :, 1], gt_3d[i, :, 2], '--', 
-                       color=colors[i], alpha=0.7, linewidth=2)
-                ax.plot(sampled_3d[i, :, 0], sampled_3d[i, :, 1], sampled_3d[i, :, 2], 
-                       '-', color=colors[i], alpha=0.9, linewidth=2)
+                # Ground truth - full trajectory
+                ax.plot(
+                    gt_3d[i, :, 0], 
+                    gt_3d[i, :, 1], 
+                    gt_3d[i, :, 2],
+                    '--', 
+                    color=colors[i], 
+                    alpha=0.7,
+                    linewidth=2
+                )
                 
-                # Mark points
-                ax.scatter(gt_3d[i, 0, 0], gt_3d[i, 0, 1], gt_3d[i, 0, 2], color='blue', s=50, marker='o')
-                ax.scatter(gt_3d[i, -1, 0], gt_3d[i, -1, 1], gt_3d[i, -1, 2], color='red', s=50, marker='o')
-                ax.scatter(sampled_3d[i, 0, 0], sampled_3d[i, 0, 1], sampled_3d[i, 0, 2], color='blue', s=50, marker='o')
-                ax.scatter(sampled_3d[i, -1, 0], sampled_3d[i, -1, 1], sampled_3d[i, -1, 2], color='black', s=25, marker='x')
+                # Sampled - start to end only
+                ax.plot(
+                    sampled_3d[i, :, 0], 
+                    sampled_3d[i, :, 1], 
+                    sampled_3d[i, :, 2],
+                    '-', 
+                    color=colors[i], 
+                    alpha=0.9,
+                    linewidth=2
+                )
+                
+                # Mark all points with circles
+                ax.scatter(
+                    gt_3d[i, 0, 0], 
+                    gt_3d[i, 0, 1], 
+                    gt_3d[i, 0, 2], 
+                    color='blue', 
+                    s=50, 
+                    marker='o'
+                )
+                ax.scatter(
+                    gt_3d[i, -1, 0], 
+                    gt_3d[i, -1, 1], 
+                    gt_3d[i, -1, 2], 
+                    color='red', 
+                    s=50, 
+                    marker='o'
+                )
+                ax.scatter(
+                    sampled_3d[i, 0, 0], 
+                    sampled_3d[i, 0, 1], 
+                    sampled_3d[i, 0, 2], 
+                    color='blue', 
+                    s=50, 
+                    marker='o'
+                )
+                ax.scatter(
+                    sampled_3d[i, -1, 0], 
+                    sampled_3d[i, -1, 1], 
+                    sampled_3d[i, -1, 2], 
+                    color='black', 
+                    s=25, 
+                    marker='x'
+                )
             
             ax.set_title('Flow Trajectories - 3D PCA Projection\n(Full GT vs Sampled Start/End)')
             ax.set_xlabel(f'PC1 ({pca.explained_variance_ratio_[0]:.1%})')
             ax.set_ylabel(f'PC2 ({pca.explained_variance_ratio_[1]:.1%})')
             ax.set_zlabel(f'PC3 ({pca.explained_variance_ratio_[2]:.1%})')
             
-            # Custom legend
+            # Create custom legend
             from matplotlib.lines import Line2D
             custom_lines = [
                 Line2D([0], [0], linestyle='--', color='gray', linewidth=2),
@@ -380,58 +361,82 @@ class MPFlowEnergyPredictor:
                 Line2D([0], [0], linestyle='none', marker='o', color='blue', markersize=10),
                 Line2D([0], [0], linestyle='none', marker='o', color='red', markersize=10)
             ]
-            ax.legend(custom_lines, ['Ground Truth', 'Sampled', 'Start Points', 'End Points'])
+            ax.legend(custom_lines, [
+                'Ground Truth (21 steps)', 
+                'Sampled (start/end)',
+                'Start Points',
+                'End Points'
+            ])
             
-            plt.savefig(os.path.join(output_dir, f"flow_trajectories_3d.png"), dpi=300, bbox_inches='tight')
+            plt.savefig(os.path.join(output_dir, f"flow_trajectories_3d_{step}.png"), dpi=300, bbox_inches='tight')
             plt.close()
         except Exception as e:
             print(f"Error creating 3D plot: {e}", flush=True)
 
-    def _create_tsne_plot(self, ground_truth, sampled_trajectories, output_dir):
-        """Creates t-SNE visualization for non-linear trajectory analysis."""
+    def _create_tsne_plot(self, ground_truth, sampled_trajectories, step, output_dir):
+        """
+        Creates t-SNE visualization for non-linear trajectory analysis.
+        Automatically handles large datasets by sampling.
+        Maintains temporal consistency in the visualization.
+        """
         try:
             from sklearn.manifold import TSNE
             
-            # Prepare data
+            # Compute t-SNE on flattened data
             gt_flat = ground_truth.cpu().reshape(-1, ground_truth.shape[-1]).numpy()
             sampled_flat = sampled_trajectories.cpu().reshape(-1, sampled_trajectories.shape[-1]).numpy()
             
-            # Sample if data is too large
+            # Take a subset for t-SNE if data is large
             max_points = 5000
             n_samples = ground_truth.shape[0]
             gt_timesteps = ground_truth.shape[1]
             sampled_timesteps = sampled_trajectories.shape[1]
             
             if gt_flat.shape[0] > max_points:
+                # Sample trajectories, but keep all timesteps for each selected trajectory
                 n_trajectories = max_points // gt_timesteps
                 selected_indices = np.random.choice(n_samples, n_trajectories, replace=False)
                 gt_flat = gt_flat.reshape(n_samples, gt_timesteps, -1)[selected_indices].reshape(-1, ground_truth.shape[-1])
                 sampled_flat = sampled_flat.reshape(n_samples, sampled_timesteps, -1)[selected_indices].reshape(-1, sampled_trajectories.shape[-1])
                 n_samples = n_trajectories
             
-            # Apply t-SNE
-            tsne = TSNE(
-                n_components=2, 
-                perplexity=30, 
-                n_iter=1000,
-                init='pca',           # Use PCA initialization
-                learning_rate='auto'  # Use automatic learning rate
-            )
+            # Combine for consistent transformation
             combined = np.vstack([gt_flat, sampled_flat])
+            
+            # Apply t-SNE
+            tsne = TSNE(n_components=2, perplexity=30, n_iter=1000)
             combined_tsne = tsne.fit_transform(combined)
             
-            # Split results
+            # Split back
             gt_tsne = combined_tsne[:gt_flat.shape[0]].reshape(n_samples, gt_timesteps, 2)
             sampled_tsne = combined_tsne[gt_flat.shape[0]:].reshape(n_samples, sampled_timesteps, 2)
             
-            # Create plot
+            # Plot
             plt.figure(figsize=(12, 10))
             colors = plt.cm.tab20(np.linspace(0, 1, n_samples))
             
             for i in range(n_samples):
-                plt.plot(gt_tsne[i, :, 0], gt_tsne[i, :, 1], '--', color=colors[i], alpha=0.7, linewidth=2)
-                plt.plot(sampled_tsne[i, :, 0], sampled_tsne[i, :, 1], '-', color=colors[i], alpha=0.9, linewidth=2)
+                # Ground truth - full trajectory
+                plt.plot(
+                    gt_tsne[i, :, 0],
+                    gt_tsne[i, :, 1],
+                    '--',
+                    color=colors[i],
+                    alpha=0.7,
+                    linewidth=2
+                )
                 
+                # Sampled - start to end only
+                plt.plot(
+                    sampled_tsne[i, :, 0],
+                    sampled_tsne[i, :, 1],
+                    '-',
+                    color=colors[i],
+                    alpha=0.9,
+                    linewidth=2
+                )
+                
+                # Mark all points with circles
                 plt.scatter(gt_tsne[i, 0, 0], gt_tsne[i, 0, 1], color='blue', s=50, marker='o')
                 plt.scatter(gt_tsne[i, -1, 0], gt_tsne[i, -1, 1], color='red', s=50, marker='o')
                 plt.scatter(sampled_tsne[i, 0, 0], sampled_tsne[i, 0, 1], color='blue', s=50, marker='o')
@@ -439,294 +444,191 @@ class MPFlowEnergyPredictor:
             
             plt.title('t-SNE Visualization\n(Full GT vs Sampled Start/End)')
             plt.grid(True, alpha=0.3)
-            plt.legend(['Ground Truth', 'Sampled', 'Start Points', 'End Points'])
-            plt.savefig(os.path.join(output_dir, f"tsne_visualization.png"), dpi=300, bbox_inches='tight')
+            
+            plt.legend([
+                "Ground Truth (21 steps)",
+                "Sampled (start/end)",
+                "Start Points",
+                "End Points"
+            ], loc='upper right')
+            
+            plt.savefig(os.path.join(output_dir, f"tsne_visualization_{step}.png"), dpi=300, bbox_inches='tight')
             plt.close()
         except Exception as e:
             print(f"Error creating t-SNE plot: {e}", flush=True)
 
-
-# Training function for the energy prediction model
-def train_energy_predictor(
-    trajectories, 
-    energies,
-    embedding_dim, 
-    num_epochs=1550, 
-    batch_size=32, 
-    output_dir='energy_flow_output',
-    validation_interval=10,
-    flow_hidden_dims=[256, 512, 512, 256],
-    energy_hidden_dims=[256, 128, 64],
-    pretrained_flow_path='flow_output/flow_matching_model.pt',
-    energy_weight=0.001
-):
-    """
-    Modified training function that loads pretrained flow model and only trains energy predictor.
+    def save_model(self, path):
+        """Save the model and optimizer state."""
+        torch.save({
+            'model_state_dict': self.model.state_dict(),
+            'optimizer_state_dict': self.optimizer.state_dict(),
+        }, path)
     
-    Args:
-        trajectories: Trajectory data of shape [n_samples, n_steps, embedding_dim]
-        energies: Energy values of shape [n_samples, 1]
-        embedding_dim: Dimension of the embeddings
-        num_epochs: Number of training epochs
-        batch_size: Batch size for training
-        output_dir: Directory for saving outputs
-        validation_interval: Interval for validation
-        flow_hidden_dims: Hidden dimensions for flow matching model
-        energy_hidden_dims: Hidden dimensions for energy prediction head
-        pretrained_flow_path: Path to pretrained flow matching model
-        energy_weight: Weight for energy prediction loss in joint training
+    def load_model(self, path):
+        """Load the model and optimizer state."""
+        checkpoint = torch.load(path)
+        self.model.load_state_dict(checkpoint['model_state_dict'])
+        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         
-    Returns:
-        Trained model and loss history
+# Example usage
+def prepare_data(trajectories, train_ratio=0.8):
     """
-    os.makedirs(output_dir, exist_ok=True)
-    
-    # Split data into train and validation sets
+    Splits trajectory data into training and validation sets.
+    Simple split without shuffling to maintain temporal order.
+    Returns: (train_data, val_data) tuple
+    """
     n_samples = trajectories.shape[0]
-    train_ratio = 0.8
     n_train = int(n_samples * train_ratio)
     
-    train_trajectories = trajectories[:n_train]
-    val_trajectories = trajectories[n_train:]
+    train_data = trajectories[:n_train]
+    val_data = trajectories[n_train:]
     
-    train_energies = energies[:n_train]
-    val_energies = energies[n_train:]
+    return train_data, val_data
+
+def train_flow_model(
+    trajectories, 
+    embedding_dim, 
+    num_epochs=1000, 
+    batch_size=32, 
+    output_dir='flow_output',
+    validation_interval=10,
+    hidden_dims=[256, 512, 768, 512, 256]
+):
+    """
+    Main training loop for the flow matching model.
+    Features:
+    - Early stopping with patience
+    - Model checkpointing
+    - Progress visualization
+    - Learning rate scheduling
+    - Validation monitoring
+    Returns: (trained_model, loss_history)
+    """
+    os.makedirs(output_dir, exist_ok=True)
+    train_data, val_data = prepare_data(trajectories, train_ratio=0.8)
     
-    # Initialize model
-    model = MPFlowEnergyPredictor(
+    flow_model = FlowMatching(
         embedding_dim=embedding_dim,
-        flow_hidden_dims=flow_hidden_dims,
-        energy_hidden_dims=energy_hidden_dims,
+        hidden_dims=hidden_dims,
+        lr=1e-4,
+        use_attention=True,
     )
+    print(f"Model parameters: {sum(p.numel() for p in flow_model.model.parameters())}", flush=True)
     
-    # Load pretrained flow model
-    model.load_model(pretrained_flow_path, load_flow=True, load_energy=False)
+    model_path = os.path.join(output_dir, 'flow_matching_model.pt')
+    if os.path.exists(model_path):
+        try:
+            flow_model.load_model(model_path)
+            print("Loaded existing model for continued training.", flush=True)
+        except:
+            print("Could not load existing model, starting fresh.", flush=True)
     
-    # Freeze flow model parameters
-    for param in model.flow_model.parameters():
-        param.requires_grad = False
-    
-    print(f"Loaded pretrained flow model from: {pretrained_flow_path}", flush=True)
-    print(f"Energy head trainable parameters: {sum(p.numel() for p in model.energy_head.parameters())}", flush=True)
-    
-    # Training history
-    energy_losses = []
-    val_losses = []
+    train_losses, val_losses = [], []
     best_val_loss = float('inf')
-    patience, patience_counter = 50, 0
+    patience, patience_counter = 100, 0
     
     for epoch in tqdm(range(num_epochs)):
-        epoch_energy_losses = []
-        
-        # Create batch indices
-        batch_indices = np.random.permutation(len(train_trajectories))
-        num_batches = len(batch_indices) // batch_size
+        epoch_losses = []
+        num_batches = len(train_data) // batch_size
         
         for i in range(num_batches):
-            batch_idx = batch_indices[i * batch_size:(i + 1) * batch_size]
+            batch_indices = np.random.choice(len(train_data), batch_size, replace=False)
+            batch_tensor = torch.tensor(train_data[batch_indices], dtype=torch.float32, device=flow_model.device)
             
-            # Get batch data
-            batch_trajectories = torch.tensor(
-                train_trajectories[batch_idx], 
-                dtype=torch.float32,
-                device=model.device
-            )
-            batch_energies = torch.tensor(
-                train_energies[batch_idx], 
-                dtype=torch.float32,
-                device=model.device
-            ).view(-1, 1)
+            x0, x1 = batch_tensor[:, 0], batch_tensor[:, -1]
+            t = torch.rand(batch_size, 1, device=flow_model.device)
             
-            x0 = batch_trajectories[:, 0]
-            
-            # Only train energy head
-            model.energy_optimizer.zero_grad()
-            
-            # Generate final embeddings using frozen flow model
-            with torch.no_grad():
-                final_embeddings = model.sample_trajectory(x0, method="rk4")[:, -1]
-            
-            # Energy prediction and loss
-            predicted_energies = model.energy_head(final_embeddings)
-            energy_loss = F.mse_loss(predicted_energies, batch_energies)
-            
-            energy_loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.energy_head.parameters(), max_norm=0.5)
-            model.energy_optimizer.step()
-            
-            epoch_energy_losses.append(energy_loss.item())
-    
-        # Update learning rate scheduler
-        model.energy_scheduler.step()
+            loss = flow_model.train_step(x0, x1, t)
+            epoch_losses.append(loss)
         
-        # Log training progress
-        avg_energy_loss = sum(epoch_energy_losses) / len(epoch_energy_losses)
-        energy_losses.append(avg_energy_loss)
+        avg_loss = sum(epoch_losses) / len(epoch_losses)
+        train_losses.append(avg_loss)
         
-        if (epoch + 1) % 10 == 0 or epoch == num_epochs - 1:
-            print(f"Epoch {epoch + 1}/{num_epochs}, Energy Loss: {avg_energy_loss:.6f}", flush=True)
+        if (epoch + 1) % 5 == 0 or epoch == num_epochs - 1:
+            print(f"Epoch {epoch + 1}/{num_epochs}, Loss: {avg_loss:.6f}", flush=True)
         
-        # Validation
         if (epoch + 1) % validation_interval == 0 or epoch == num_epochs - 1:
-            val_loss = validate_energy_predictor(model, val_trajectories, val_energies, batch_size)
+            val_loss = validate_model(flow_model, val_data, batch_size)
             val_losses.append(val_loss)
-            print(f"Validation Energy Loss: {val_loss:.6f}", flush=True)
+            print(f"Validation Loss: {val_loss:.6f}", flush=True)
             
-            # Model checkpointing
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
-                model.save_model(
-                    os.path.join(output_dir, 'best_energy_model'),
-                    save_flow=False,  # Don't save flow model since it's frozen
-                    save_energy=True
-                )
+                flow_model.save_model(os.path.join(output_dir, 'best_flow_model.pt'))
                 patience_counter = 0
             else:
                 patience_counter += 1
             
-            # Early stopping
             if patience_counter >= patience:
-                print(f"Early stopping triggered after {epoch + 1} epochs", flush=True)
+                print(f"Early stopping triggered after {epoch} epochs", flush=True)
                 break
         
-        # Regular checkpointing
-        if (epoch + 1) % 100 == 0:
-            model.save_model(
-                os.path.join(output_dir, 'energy_model'),
-                save_flow=False,
-                save_energy=True
+        flow_model.scheduler.step()
+        
+        if (epoch + 1) % 50 == 0 or epoch == num_epochs - 1:
+            flow_model.visualize(
+                val_data[:50],
+                step=val_data.shape[1]-1,
+                output_dir=output_dir,
+                plots=["2d", "3d"]
             )
     
-    # Save final model
-    model.save_model(
-        os.path.join(output_dir, 'energy_model'),
-        save_flow=False,
-        save_energy=True
-    )
+    flow_model.save_model(os.path.join(output_dir, 'flow_matching_model.pt'))
     
-    # Plot losses
-    plot_training_curves([], energy_losses, val_losses, validation_interval, output_dir)
+    # Plot training loss
+    plt.figure(figsize=(12, 6))
+    plt.plot(train_losses, 'b-', linewidth=2)
+    plt.xlabel('Epoch'), plt.ylabel('Loss')
+    plt.title('Training Loss Progress')
+    plt.grid(True, alpha=0.3)
+    plt.savefig(os.path.join(output_dir, 'training_loss_curve.png'))
+    plt.close()
     
-    # Load best model for return
-    model.load_model(
-        os.path.join(output_dir, 'best_energy_model'),
-        load_flow=False,
-        load_energy=True
-    )
+    # Plot validation loss
+    plt.figure(figsize=(12, 6))
+    val_epochs = list(range(0, num_epochs, validation_interval))
+    if len(val_losses) > len(val_epochs):
+        val_epochs.append(num_epochs - 1)
+    plt.plot(val_epochs[:len(val_losses)], val_losses, 'r-', linewidth=2)
+    plt.xlabel('Epoch'), plt.ylabel('Loss')
+    plt.title('Validation Loss Progress')
+    plt.grid(True, alpha=0.3)
+    plt.savefig(os.path.join(output_dir, 'validation_loss_curve.png'))
+    plt.close()
     
-    return model, {
-        'energy': energy_losses, 
-        'val': val_losses
-    }
+    flow_model.load_model(os.path.join(output_dir, 'best_flow_model.pt'))
+    return flow_model, {'train': train_losses, 'val': val_losses}
 
-
-def validate_energy_predictor(model, val_trajectories, val_energies, batch_size=32):
+def validate_model(flow_model, val_data, batch_size=32):
     """
-    Validates the energy prediction model on validation data.
-    
-    Args:
-        model: MPFlowEnergyPredictor model
-        val_trajectories: Validation trajectories
-        val_energies: Validation energy values
-        batch_size: Batch size for validation
-        
-    Returns:
-        Tuple of (average total loss, average flow loss, average energy loss)
+    Evaluates model performance on validation data.
+    Uses multiple time points for robust evaluation.
+    Returns average loss across all validation samples.
     """
-    model.flow_model.eval()
-    model.energy_head.eval()
-    energy_losses = []
-    flow_losses = []
+    flow_model.model.eval()
+    val_losses = []
     
     with torch.no_grad():
-        num_batches = len(val_trajectories) // batch_size + (1 if len(val_trajectories) % batch_size != 0 else 0)
+        num_batches = len(val_data) // batch_size + (1 if len(val_data) % batch_size != 0 else 0)
         
         for i in range(num_batches):
             start_idx = i * batch_size
-            end_idx = min(start_idx + batch_size, len(val_trajectories))
+            end_idx = min(start_idx + batch_size, len(val_data))
+            batch_tensor = torch.tensor(val_data[start_idx:end_idx], dtype=torch.float32, device=flow_model.device)
             
-            batch_trajectories = torch.tensor(
-                val_trajectories[start_idx:end_idx], 
-                dtype=torch.float32,
-                device=model.device
-            )
-            batch_energies = torch.tensor(
-                val_energies[start_idx:end_idx], 
-                dtype=torch.float32,
-                device=model.device
-            ).view(-1, 1)
+            x0, x1 = batch_tensor[:, 0], batch_tensor[:, -1]
+            batch_size_actual = x0.shape[0]
+            t_values = torch.linspace(0.1, 0.9, 5).repeat(batch_size_actual, 1).to(flow_model.device)
             
-            x0 = batch_trajectories[:, 0]
-            x1 = batch_trajectories[:, -1]
-            
-            # Calculate flow loss
-            t = torch.ones((end_idx - start_idx, 1), device=model.device)
-            ut = x1 - x0
-            xt = x0 + t * ut
-            predicted_ut = model.flow_model(xt, t)
-            mse_loss = F.mse_loss(predicted_ut, ut)
-            direction_loss = (1 - torch.cosine_similarity(predicted_ut, ut, dim=1)).mean()
-            flow_loss = mse_loss + direction_loss * 0.005
-            flow_losses.append(flow_loss.item())
-            
-            # Calculate energy loss
-            final_embeddings = model.sample_trajectory(x0, method="rk4")[:, -1]
-            predicted_energies = model.energy_head(final_embeddings)
-            energy_loss = F.mse_loss(predicted_energies, batch_energies)
-            energy_losses.append(energy_loss.item())
+            for t_idx in range(t_values.shape[1]):
+                t = t_values[:, t_idx:t_idx+1]
+                ut = x1 - x0
+                xt = x0 + t * ut
+                predicted_ut = flow_model.model(xt, t)
+                loss = F.mse_loss(predicted_ut, ut)
+                val_losses.append(loss.item())
     
-    avg_flow_loss = sum(flow_losses) / len(flow_losses)
-    avg_energy_loss = sum(energy_losses) / len(energy_losses)
-    avg_total_loss = avg_flow_loss + avg_energy_loss
-    
-    return avg_total_loss
-
-
-def plot_training_curves(flow_losses, energy_losses, val_losses, validation_interval, output_dir):
-    """
-    Plots training and validation loss curves.
-    
-    Args:
-        flow_losses: Flow matching losses
-        energy_losses: Energy prediction losses
-        val_losses: Validation losses
-        validation_interval: Interval between validations
-        output_dir: Output directory for plots
-    """
-    import matplotlib.pyplot as plt
-    
-    # Flow losses
-    if flow_losses:
-        plt.figure(figsize=(12, 6))
-        plt.plot(flow_losses, 'b-', linewidth=2)
-        plt.xlabel('Epoch'), plt.ylabel('Loss')
-        plt.title('Flow Matching Loss')
-        plt.grid(True, alpha=0.3)
-        plt.savefig(os.path.join(output_dir, 'flow_loss_curve.png'))
-        plt.close()
-    
-    # Energy losses
-    plt.figure(figsize=(12, 6))
-    plt.plot(energy_losses, 'g-', linewidth=2)
-    plt.xlabel('Epoch'), plt.ylabel('Loss')
-    plt.title('Energy Prediction Loss')
-    plt.grid(True, alpha=0.3)
-    plt.savefig(os.path.join(output_dir, 'energy_loss_curve.png'))
-    plt.close()
-    
-    # Validation losses
-    if val_losses:
-        plt.figure(figsize=(12, 6))
-        val_epochs = list(range(validation_interval-1, len(energy_losses), validation_interval))
-        if len(val_losses) > len(val_epochs):
-            val_epochs.append(len(energy_losses) - 1)
-        plt.plot(val_epochs[:len(val_losses)], val_losses, 'r-', linewidth=2)
-        plt.xlabel('Epoch'), plt.ylabel('Loss')
-        plt.title('Validation Loss')
-        plt.grid(True, alpha=0.3)
-        plt.savefig(os.path.join(output_dir, 'validation_loss_curve.png'))
-        plt.close()
-
+    return sum(val_losses) / len(val_losses)
 
 if __name__ == "__main__":
     """
@@ -737,26 +639,37 @@ if __name__ == "__main__":
     4. Saves results and model checkpoints
     """
     # Load the NPZ file
-    output_dir = 'flow_output/exp1'
+    output_dir = 'flow_output'
     os.makedirs(output_dir, exist_ok=True)
     
     data = np.load('logs/2316385/s2ef_predictions.npz')
     trajectories = data['latents'].reshape(-1, 2, 49 * 128)
-    energies = data['energy']  # Pre-calculated energy values
     
     print(f"Loaded trajectories shape: {trajectories.shape}", flush=True)
     
-    # Train the model
-    embedding_dim = 128
+    # Train the residual flow matching model
+    embedding_dim = 49 * 128
+    num_epochs = 1550
+    batch_size = 32
+    hidden_dims = [256, 512, 512, 256]
     
-    # Option 1: Train from scratch
-    model, losses = train_energy_predictor(
+    # Train flow matching model
+    flow_model, losses = train_flow_model(
         trajectories=trajectories,
-        energies=energies,
         embedding_dim=embedding_dim,
-        num_epochs=1550,
-        batch_size=64,
+        num_epochs=num_epochs,
+        batch_size=batch_size,
         output_dir=output_dir,
+        hidden_dims=hidden_dims
+    )
+    
+    # Create comprehensive visualizations
+    val_data = prepare_data(trajectories)[1]  # Get validation set
+    flow_model.visualize(
+        val_data[:20],
+        step=val_data.shape[1]-1,
+        output_dir=output_dir,
+        plots=["2d", "3d", "tsne"]
     )
     
     print("Training completed and model saved!", flush=True)

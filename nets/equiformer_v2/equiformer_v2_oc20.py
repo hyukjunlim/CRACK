@@ -456,7 +456,7 @@ class EquiformerV2_OC20(BaseModel):
             latent_rep[1] = x.embedding.reshape(x.embedding.size(0), -1)
         else:
             latent_rep = x.embedding.unsqueeze(0)
-        latent_rep = latent_rep.transpose(0, 1) # shape: (batch_size, 2, num_resolutions * sphere_channels)
+        latent_rep = latent_rep.transpose(0, 1).reshape(-1, 2 * x.embedding.size(1) * x.embedding.size(2))
         
         end_time_2 = time.time()
         time_last = torch.full((data.batch.max() + 1,), end_time_2 - start_time, device=x.embedding.device, dtype=x.embedding.dtype)
