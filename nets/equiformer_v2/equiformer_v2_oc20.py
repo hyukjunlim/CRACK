@@ -444,7 +444,7 @@ class EquiformerV2_OC20(BaseModel):
                 device=x.embedding.device,
                 dtype=x.embedding.dtype
             )
-            latent_rep[0] = x.embedding.view(x.embedding.size(0), -1)
+            latent_rep[0] = x.embedding.reshape(x.embedding.size(0), -1)
             for i in range(self.num_layers):
                 x = self.blocks[i](
                     x,                  # SO3_Embedding
@@ -453,7 +453,7 @@ class EquiformerV2_OC20(BaseModel):
                     edge_index,
                     batch=data.batch    # for GraphDropPath
                 )
-            latent_rep[1] = x.embedding.view(x.embedding.size(0), -1)
+            latent_rep[1] = x.embedding.reshape(x.embedding.size(0), -1)
         else:
             latent_rep = x.embedding.unsqueeze(0)
         latent_rep = latent_rep.transpose(0, 1) # shape: (batch_size, 2, num_resolutions * sphere_channels)

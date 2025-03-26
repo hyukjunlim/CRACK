@@ -741,7 +741,7 @@ if __name__ == "__main__":
     os.makedirs(output_dir, exist_ok=True)
     
     data = np.load('logs/2316385/s2ef_predictions.npz')
-    trajectories = data['latents'].reshape(-1, 49 * 128)
+    trajectories = data['latents'].reshape(-1, 2, 49 * 128)
     energies = data['energy']  # Pre-calculated energy values
     
     print(f"Loaded trajectories shape: {trajectories.shape}", flush=True)
