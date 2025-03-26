@@ -187,7 +187,7 @@ class ForcesTrainerV2(BaseTrainerV2):
             self.normalizers["target"].to(self.device)
             self.normalizers["grad_target"].to(self.device)
 
-        use_all_layers = False
+        use_all_layers = True
         if use_all_layers:
             predictions = {"id": [], "energy": [], "forces": [], "chunk_idx": [], "latents": [], "time_first": [], "time_last": []}
         else:

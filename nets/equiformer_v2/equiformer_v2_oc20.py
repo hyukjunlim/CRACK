@@ -389,7 +389,7 @@ class EquiformerV2_OC20(BaseModel):
         ###############################################################
         # Initialize node embeddings
         ###############################################################
-        use_all_layers = False
+        use_all_layers = True
         import time
         start_time = time.time()
 
@@ -440,11 +440,11 @@ class EquiformerV2_OC20(BaseModel):
 
         if use_all_layers:
             latent_rep = torch.zeros(
-                (self.num_layers + 1, x.embedding.size(0), x.embedding.size(2)),
+                (2, x.embedding.size(0), x.embedding.size(1), x.embedding.size(2)),
                 device=x.embedding.device,
                 dtype=x.embedding.dtype
             )
-            latent_rep[0] = self.embedding_pooling(x.embedding)
+            latent_rep[0] = x.embedding
             for i in range(self.num_layers):
                 x = self.blocks[i](
                     x,                  # SO3_Embedding
@@ -453,18 +453,22 @@ class EquiformerV2_OC20(BaseModel):
                     edge_index,
                     batch=data.batch    # for GraphDropPath
                 )
-                latent_rep[i + 1] = self.embedding_pooling(x.embedding)
+            latent_rep[1] = x.embedding
         else:
-            latent_rep = self.embedding_pooling(x.embedding).unsqueeze(0)
+            latent_rep = x.embedding.unsqueeze(0)
+        latent_rep = latent_rep.transpose(0, 1) 
+        latent_rep = latent_rep.reshape(latent_rep.shape[0], -1)
+        
+        # Print x's structure and content
+        print("Type of x:", type(x), flush=True)
+        print("x attributes:", dir(x), flush=True)
+        print("Shape of x.embedding:", x.embedding.shape, flush=True)
         
         end_time_2 = time.time()
         time_last = torch.full((data.batch.max() + 1,), end_time_2 - start_time, device=x.embedding.device, dtype=x.embedding.dtype)
         
         # Final layer norm
         x.embedding = self.norm(x.embedding)
-        latent_rep = latent_rep.transpose(0, 1)
-        latent_rep = latent_rep.reshape(latent_rep.shape[0], -1)
-        
 
         ###############################################################
         # Energy estimation

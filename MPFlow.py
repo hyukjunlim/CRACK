@@ -237,3 +237,42 @@ class SinusoidalTimeEmbedding(nn.Module):
             embedding = F.pad(embedding, (0, 1, 0, 0))
             
         return embedding
+
+
+class EnergyPredictionHead(nn.Module):
+    """
+    Neural network head for predicting energy values from embeddings.
+    
+    Args:
+        embedding_dim: Dimension of the embedding input
+        hidden_dims: List of hidden dimensions for the MLP
+    """
+    def __init__(self, embedding_dim, hidden_dims=[256, 128, 64]):
+        super().__init__()
+        
+        layers = []
+        input_dim = embedding_dim
+        
+        # Create MLP layers with ReLU activation and batch normalization
+        for hidden_dim in hidden_dims:
+            layers.append(nn.Linear(input_dim, hidden_dim))
+            layers.append(nn.BatchNorm1d(hidden_dim))
+            layers.append(nn.ReLU())
+            input_dim = hidden_dim
+        
+        # Final output layer for scalar energy prediction
+        layers.append(nn.Linear(hidden_dims[-1], 1))
+        
+        self.energy_mlp = nn.Sequential(*layers)
+    
+    def forward(self, x):
+        """
+        Forward pass to predict energy.
+        
+        Args:
+            x: Embedding tensor of shape [batch_size, embedding_dim]
+            
+        Returns:
+            Predicted energy values of shape [batch_size, 1]
+        """
+        return self.energy_mlp(x)
