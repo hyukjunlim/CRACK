@@ -163,21 +163,21 @@ class FlowMatching:
                 align_corners=True
             ).permute(0, 2, 1)  # [batch, time, embedding_dim]
             
-            # Calculate MSE using interpolated trajectories
-            mse_per_sample = torch.mean((x1_gt.cpu() - sampled_interp[:, -1, :].cpu())**2, dim=1)
+            # Calculate RMSE using interpolated trajectories
+            rmse_per_sample = torch.sqrt(torch.mean((x1_gt.cpu() - sampled_interp[:, -1, :].cpu())**2, dim=1))
         else:
-            mse_per_sample = torch.mean((x1_gt.cpu() - sampled_trajectories[:, -1, :].cpu())**2, dim=1)
+            rmse_per_sample = torch.sqrt(torch.mean((x1_gt.cpu() - sampled_trajectories[:, -1, :].cpu())**2, dim=1))
         
         # Calculate statistics
-        avg_mse = mse_per_sample.mean().item()
+        avg_rmse = rmse_per_sample.mean().item()
         
         # Directory for this visualization run
         os.makedirs(output_dir, exist_ok=True)
         
         # Save statistics to file
         with open(os.path.join(output_dir, f"trajectory_stats_{step}.txt"), "w") as f:
-            f.write(f"Average MSE: {avg_mse:.6f}\n")
-            f.write(f"Per-sample MSE: {mse_per_sample.numpy()}\n")
+            f.write(f"Average RMSE: {avg_rmse:.6f}\n")
+            f.write(f"Per-sample RMSE: {rmse_per_sample.numpy()}\n")
         
         # Create visualizations
         if "2d" in plots:
@@ -639,10 +639,10 @@ if __name__ == "__main__":
     4. Saves results and model checkpoints
     """
     # Load the NPZ file
-    output_dir = 'flow_output'
+    output_dir = 'flow_output/exp1'
     os.makedirs(output_dir, exist_ok=True)
     
-    data = np.load('logs/2316385/s2ef_predictions.npz')
+    data = np.load('logs/945686/s2ef_predictions.npz')
     trajectories = data['latents'].reshape(-1, 2, 49 * 128)
     
     print(f"Loaded trajectories shape: {trajectories.shape}", flush=True)
@@ -651,7 +651,7 @@ if __name__ == "__main__":
     embedding_dim = 49 * 128
     num_epochs = 1550
     batch_size = 32
-    hidden_dims = [256, 512, 512, 256]
+    hidden_dims = [256, 256, 256, 256]
     
     # Train flow matching model
     flow_model, losses = train_flow_model(
