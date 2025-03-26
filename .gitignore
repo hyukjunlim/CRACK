@@ -4,3 +4,4 @@
 /save_logs/
 **/__pycache__/
 *.pt
+*.pyc
