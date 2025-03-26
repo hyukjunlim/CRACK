@@ -457,11 +457,11 @@ def train_energy_predictor(
     validation_interval=10,
     flow_hidden_dims=[256, 512, 512, 256],
     energy_hidden_dims=[256, 128, 64],
-    flow_weight=1.0,
+    pretrained_flow_path='flow_output/flow_matching_model.pt',
     energy_weight=0.001
 ):
     """
-    Main training function for the MPFlowEnergyPredictor model.
+    Modified training function that loads pretrained flow model and only trains energy predictor.
     
     Args:
         trajectories: Trajectory data of shape [n_samples, n_steps, embedding_dim]
@@ -473,7 +473,7 @@ def train_energy_predictor(
         validation_interval: Interval for validation
         flow_hidden_dims: Hidden dimensions for flow matching model
         energy_hidden_dims: Hidden dimensions for energy prediction head
-        flow_weight: Weight for flow matching loss in joint training
+        pretrained_flow_path: Path to pretrained flow matching model
         energy_weight: Weight for energy prediction loss in joint training
         
     Returns:
@@ -499,25 +499,24 @@ def train_energy_predictor(
         energy_hidden_dims=energy_hidden_dims,
     )
     
-    print(f"Flow model parameters: {sum(p.numel() for p in model.flow_model.parameters())}", flush=True)
-    print(f"Energy head parameters: {sum(p.numel() for p in model.energy_head.parameters())}", flush=True)
+    # Load pretrained flow model
+    model.load_model(pretrained_flow_path, load_flow=True, load_energy=False)
     
-    # Check for existing model
-    model_path = os.path.join(output_dir, 'energy_flow_model')
-    if os.path.exists(f"{model_path}_energy.pt"):
-        try:
-            model.load_model(model_path)
-            print("Loaded existing model for continued training.", flush=True)
-        except:
-            print("Could not load existing model, starting fresh.", flush=True)
+    # Freeze flow model parameters
+    for param in model.flow_model.parameters():
+        param.requires_grad = False
+    
+    print(f"Loaded pretrained flow model from: {pretrained_flow_path}", flush=True)
+    print(f"Energy head trainable parameters: {sum(p.numel() for p in model.energy_head.parameters())}", flush=True)
     
     # Training history
-    flow_losses, energy_losses, val_losses = [], [], []
+    energy_losses = []
+    val_losses = []
     best_val_loss = float('inf')
     patience, patience_counter = 50, 0
     
     for epoch in tqdm(range(num_epochs)):
-        epoch_flow_losses, epoch_energy_losses = [], []
+        epoch_energy_losses = []
         
         # Create batch indices
         batch_indices = np.random.permutation(len(train_trajectories))
@@ -529,56 +528,58 @@ def train_energy_predictor(
             # Get batch data
             batch_trajectories = torch.tensor(
                 train_trajectories[batch_idx], 
-                dtype=torch.float32,  # Changed from float64
+                dtype=torch.float32,
                 device=model.device
             )
             batch_energies = torch.tensor(
                 train_energies[batch_idx], 
-                dtype=torch.float32,  # Changed from float64
+                dtype=torch.float32,
                 device=model.device
             ).view(-1, 1)
             
-            x0, x1 = batch_trajectories[:, 0], batch_trajectories[:, -1]
+            x0 = batch_trajectories[:, 0]
             
-            t = torch.rand(batch_size, 1, device=model.device)
-            total_loss, flow_loss, energy_loss = model.train_step(
-                x0, x1, batch_energies, t, 
-                flow_weight=flow_weight, 
-                energy_weight=energy_weight
-            )
-            epoch_flow_losses.append(flow_loss)
-            epoch_energy_losses.append(energy_loss)
+            # Only train energy head
+            model.energy_optimizer.zero_grad()
+            
+            # Generate final embeddings using frozen flow model
+            with torch.no_grad():
+                final_embeddings = model.sample_trajectory(x0, method="rk4")[:, -1]
+            
+            # Energy prediction and loss
+            predicted_energies = model.energy_head(final_embeddings)
+            energy_loss = F.mse_loss(predicted_energies, batch_energies)
+            
+            energy_loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.energy_head.parameters(), max_norm=0.5)
+            model.energy_optimizer.step()
+            
+            epoch_energy_losses.append(energy_loss.item())
     
-        # Update learning rate schedulers
-        model.flow_scheduler.step()
+        # Update learning rate scheduler
         model.energy_scheduler.step()
         
         # Log training progress
-        avg_flow_loss = sum(epoch_flow_losses) / len(epoch_flow_losses)
         avg_energy_loss = sum(epoch_energy_losses) / len(epoch_energy_losses)
-        flow_losses.append(avg_flow_loss)
         energy_losses.append(avg_energy_loss)
         
         if (epoch + 1) % 10 == 0 or epoch == num_epochs - 1:
-            print(f"Epoch {epoch + 1}/{num_epochs}, Energy Loss: {avg_energy_loss:.6f}, Flow Loss: {avg_flow_loss:.6f}", flush=True)
+            print(f"Epoch {epoch + 1}/{num_epochs}, Energy Loss: {avg_energy_loss:.6f}", flush=True)
         
         # Validation
         if (epoch + 1) % validation_interval == 0 or epoch == num_epochs - 1:
-            val_total_loss, val_flow_loss, val_energy_loss = validate_energy_predictor(
-                model, val_trajectories, val_energies, batch_size
-            )
-            val_losses.append(val_total_loss)
-            print(
-                f"Validation Losses - Total: {val_total_loss:.6f}, "
-                f"Energy: {val_energy_loss:.6f}, "
-                f"Flow: {val_flow_loss:.6f}", 
-                flush=True
-            )
+            val_loss = validate_energy_predictor(model, val_trajectories, val_energies, batch_size)
+            val_losses.append(val_loss)
+            print(f"Validation Energy Loss: {val_loss:.6f}", flush=True)
             
-            # Model checkpointing based on total loss
-            if val_total_loss < best_val_loss:
-                best_val_loss = val_total_loss
-                model.save_model(os.path.join(output_dir, 'best_energy_flow_model'))
+            # Model checkpointing
+            if val_loss < best_val_loss:
+                best_val_loss = val_loss
+                model.save_model(
+                    os.path.join(output_dir, 'best_energy_model'),
+                    save_flow=False,  # Don't save flow model since it's frozen
+                    save_energy=True
+                )
                 patience_counter = 0
             else:
                 patience_counter += 1
@@ -588,28 +589,32 @@ def train_energy_predictor(
                 print(f"Early stopping triggered after {epoch + 1} epochs", flush=True)
                 break
         
-        # Visualize
-        if (epoch + 1) % 50 == 0 or epoch == num_epochs - 1:
-            model.visualize(
-                val_trajectories[:20],
-                output_dir=output_dir,
-                plots=["2d", "3d", "tsne"]
-            )
         # Regular checkpointing
         if (epoch + 1) % 100 == 0:
-            model.save_model(model_path)
+            model.save_model(
+                os.path.join(output_dir, 'energy_model'),
+                save_flow=False,
+                save_energy=True
+            )
     
     # Save final model
-    model.save_model(model_path)
+    model.save_model(
+        os.path.join(output_dir, 'energy_model'),
+        save_flow=False,
+        save_energy=True
+    )
     
     # Plot losses
-    plot_training_curves(flow_losses, energy_losses, val_losses, validation_interval, output_dir)
+    plot_training_curves([], energy_losses, val_losses, validation_interval, output_dir)
     
     # Load best model for return
-    model.load_model(os.path.join(output_dir, 'best_energy_flow_model'))
+    model.load_model(
+        os.path.join(output_dir, 'best_energy_model'),
+        load_flow=False,
+        load_energy=True
+    )
     
     return model, {
-        'flow': flow_losses, 
         'energy': energy_losses, 
         'val': val_losses
     }
@@ -642,12 +647,12 @@ def validate_energy_predictor(model, val_trajectories, val_energies, batch_size=
             
             batch_trajectories = torch.tensor(
                 val_trajectories[start_idx:end_idx], 
-                dtype=torch.float32,  # Changed from float64
+                dtype=torch.float32,
                 device=model.device
             )
             batch_energies = torch.tensor(
                 val_energies[start_idx:end_idx], 
-                dtype=torch.float32,  # Changed from float64
+                dtype=torch.float32,
                 device=model.device
             ).view(-1, 1)
             
@@ -674,7 +679,7 @@ def validate_energy_predictor(model, val_trajectories, val_energies, batch_size=
     avg_energy_loss = sum(energy_losses) / len(energy_losses)
     avg_total_loss = avg_flow_loss + avg_energy_loss
     
-    return avg_total_loss, avg_flow_loss, avg_energy_loss
+    return avg_total_loss
 
 
 def plot_training_curves(flow_losses, energy_losses, val_losses, validation_interval, output_dir):
@@ -735,8 +740,8 @@ if __name__ == "__main__":
     output_dir = 'flow_output/exp1'
     os.makedirs(output_dir, exist_ok=True)
     
-    data = np.load('logs/2629207/s2ef_predictions.npz')
-    trajectories = data['latents'].reshape(-1, 21, 128)
+    data = np.load('logs/2316385/s2ef_predictions.npz')
+    trajectories = data['latents'].reshape(-1, 49 * 128)
     energies = data['energy']  # Pre-calculated energy values
     
     print(f"Loaded trajectories shape: {trajectories.shape}", flush=True)
@@ -750,16 +755,8 @@ if __name__ == "__main__":
         energies=energies,
         embedding_dim=embedding_dim,
         num_epochs=1550,
-        batch_size=128,
+        batch_size=64,
         output_dir=output_dir,
-    )
-    
-    # Create comprehensive visualizations
-    val_data = prepare_data(trajectories)[1]  # Get validation set
-    model.visualize(
-        val_data[:20],
-        output_dir=output_dir,
-        plots=["2d", "3d", "tsne"]
     )
     
     print("Training completed and model saved!", flush=True)

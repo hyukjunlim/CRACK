@@ -41,7 +41,7 @@ echo "Job name: ${SLURM_JOB_NAME}"
 module purge
 
 StartTime=$(date +%s)
-cd $SLURM_SUBMIT_DIR
+# cd $SLURM_SUBMIT_DIR
 
 # Run the specified Python script
 python ${PYTHON_SCRIPT}

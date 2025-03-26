@@ -440,11 +440,11 @@ class EquiformerV2_OC20(BaseModel):
 
         if use_all_layers:
             latent_rep = torch.zeros(
-                (2, x.embedding.size(0), x.embedding.size(1), x.embedding.size(2)),
+                (2, x.embedding.size(0), x.embedding.size(1) * x.embedding.size(2)),
                 device=x.embedding.device,
                 dtype=x.embedding.dtype
             )
-            latent_rep[0] = x.embedding
+            latent_rep[0] = x.embedding.view(x.embedding.size(0), -1)
             for i in range(self.num_layers):
                 x = self.blocks[i](
                     x,                  # SO3_Embedding
@@ -453,16 +453,10 @@ class EquiformerV2_OC20(BaseModel):
                     edge_index,
                     batch=data.batch    # for GraphDropPath
                 )
-            latent_rep[1] = x.embedding
+            latent_rep[1] = x.embedding.view(x.embedding.size(0), -1)
         else:
             latent_rep = x.embedding.unsqueeze(0)
-        latent_rep = latent_rep.transpose(0, 1) 
-        latent_rep = latent_rep.reshape(latent_rep.shape[0], -1)
-        
-        # Print x's structure and content
-        print("Type of x:", type(x), flush=True)
-        print("x attributes:", dir(x), flush=True)
-        print("Shape of x.embedding:", x.embedding.shape, flush=True)
+        latent_rep = latent_rep.transpose(0, 1) # shape: (batch_size, 2, num_resolutions * sphere_channels)
         
         end_time_2 = time.time()
         time_last = torch.full((data.batch.max() + 1,), end_time_2 - start_time, device=x.embedding.device, dtype=x.embedding.dtype)
@@ -473,90 +467,85 @@ class EquiformerV2_OC20(BaseModel):
         ###############################################################
         # Energy estimation
         ###############################################################
-        if use_all_layers:
-            node_energy = self.energy_block(x) 
-            node_energy = node_energy.embedding.narrow(1, 0, 1)
-            energy = torch.zeros(data.batch.max() + 1, device=node_energy.device, dtype=node_energy.dtype)
-            energy.index_add_(0, data.batch, node_energy.view(-1))
-            energy = energy / _AVG_NUM_NODES
-        else:
-            energy = torch.zeros(data.batch.max() + 1, device=x.embedding.device, dtype=x.embedding.dtype)
+        node_energy = self.energy_block(x) 
+        node_energy = node_energy.embedding.narrow(1, 0, 1)
+        energy = torch.zeros(data.batch.max() + 1, device=node_energy.device, dtype=node_energy.dtype)
+        energy.index_add_(0, data.batch, node_energy.view(-1))
+        energy = energy / _AVG_NUM_NODES
 
         ###############################################################
         # Force estimation
         ###############################################################
         if self.regress_forces:
-            if use_all_layers:
-                forces = self.force_block(x,
-                    atomic_numbers,
-                    edge_distance,
-                    edge_index)
-                forces = forces.embedding.narrow(1, 1, 3)
-                forces = forces.view(-1, 3)            
-            else:
-                forces = torch.zeros(len(data.natoms), 3, device=x.embedding.device, dtype=x.embedding.dtype)
+            # forces = self.force_block(x,
+            #     atomic_numbers,
+            #     edge_distance,
+            #     edge_index)
+            # forces = forces.embedding.narrow(1, 1, 3)
+            # forces = forces.view(-1, 3)            
+            forces = torch.zeros(len(data.natoms), 3, device=x.embedding.device, dtype=x.embedding.dtype)
         
         if not self.regress_forces:
             return energy, latent_rep, time_first, time_last
         else:
             return energy, forces, latent_rep, time_first, time_last
 
-    def embedding_pooling(self, embeddings: torch.Tensor) -> torch.Tensor:
-        """
-        Pool embeddings with awareness of frequency bands using weighted averaging.
-        Handles batched input embeddings.
+    # def embedding_pooling(self, embeddings: torch.Tensor) -> torch.Tensor:
+    #     """
+    #     Pool embeddings with awareness of frequency bands using weighted averaging.
+    #     Handles batched input embeddings.
         
-        Args:
-            embeddings (torch.Tensor): Input embedding tensor of shape (N, C, F) where:
-                - N is the number of samples
-                - C is the total number of channels across all frequency bands
-                - F is the embedding dimension
+    #     Args:
+    #         embeddings (torch.Tensor): Input embedding tensor of shape (N, C, F) where:
+    #             - N is the number of samples
+    #             - C is the total number of channels across all frequency bands
+    #             - F is the embedding dimension
                 
-        Returns:
-            torch.Tensor: Normalized global embeddings of shape (N, F)
+    #     Returns:
+    #         torch.Tensor: Normalized global embeddings of shape (N, F)
             
-        Raises:
-            ValueError: If embedding shape is incorrect or doesn't match expected dimensions
-        """
-        # Input validation
-        if not isinstance(embeddings, torch.Tensor):
-            raise ValueError("Input must be a torch.Tensor")
-        if len(embeddings.shape) != 3:
-            raise ValueError(f"Expected 3D tensor, got shape {embeddings.shape}")
+    #     Raises:
+    #         ValueError: If embedding shape is incorrect or doesn't match expected dimensions
+    #     """
+    #     # Input validation
+    #     if not isinstance(embeddings, torch.Tensor):
+    #         raise ValueError("Input must be a torch.Tensor")
+    #     if len(embeddings.shape) != 3:
+    #         raise ValueError(f"Expected 3D tensor, got shape {embeddings.shape}")
         
-        # Calculate channel sizes for each l value in lmax_list
-        channel_sizes = []
-        for lmax in self.lmax_list:
-            for l in range(lmax + 1):
-                # For each l, we have (2l + 1) channels
-                channel_sizes.append(2 * l + 1)
+    #     # Calculate channel sizes for each l value in lmax_list
+    #     channel_sizes = []
+    #     for lmax in self.lmax_list:
+    #         for l in range(lmax + 1):
+    #             # For each l, we have (2l + 1) channels
+    #             channel_sizes.append(2 * l + 1)
         
-        total_channels = sum(channel_sizes)
-        if embeddings.shape[1] != total_channels:
-            raise ValueError(f"Expected {total_channels} channels, got {embeddings.shape[1]}")
+    #     total_channels = sum(channel_sizes)
+    #     if embeddings.shape[1] != total_channels:
+    #         raise ValueError(f"Expected {total_channels} channels, got {embeddings.shape[1]}")
         
-        # Initialize output tensor
-        batch_size = embeddings.shape[0]
-        global_embeddings = torch.zeros((batch_size, embeddings.shape[2]), 
-                                      dtype=embeddings.dtype,
-                                      device=embeddings.device)
+    #     # Initialize output tensor
+    #     batch_size = embeddings.shape[0]
+    #     global_embeddings = torch.zeros((batch_size, embeddings.shape[2]), 
+    #                                   dtype=embeddings.dtype,
+    #                                   device=embeddings.device)
         
-        # Process each frequency band with weighted averaging
-        channel_idx = 0
-        for size in channel_sizes:
-            end_idx = channel_idx + size
-            band_channels = embeddings[:, channel_idx:end_idx]
-            # Use weighted average based on number of frequency bands
-            global_embeddings += torch.mean(band_channels, dim=1) / len(channel_sizes)
-            channel_idx = end_idx
+    #     # Process each frequency band with weighted averaging
+    #     channel_idx = 0
+    #     for size in channel_sizes:
+    #         end_idx = channel_idx + size
+    #         band_channels = embeddings[:, channel_idx:end_idx]
+    #         # Use weighted average based on number of frequency bands
+    #         global_embeddings += torch.mean(band_channels, dim=1) / len(channel_sizes)
+    #         channel_idx = end_idx
         
-        # Normalize each embedding (with epsilon to prevent division by zero)
-        norms = torch.norm(global_embeddings, dim=1, keepdim=True)
-        global_embeddings = torch.where(norms > 1e-12, 
-                                      global_embeddings / norms, 
-                                      global_embeddings)
+    #     # Normalize each embedding (with epsilon to prevent division by zero)
+    #     norms = torch.norm(global_embeddings, dim=1, keepdim=True)
+    #     global_embeddings = torch.where(norms > 1e-12, 
+    #                                   global_embeddings / norms, 
+    #                                   global_embeddings)
         
-        return global_embeddings
+    #     return global_embeddings
 
 
     # Initialize the edge rotation matrics
