@@ -191,7 +191,7 @@ class ForcesTrainerV2(BaseTrainerV2):
         if use_all_layers:
             predictions = {"id": [], "energy": [], "forces": [], "chunk_idx": [], "latents": [], "time_first": [], "time_last": []}
         else:
-            predictions = {"id": [], "energy": [], "latents": []}
+            predictions = {"id": [], "energy": [], "chunk_idx": [], "latents": []}
 
         for i, batch_list in tqdm(
             enumerate(data_loader),
@@ -225,6 +225,13 @@ class ForcesTrainerV2(BaseTrainerV2):
                 predictions["latents"].extend(
                     out["latents"].cpu().detach().numpy()
                 )
+                _chunk_idx = np.array(
+                    [
+                        free_force.shape[0]
+                        for free_force in _per_image_free_forces
+                    ]
+                )
+                predictions["chunk_idx"].extend(_chunk_idx)
                 if use_all_layers:
                     predictions["time_first"].extend(
                         out["time_first"].to(torch.float16).tolist()
@@ -253,14 +260,8 @@ class ForcesTrainerV2(BaseTrainerV2):
                                 per_image_forces, _per_image_fixed
                             )
                         ]
-                    _chunk_idx = np.array(
-                        [
-                            free_force.shape[0]
-                            for free_force in _per_image_free_forces
-                        ]
-                    )
+                    
                     per_image_forces = _per_image_free_forces
-                    predictions["chunk_idx"].extend(_chunk_idx)
                     predictions["forces"].extend(per_image_forces)
             else:
                 predictions["latents"] = out["latents"].detach()
@@ -276,9 +277,9 @@ class ForcesTrainerV2(BaseTrainerV2):
         predictions["id"] = np.array(predictions["id"])
         predictions["energy"] = np.array(predictions["energy"])
         predictions["latents"] = np.array(predictions["latents"])
+        predictions["chunk_idx"] = np.array(predictions["chunk_idx"])
         if use_all_layers:
             predictions["forces"] = np.array(predictions["forces"])
-            predictions["chunk_idx"] = np.array(predictions["chunk_idx"])
             predictions["time_first"] = np.array(predictions["time_first"])
             predictions["time_last"] = np.array(predictions["time_last"])
             
@@ -288,7 +289,7 @@ class ForcesTrainerV2(BaseTrainerV2):
             )
         else:
             self.save_results(
-                predictions, results_file, keys=["id", "energy", "latents"]
+                predictions, results_file, keys=["id", "energy", "chunk_idx", "latents"]
             )
 
         if self.ema:
