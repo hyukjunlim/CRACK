@@ -223,7 +223,8 @@ class ForcesTrainerV2(BaseTrainerV2):
                     out["energy"].to(torch.float16).tolist()
                 )
                 predictions["latents"].extend(
-                    out["latents"].cpu().detach().numpy()
+                    out["latents"].to(torch.float16).tolist()
+                    # out["latents"].cpu().detach().numpy()
                 )
                 if use_all_layers:
                     predictions["time_first"].extend(
