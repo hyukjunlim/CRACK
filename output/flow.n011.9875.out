@@ -1,0 +1,6 @@
+Running on host: n011.hpc
+Job started at: Thu Mar 27 10:32:33 PM KST 2025
+Running script: train_flow_matching.py
+Job name: train_flow_matching
+Loaded trajectories shape: (846061, 2, 49, 128)
+Model parameters: 4856448

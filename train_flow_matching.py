@@ -32,6 +32,7 @@ class FlowMatching:
     def __init__(
         self, 
         embedding_dim, 
+        seq_length=49,
         hidden_dims=[256, 512, 512, 256], 
         lr=1e-4, 
         use_attention=True,
@@ -43,8 +44,9 @@ class FlowMatching:
         # Initialize the residual flow matching network
         self.model = MPFlow(
             embedding_dim=embedding_dim,
+            seq_length=seq_length,
             hidden_dims=hidden_dims,
-            use_attention=use_attention,
+            use_attention=use_attention
         ).to(device)
         
         # Setup optimizer with weight decay
@@ -89,7 +91,7 @@ class FlowMatching:
         
         return loss.item()
     
-    def sample_trajectory(self, x0, steps=2, method="rk4", solver_rtol=1e-5, solver_atol=1e-5):
+    def sample_trajectory(self, x0, method="rk4"):
         """
         Samples a trajectory from start to end points.
         Supports multiple integration methods:
@@ -113,7 +115,7 @@ class FlowMatching:
                 
             elif method == "rk4":
                 # Single RK4 step from t=0 to t=1
-                t = torch.zeros((batch_size, 1), device=device)
+                t = torch.zeros((batch_size, 49, 1), device=device)
                 k1 = self.model(x, t)
                 k2 = self.model(x + 0.5 * k1, t + 0.5)
                 k3 = self.model(x + 0.5 * k2, t + 0.5)
@@ -122,7 +124,7 @@ class FlowMatching:
                 x = x + (1.0 / 6.0) * (k1 + 2*k2 + 2*k3 + k4)
         
         # Return start and end points only
-        trajectory = torch.stack([x0, x], dim=1)  # [batch, 2, dim]
+        trajectory = torch.stack([x0, x], dim=1)  # [batch, 2, 49, 128]
         return trajectory
 
     def visualize(self, trajectories, step=100, output_dir='flow_output', plots=["2d", "3d", "tsne"]):
@@ -150,25 +152,10 @@ class FlowMatching:
         x1_gt = ground_truth[:, -1].to(self.device)  # Ground truth final state
         
         # Use fixed number of steps (e.g., 100) instead of matching ground truth
-        sampled_trajectories = self.sample_trajectory(x0, steps=step, method="rk4")
-        
-        # For comparison with ground truth, we can interpolate if needed
-        # This step is optional and only needed if you want to compute exact MSE
-        if ground_truth.shape[1] != sampled_trajectories.shape[1]:
-            # Interpolate sampled trajectories to match ground truth timesteps
-            sampled_interp = F.interpolate(
-                sampled_trajectories.permute(0, 2, 1),  # [batch, embedding_dim, time]
-                size=ground_truth.shape[1],
-                mode='linear',
-                align_corners=True
-            ).permute(0, 2, 1)  # [batch, time, embedding_dim]
-            
-            # Calculate RMSE using interpolated trajectories
-            rmse_per_sample = torch.sqrt(torch.mean((x1_gt.cpu() - sampled_interp[:, -1, :].cpu())**2, dim=1))
-        else:
-            rmse_per_sample = torch.sqrt(torch.mean((x1_gt.cpu() - sampled_trajectories[:, -1, :].cpu())**2, dim=1))
+        sampled_trajectories = self.sample_trajectory(x0, method="rk4")
         
         # Calculate statistics
+        rmse_per_sample = torch.sqrt(torch.mean((x1_gt.cpu() - sampled_trajectories[:, -1, :].cpu())**2, dim=1))
         avg_rmse = rmse_per_sample.mean().item()
         
         # Directory for this visualization run
@@ -192,22 +179,21 @@ class FlowMatching:
     def _create_2d_pca_plot(self, ground_truth, sampled_trajectories, step, output_dir):
         """
         Creates 2D PCA visualization comparing ground truth vs sampled trajectories.
-        Shows both full ground truth paths and sampled endpoints.
-        Includes variance ratios for interpretability.
+        Handles 2D embeddings of shape (batch, time, 49, 128).
         """
-        # Combine for consistent PCA - need to handle different timesteps
-        gt_flat = ground_truth.cpu().reshape(-1, ground_truth.shape[-1])
-        sampled_flat = sampled_trajectories.cpu().reshape(-1, sampled_trajectories.shape[-1])
+        # Flatten sequence and embedding dimensions
+        gt_flat = ground_truth.cpu().reshape(-1, ground_truth.shape[2] * ground_truth.shape[3])
+        sampled_flat = sampled_trajectories.cpu().reshape(-1, sampled_trajectories.shape[2] * sampled_trajectories.shape[3])
         
         # Apply PCA on all points
         pca = PCA(n_components=2)
-        gt_2d = pca.fit_transform(gt_flat.numpy())
-        sampled_2d = pca.transform(sampled_flat.numpy())
+        gt_2d = pca.fit_transform(gt_flat)
+        sampled_2d = pca.transform(sampled_flat)
         
         # Reshape back
         n_samples = ground_truth.shape[0]
-        gt_timesteps = ground_truth.shape[1]  # 21 steps
-        sampled_timesteps = sampled_trajectories.shape[1]  # 2 steps (start/end)
+        gt_timesteps = ground_truth.shape[1]
+        sampled_timesteps = sampled_trajectories.shape[1]
         
         gt_2d = gt_2d.reshape(n_samples, gt_timesteps, 2)
         sampled_2d = sampled_2d.reshape(n_samples, sampled_timesteps, 2)
@@ -217,44 +203,29 @@ class FlowMatching:
         colors = plt.cm.tab20(np.linspace(0, 1, n_samples))
         
         for i in range(n_samples):
-            # Ground truth - full trajectory
-            plt.plot(
-                gt_2d[i, :, 0], 
-                gt_2d[i, :, 1], 
-                '--', 
-                color=colors[i], 
-                alpha=0.7, 
-                linewidth=2,
-                label=f'GT {i+1}' if i == 0 else None
-            )
+            # Plot trajectories and points
+            plt.plot(gt_2d[i, :, 0], gt_2d[i, :, 1], '--', color=colors[i], alpha=0.7, linewidth=2)
+            plt.plot(sampled_2d[i, :, 0], sampled_2d[i, :, 1], '-', color=colors[i], alpha=0.9, linewidth=2)
             
-            # Sampled - start to end only
-            plt.plot(
-                sampled_2d[i, :, 0], 
-                sampled_2d[i, :, 1], 
-                '-', 
-                color=colors[i], 
-                alpha=0.9,
-                linewidth=2,
-                label=f'Sampled {i+1}' if i == 0 else None
-            )
-            
-            # Mark start and end points (all circles)
+            # Mark start and end points
             plt.scatter(gt_2d[i, 0, 0], gt_2d[i, 0, 1], color='blue', s=50, marker='o')
             plt.scatter(gt_2d[i, -1, 0], gt_2d[i, -1, 1], color='red', s=50, marker='o')
             plt.scatter(sampled_2d[i, 0, 0], sampled_2d[i, 0, 1], color='blue', s=50, marker='o')
             plt.scatter(sampled_2d[i, -1, 0], sampled_2d[i, -1, 1], color='black', s=25, marker='x')
         
-        plt.title('Flow Trajectories - PCA Projection\n(Full GT vs Sampled Start/End)')
-        plt.xlabel(f'PC1 ({pca.explained_variance_ratio_[0]:.1%})')
-        plt.ylabel(f'PC2 ({pca.explained_variance_ratio_[1]:.1%})')
+        plt.title('Flow Trajectories - PCA Projection\n'
+                 f'(Explained variance: PC1={pca.explained_variance_ratio_[0]:.1%}, '
+                 f'PC2={pca.explained_variance_ratio_[1]:.1%})')
+        plt.xlabel('First Principal Component')
+        plt.ylabel('Second Principal Component')
         plt.grid(True, alpha=0.3)
         
         plt.legend([
-            "Ground Truth (21 steps)", 
-            "Sampled (start/end)",
-            "Start Points",
-            "End Points"
+            'Ground Truth', 
+            'Sampled Trajectory',
+            'Start Points',
+            'End Points (GT)',
+            'End Points (Sampled)'
         ], loc='upper right')
         
         plt.savefig(os.path.join(output_dir, f"flow_trajectories_2d_{step}.png"), dpi=300, bbox_inches='tight')
@@ -263,25 +234,24 @@ class FlowMatching:
     def _create_3d_pca_plot(self, ground_truth, sampled_trajectories, step, output_dir):
         """
         Generates 3D PCA plots with interactive viewing capabilities.
-        Visualizes trajectories in 3D space with custom legends and markers.
-        Handles potential 3D plotting errors gracefully.
+        Handles 2D embeddings of shape (batch, time, 49, 128).
         """
         try:
             from mpl_toolkits.mplot3d import Axes3D
             
-            # Apply PCA on all points
-            gt_flat = ground_truth.cpu().reshape(-1, ground_truth.shape[-1])
-            sampled_flat = sampled_trajectories.cpu().reshape(-1, sampled_trajectories.shape[-1])
+            # Flatten sequence and embedding dimensions
+            gt_flat = ground_truth.cpu().reshape(-1, ground_truth.shape[2] * ground_truth.shape[3])
+            sampled_flat = sampled_trajectories.cpu().reshape(-1, sampled_trajectories.shape[2] * sampled_trajectories.shape[3])
             
             # Apply PCA for 3D
             pca = PCA(n_components=3)
-            gt_3d = pca.fit_transform(gt_flat.numpy())
-            sampled_3d = pca.transform(sampled_flat.numpy())
+            gt_3d = pca.fit_transform(gt_flat)
+            sampled_3d = pca.transform(sampled_flat)
             
             # Reshape back
             n_samples = ground_truth.shape[0]
-            gt_timesteps = ground_truth.shape[1]  # 21 steps
-            sampled_timesteps = sampled_trajectories.shape[1]  # 2 steps
+            gt_timesteps = ground_truth.shape[1]
+            sampled_timesteps = sampled_trajectories.shape[1]
             
             gt_3d = gt_3d.reshape(n_samples, gt_timesteps, 3)
             sampled_3d = sampled_3d.reshape(n_samples, sampled_timesteps, 3)
@@ -292,80 +262,30 @@ class FlowMatching:
             colors = plt.cm.tab20(np.linspace(0, 1, n_samples))
             
             for i in range(n_samples):
-                # Ground truth - full trajectory
-                ax.plot(
-                    gt_3d[i, :, 0], 
-                    gt_3d[i, :, 1], 
-                    gt_3d[i, :, 2],
-                    '--', 
-                    color=colors[i], 
-                    alpha=0.7,
-                    linewidth=2
-                )
+                # Plot trajectories
+                ax.plot(gt_3d[i, :, 0], gt_3d[i, :, 1], gt_3d[i, :, 2], '--', color=colors[i], alpha=0.7, linewidth=2)
+                ax.plot(sampled_3d[i, :, 0], sampled_3d[i, :, 1], sampled_3d[i, :, 2], '-', color=colors[i], alpha=0.9, linewidth=2)
                 
-                # Sampled - start to end only
-                ax.plot(
-                    sampled_3d[i, :, 0], 
-                    sampled_3d[i, :, 1], 
-                    sampled_3d[i, :, 2],
-                    '-', 
-                    color=colors[i], 
-                    alpha=0.9,
-                    linewidth=2
-                )
-                
-                # Mark all points with circles
-                ax.scatter(
-                    gt_3d[i, 0, 0], 
-                    gt_3d[i, 0, 1], 
-                    gt_3d[i, 0, 2], 
-                    color='blue', 
-                    s=50, 
-                    marker='o'
-                )
-                ax.scatter(
-                    gt_3d[i, -1, 0], 
-                    gt_3d[i, -1, 1], 
-                    gt_3d[i, -1, 2], 
-                    color='red', 
-                    s=50, 
-                    marker='o'
-                )
-                ax.scatter(
-                    sampled_3d[i, 0, 0], 
-                    sampled_3d[i, 0, 1], 
-                    sampled_3d[i, 0, 2], 
-                    color='blue', 
-                    s=50, 
-                    marker='o'
-                )
-                ax.scatter(
-                    sampled_3d[i, -1, 0], 
-                    sampled_3d[i, -1, 1], 
-                    sampled_3d[i, -1, 2], 
-                    color='black', 
-                    s=25, 
-                    marker='x'
-                )
+                # Mark points
+                ax.scatter(gt_3d[i, 0, 0], gt_3d[i, 0, 1], gt_3d[i, 0, 2], color='blue', s=50, marker='o')
+                ax.scatter(gt_3d[i, -1, 0], gt_3d[i, -1, 1], gt_3d[i, -1, 2], color='red', s=50, marker='o')
+                ax.scatter(sampled_3d[i, 0, 0], sampled_3d[i, 0, 1], sampled_3d[i, 0, 2], color='blue', s=50, marker='o')
+                ax.scatter(sampled_3d[i, -1, 0], sampled_3d[i, -1, 1], sampled_3d[i, -1, 2], color='black', s=25, marker='x')
             
-            ax.set_title('Flow Trajectories - 3D PCA Projection\n(Full GT vs Sampled Start/End)')
-            ax.set_xlabel(f'PC1 ({pca.explained_variance_ratio_[0]:.1%})')
-            ax.set_ylabel(f'PC2 ({pca.explained_variance_ratio_[1]:.1%})')
-            ax.set_zlabel(f'PC3 ({pca.explained_variance_ratio_[2]:.1%})')
+            ax.set_title('Flow Trajectories - 3D PCA Projection\n'
+                        f'(Explained variance: PC1={pca.explained_variance_ratio_[0]:.1%}, '
+                        f'PC2={pca.explained_variance_ratio_[1]:.1%}, '
+                        f'PC3={pca.explained_variance_ratio_[2]:.1%})')
+            ax.set_xlabel('First Principal Component')
+            ax.set_ylabel('Second Principal Component')
+            ax.set_zlabel('Third Principal Component')
             
-            # Create custom legend
-            from matplotlib.lines import Line2D
-            custom_lines = [
-                Line2D([0], [0], linestyle='--', color='gray', linewidth=2),
-                Line2D([0], [0], linestyle='-', color='gray', linewidth=2),
-                Line2D([0], [0], linestyle='none', marker='o', color='blue', markersize=10),
-                Line2D([0], [0], linestyle='none', marker='o', color='red', markersize=10)
-            ]
-            ax.legend(custom_lines, [
-                'Ground Truth (21 steps)', 
-                'Sampled (start/end)',
+            ax.legend([
+                'Ground Truth', 
+                'Sampled Trajectory',
                 'Start Points',
-                'End Points'
+                'End Points (GT)',
+                'End Points (Sampled)'
             ])
             
             plt.savefig(os.path.join(output_dir, f"flow_trajectories_3d_{step}.png"), dpi=300, bbox_inches='tight')
@@ -376,15 +296,14 @@ class FlowMatching:
     def _create_tsne_plot(self, ground_truth, sampled_trajectories, step, output_dir):
         """
         Creates t-SNE visualization for non-linear trajectory analysis.
-        Automatically handles large datasets by sampling.
-        Maintains temporal consistency in the visualization.
+        Handles 2D embeddings of shape (batch, time, 49, 128).
         """
         try:
             from sklearn.manifold import TSNE
             
-            # Compute t-SNE on flattened data
-            gt_flat = ground_truth.cpu().reshape(-1, ground_truth.shape[-1]).numpy()
-            sampled_flat = sampled_trajectories.cpu().reshape(-1, sampled_trajectories.shape[-1]).numpy()
+            # Flatten sequence and embedding dimensions
+            gt_flat = ground_truth.cpu().reshape(-1, ground_truth.shape[2] * ground_truth.shape[3])
+            sampled_flat = sampled_trajectories.cpu().reshape(-1, sampled_trajectories.shape[2] * sampled_trajectories.shape[3])
             
             # Take a subset for t-SNE if data is large
             max_points = 5000
@@ -393,11 +312,10 @@ class FlowMatching:
             sampled_timesteps = sampled_trajectories.shape[1]
             
             if gt_flat.shape[0] > max_points:
-                # Sample trajectories, but keep all timesteps for each selected trajectory
                 n_trajectories = max_points // gt_timesteps
                 selected_indices = np.random.choice(n_samples, n_trajectories, replace=False)
-                gt_flat = gt_flat.reshape(n_samples, gt_timesteps, -1)[selected_indices].reshape(-1, ground_truth.shape[-1])
-                sampled_flat = sampled_flat.reshape(n_samples, sampled_timesteps, -1)[selected_indices].reshape(-1, sampled_trajectories.shape[-1])
+                gt_flat = gt_flat.reshape(n_samples, gt_timesteps, -1)[selected_indices].reshape(-1, gt_flat.shape[-1])
+                sampled_flat = sampled_flat.reshape(n_samples, sampled_timesteps, -1)[selected_indices].reshape(-1, sampled_flat.shape[-1])
                 n_samples = n_trajectories
             
             # Combine for consistent transformation
@@ -416,40 +334,23 @@ class FlowMatching:
             colors = plt.cm.tab20(np.linspace(0, 1, n_samples))
             
             for i in range(n_samples):
-                # Ground truth - full trajectory
-                plt.plot(
-                    gt_tsne[i, :, 0],
-                    gt_tsne[i, :, 1],
-                    '--',
-                    color=colors[i],
-                    alpha=0.7,
-                    linewidth=2
-                )
+                plt.plot(gt_tsne[i, :, 0], gt_tsne[i, :, 1], '--', color=colors[i], alpha=0.7, linewidth=2)
+                plt.plot(sampled_tsne[i, :, 0], sampled_tsne[i, :, 1], '-', color=colors[i], alpha=0.9, linewidth=2)
                 
-                # Sampled - start to end only
-                plt.plot(
-                    sampled_tsne[i, :, 0],
-                    sampled_tsne[i, :, 1],
-                    '-',
-                    color=colors[i],
-                    alpha=0.9,
-                    linewidth=2
-                )
-                
-                # Mark all points with circles
                 plt.scatter(gt_tsne[i, 0, 0], gt_tsne[i, 0, 1], color='blue', s=50, marker='o')
                 plt.scatter(gt_tsne[i, -1, 0], gt_tsne[i, -1, 1], color='red', s=50, marker='o')
                 plt.scatter(sampled_tsne[i, 0, 0], sampled_tsne[i, 0, 1], color='blue', s=50, marker='o')
                 plt.scatter(sampled_tsne[i, -1, 0], sampled_tsne[i, -1, 1], color='black', s=25, marker='x')
             
-            plt.title('t-SNE Visualization\n(Full GT vs Sampled Start/End)')
+            plt.title('t-SNE Visualization of Flow Trajectories')
             plt.grid(True, alpha=0.3)
             
             plt.legend([
-                "Ground Truth (21 steps)",
-                "Sampled (start/end)",
-                "Start Points",
-                "End Points"
+                'Ground Truth',
+                'Sampled Trajectory',
+                'Start Points',
+                'End Points (GT)',
+                'End Points (Sampled)'
             ], loc='upper right')
             
             plt.savefig(os.path.join(output_dir, f"tsne_visualization_{step}.png"), dpi=300, bbox_inches='tight')
@@ -509,6 +410,7 @@ def train_flow_model(
     
     flow_model = FlowMatching(
         embedding_dim=embedding_dim,
+        seq_length=49,
         hidden_dims=hidden_dims,
         lr=1e-4,
         use_attention=True,
@@ -535,8 +437,8 @@ def train_flow_model(
             batch_indices = np.random.choice(len(train_data), batch_size, replace=False)
             batch_tensor = torch.tensor(train_data[batch_indices], dtype=torch.float32, device=flow_model.device)
             
-            x0, x1 = batch_tensor[:, 0], batch_tensor[:, -1]
-            t = torch.rand(batch_size, 1, device=flow_model.device)
+            x0, x1 = batch_tensor[:, 0], batch_tensor[:, -1] # [batch_size, 49, 128]
+            t = torch.rand(batch_size, 49, 1, device=flow_model.device) # [batch_size, 49, 1]
             
             loss = flow_model.train_step(x0, x1, t)
             epoch_losses.append(loss)
@@ -618,10 +520,10 @@ def validate_model(flow_model, val_data, batch_size=32):
             
             x0, x1 = batch_tensor[:, 0], batch_tensor[:, -1]
             batch_size_actual = x0.shape[0]
-            t_values = torch.linspace(0.1, 0.9, 5).repeat(batch_size_actual, 1).to(flow_model.device)
+            t_values = torch.linspace(0.1, 0.9, 5).repeat(batch_size_actual, 49, 1).to(flow_model.device)
             
-            for t_idx in range(t_values.shape[1]):
-                t = t_values[:, t_idx:t_idx+1]
+            for t_idx in range(t_values.shape[2]):
+                t = t_values[:, :, t_idx:t_idx+1]
                 ut = x1 - x0
                 xt = x0 + t * ut
                 predicted_ut = flow_model.model(xt, t)
@@ -643,15 +545,15 @@ if __name__ == "__main__":
     os.makedirs(output_dir, exist_ok=True)
     
     data = np.load('logs/945686/s2ef_predictions.npz')
-    trajectories = data['latents'].reshape(-1, 2, 49 * 128)
+    trajectories = data['latents'].reshape(-1, 2, 49, 128)
     
     print(f"Loaded trajectories shape: {trajectories.shape}", flush=True)
     
     # Train the residual flow matching model
-    embedding_dim = 49 * 128
+    embedding_dim = 128
     num_epochs = 1550
     batch_size = 32
-    hidden_dims = [256, 256, 256, 256]
+    hidden_dims = [256, 512, 512, 256]
     
     # Train flow matching model
     flow_model, losses = train_flow_model(

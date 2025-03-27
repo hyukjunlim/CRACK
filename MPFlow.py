@@ -11,10 +11,12 @@ class MPFlow(nn.Module):
     - Multi-head attention for long-range dependencies
     - Time embedding and conditioning
     - Adaptive normalization layers
+    - Support for sequence-based embeddings
     """
     def __init__(
         self, 
         embedding_dim, 
+        seq_length=49,
         hidden_dims=[256, 512, 512, 256], 
         time_embed_dim=128,
         use_attention=True,
@@ -27,6 +29,7 @@ class MPFlow(nn.Module):
     ):
         super().__init__()
         self.embedding_dim = embedding_dim
+        self.seq_length = seq_length
         self.time_embed_dim = time_embed_dim
         self.activation = activation
         self.use_attention = use_attention
@@ -100,17 +103,22 @@ class MPFlow(nn.Module):
         """
         Forward pass with time conditioning and attention.
         Args:
-            x: Input tensor [batch_size, embedding_dim]
-            t: Time tensor [batch_size, 1]
+            x: Input tensor [batch_size, seq_length, embedding_dim]
+            t: Time tensor [batch_size, seq_length, 1]
         Returns:
             velocity: Predicted velocity field
         """
-        t_emb = self.time_embedding(t)
-        context = self.time_context_net(t_emb)
-        time_scale, time_shift = torch.chunk(context, 2, dim=-1)
+        batch_size, seq_len, embed_dim = x.shape
         
-        h = self.input_layer(x)
-        if self.use_skip_connections and h.shape == x.shape:
+        # Time embedding
+        t_emb = self.time_embedding(t)  # [batch_size, seq_len, time_embed_dim]
+        context = self.time_context_net(t_emb)  # [batch_size, seq_len, time_embed_dim*2]
+        time_scale, time_shift = torch.chunk(context, 2, dim=-1)  # [batch_size, seq_len, time_embed_dim]
+        
+        # Process each token in the sequence
+        h = self.input_layer(x)  # [batch_size, seq_len, hidden_dims[0]]
+        
+        if self.use_skip_connections and h.shape[-1] == x.shape[-1]:
             h = h + x
         
         for block in self.residual_blocks[:-1]:
@@ -121,7 +129,7 @@ class MPFlow(nn.Module):
                 h = attn_layer(h)
         
         h = self.residual_blocks[-1](h, time_scale, time_shift)
-        return self.output_layer(h)
+        return self.output_layer(h)  # [batch_size, seq_len, embedding_dim]
 
 
 class ResidualBlock(nn.Module):
@@ -131,6 +139,7 @@ class ResidualBlock(nn.Module):
     - Time-dependent scaling and shifting
     - Dual-path architecture
     - Adaptive normalization
+    - Support for sequence-based inputs
     """
     def __init__(self, in_dim, out_dim, time_dim, dropout=0.2, use_layer_norm=True, activation=nn.SiLU()):
         super().__init__()
@@ -164,13 +173,15 @@ class ResidualBlock(nn.Module):
     def forward(self, x, time_scale, time_shift):
         """
         Forward pass with time conditioning.
-        Applies residual connection and time-based transformation.
+        x shape: [batch_size, seq_len, in_dim]
+        time_scale, time_shift shape: [batch_size, seq_len, time_dim]
         """
         identity = self.shortcut(x)
         h = self.block1(x)
         
-        time_embeddings = self.time_mlp(time_scale)
-        scale, shift = torch.chunk(time_embeddings, 2, dim=1)
+        time_embeddings = self.time_mlp(time_scale)  # [batch_size, seq_len, out_dim*2]
+        scale, shift = torch.chunk(time_embeddings, 2, dim=-1)
+        
         h = h * (1 + scale) + shift
         
         return self.block2(h) + identity
@@ -180,6 +191,7 @@ class AttentionBlock(nn.Module):
     """
     Multi-head attention block.
     Enables learning of long-range dependencies in the input.
+    Supports sequence-based inputs.
     """
     def __init__(self, dim, num_heads=8, dropout=0.2, use_layer_norm=True):
         super().__init__()
@@ -197,6 +209,7 @@ class AttentionBlock(nn.Module):
     def forward(self, x):
         """
         Apply self-attention with residual connection.
+        x shape: [batch_size, seq_len, dim]
         """
         identity = x
         x = self.norm(x)
@@ -246,9 +259,11 @@ class EnergyPredictionHead(nn.Module):
     Args:
         embedding_dim: Dimension of the embedding input
         hidden_dims: List of hidden dimensions for the MLP
+        pool_method: Method to aggregate sequence information
     """
-    def __init__(self, embedding_dim, hidden_dims=[256, 128, 64]):
+    def __init__(self, embedding_dim, seq_length=49, hidden_dims=[256, 128, 64], pool_method='mean'):
         super().__init__()
+        self.pool_method = pool_method  # How to aggregate sequence information
         
         layers = []
         input_dim = embedding_dim
@@ -270,9 +285,19 @@ class EnergyPredictionHead(nn.Module):
         Forward pass to predict energy.
         
         Args:
-            x: Embedding tensor of shape [batch_size, embedding_dim]
+            x: Embedding tensor of shape [batch_size, seq_length, embedding_dim]
             
         Returns:
             Predicted energy values of shape [batch_size, 1]
         """
+        batch_size, seq_len, embed_dim = x.shape
+        
+        # Pool sequence dimension based on chosen method
+        if self.pool_method == 'mean':
+            x = x.mean(dim=1)  # [batch_size, embedding_dim]
+        elif self.pool_method == 'max':
+            x = x.max(dim=1)[0]  # [batch_size, embedding_dim]
+        elif self.pool_method == 'sum':
+            x = x.sum(dim=1)  # [batch_size, embedding_dim]
+        
         return self.energy_mlp(x)

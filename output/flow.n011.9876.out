@@ -1,0 +1,72 @@
+Running on host: n011.hpc
+Job started at: Thu Mar 27 10:44:58 PM KST 2025
+Running script: train_flow_matching.py
+Job name: train_flow_matching
+Loaded trajectories shape: (1523, 2, 49, 128)
+Model parameters: 4856448
+Epoch 5/1550, Loss: 208.348740
+Epoch 10/1550, Loss: 186.930436
+Validation Loss: 183.471197
+Epoch 15/1550, Loss: 161.024712
+Epoch 20/1550, Loss: 134.249832
+Validation Loss: 132.963672
+Epoch 25/1550, Loss: 114.034751
+Epoch 30/1550, Loss: 100.891536
+Validation Loss: 101.748032
+Epoch 35/1550, Loss: 93.892413
+Epoch 40/1550, Loss: 88.051287
+Validation Loss: 89.268040
+Epoch 45/1550, Loss: 86.316014
+Epoch 50/1550, Loss: 83.972309
+Validation Loss: 87.140267
+Epoch 55/1550, Loss: 72.730227
+Epoch 60/1550, Loss: 64.422969
+Validation Loss: 64.498138
+Epoch 65/1550, Loss: 57.048662
+Epoch 70/1550, Loss: 49.268216
+Validation Loss: 50.242564
+Epoch 75/1550, Loss: 45.440694
+Epoch 80/1550, Loss: 40.464681
+Validation Loss: 41.364008
+Epoch 85/1550, Loss: 37.165072
+Epoch 90/1550, Loss: 37.057037
+Validation Loss: 35.928729
+Epoch 95/1550, Loss: 32.733989
+Epoch 100/1550, Loss: 30.518060
+Validation Loss: 31.660745
+Epoch 105/1550, Loss: 29.248141
+Epoch 110/1550, Loss: 27.841670
+Validation Loss: 28.422552
+Epoch 115/1550, Loss: 26.864244
+Epoch 120/1550, Loss: 26.873178
+Validation Loss: 26.037740
+Epoch 125/1550, Loss: 25.387460
+Epoch 130/1550, Loss: 25.423176
+Validation Loss: 24.375784
+Epoch 135/1550, Loss: 23.587036
+Epoch 140/1550, Loss: 23.681666
+Validation Loss: 23.470058
+Epoch 145/1550, Loss: 22.932275
+Epoch 150/1550, Loss: 23.279929
+Validation Loss: 23.292548
+Epoch 155/1550, Loss: 22.832078
+Epoch 160/1550, Loss: 22.555543
+Validation Loss: 21.757921
+Epoch 165/1550, Loss: 22.498621
+Epoch 170/1550, Loss: 20.095273
+Validation Loss: 19.774700
+Epoch 175/1550, Loss: 20.077933
+Epoch 180/1550, Loss: 18.281763
+Validation Loss: 17.967028
+Epoch 185/1550, Loss: 18.044697
+Epoch 190/1550, Loss: 16.645501
+Validation Loss: 17.249291
+Epoch 195/1550, Loss: 15.488790
+Epoch 200/1550, Loss: 14.452757
+Validation Loss: 14.564296
+Epoch 205/1550, Loss: 15.060837
+Epoch 210/1550, Loss: 14.248036
+Validation Loss: 13.485828
+Epoch 215/1550, Loss: 12.806634
+Epoch 220/1550, Loss: 13.128912
+Validation Loss: 12.633045
