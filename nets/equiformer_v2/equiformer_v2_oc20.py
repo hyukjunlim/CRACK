@@ -440,11 +440,13 @@ class EquiformerV2_OC20(BaseModel):
 
         if use_all_layers:
             latent_rep = torch.zeros(
-                (2, x.embedding.size(0), x.embedding.size(1) * x.embedding.size(2)),
+                (2, x.embedding.size(0), 2 * x.embedding.size(2)),
+                # (2, x.embedding.size(0), x.embedding.size(1) * x.embedding.size(2)),
                 device=x.embedding.device,
                 dtype=x.embedding.dtype
             )
-            latent_rep[0] = x.embedding.reshape(x.embedding.size(0), -1)
+            latent_rep[0] = x.embedding[:, :2, :].reshape(x.embedding.size(0), -1)
+            # latent_rep[0] = x.embedding.reshape(x.embedding.size(0), -1)
             for i in range(self.num_layers):
                 x = self.blocks[i](
                     x,                  # SO3_Embedding
@@ -453,10 +455,12 @@ class EquiformerV2_OC20(BaseModel):
                     edge_index,
                     batch=data.batch    # for GraphDropPath
                 )
-            latent_rep[1] = x.embedding.reshape(x.embedding.size(0), -1)
+            # latent_rep[1] = x.embedding.reshape(x.embedding.size(0), -1)
+            latent_rep[1] = x.embedding[:, :2, :].reshape(x.embedding.size(0), -1)
         else:
             latent_rep = x.embedding.unsqueeze(0)
-        latent_rep = latent_rep.transpose(0, 1).reshape(-1, 2 * x.embedding.size(1) * x.embedding.size(2))
+        latent_rep = latent_rep.transpose(0, 1).reshape(-1, 2 * 2 * x.embedding.size(2))
+        # latent_rep = latent_rep.transpose(0, 1).reshape(-1, 2 * x.embedding.size(1) * x.embedding.size(2))
         
         end_time_2 = time.time()
         time_last = torch.full((data.batch.max() + 1,), end_time_2 - start_time, device=x.embedding.device, dtype=x.embedding.dtype)
