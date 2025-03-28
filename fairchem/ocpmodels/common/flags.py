@@ -151,7 +151,7 @@ class Flags:
         self.parser.add_argument(
             "--gres",
             type=str,
-            default="gpu:1",
+            default="gpu:4",
             help="GPU resources to request",
         )
         ###########

@@ -1,6 +1,0 @@
-Traceback (most recent call last):
-  File "train_flow_matching.py", line 547, in <module>
-    data = np.load('logs/950056/s2ef_predictions.npz')
-  File "/home/hyukjunlim03/anaconda3/envs/equiformer_v2/lib/python3.8/site-packages/numpy/lib/npyio.py", line 417, in load
-    fid = stack.enter_context(open(os_fspath(file), "rb"))
-FileNotFoundError: [Errno 2] No such file or directory: 'logs/950056/s2ef_predictions.npz'

@@ -544,7 +544,7 @@ if __name__ == "__main__":
     output_dir = 'flow_output/exp1'
     os.makedirs(output_dir, exist_ok=True)
     
-    data = np.load('logs/639203/s2ef_predictions.npz')
+    data = np.load('save_logs/639203/s2ef_predictions.npz')
     trajectories = data['latents'].reshape(-1, 2, 49, 128)
     
     print(f"Loaded trajectories shape: {trajectories.shape}", flush=True)

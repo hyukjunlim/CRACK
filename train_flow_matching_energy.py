@@ -740,7 +740,7 @@ if __name__ == "__main__":
     output_dir = 'flow_output/exp1'
     os.makedirs(output_dir, exist_ok=True)
     
-    data = np.load('logs/2316385/s2ef_predictions.npz')
+    data = np.load('save_logs/2316385/s2ef_predictions.npz')
     trajectories = data['latents'].reshape(-1, 2, 49 * 128)
     energies = data['energy']  # Pre-calculated energy values
     
