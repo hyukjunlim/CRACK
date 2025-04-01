@@ -384,15 +384,18 @@ class EquiformerV2_OC20(BaseModel):
         for param in self.mpflow.parameters():
             param.requires_grad = True
 
+
     @conditional_grad(torch.enable_grad())
     def forward(self, data, predict_with_mpflow=False):
+        # Enable gradient tracking at the beginning of forward
+        data.pos.requires_grad_(True)
+        
         self.batch_size = len(data.natoms)
         self.dtype = data.pos.dtype
         self.device = data.pos.device
 
         atomic_numbers = data.atomic_numbers.long()
         num_atoms = len(atomic_numbers)
-        pos = data.pos
 
         (
             edge_index,
@@ -487,10 +490,10 @@ class EquiformerV2_OC20(BaseModel):
         ###############################################################
         if not predict_with_mpflow:
             ut, predicted_ut = self.calculate_predicted_ut(x0, x1, self.device)
-            predicted_x1 = self.sample_trajectory(x0, method="heun")
+            predicted_x1 = self.sample_trajectory(x0, method="heun", enable_grad=True)
             x.embedding = predicted_x1
         else:
-            x1 = self.sample_trajectory(x0, method="heun")
+            x1 = self.sample_trajectory(x0, method="heun", enable_grad=False)
             x.embedding = x1
         
         end_time_3 = time.time()
@@ -504,20 +507,41 @@ class EquiformerV2_OC20(BaseModel):
         ###############################################################
         node_energy = self.energy_block(x) 
         node_energy = node_energy.embedding.narrow(1, 0, 1)
-        energy = torch.zeros(data.batch.max() + 1, device=node_energy.device, dtype=node_energy.dtype)
-        energy.index_add_(0, data.batch, node_energy.view(-1))
-        energy = energy / _AVG_NUM_NODES
+        _energy = torch.scatter_add(
+            torch.zeros(data.batch.max() + 1, device=node_energy.device, dtype=node_energy.dtype),
+            0,
+            data.batch,
+            node_energy.view(-1)
+        )
+        energy = _energy / _AVG_NUM_NODES
 
         ###############################################################
-        # Force estimation
+        # Force estimation (via gradient)
         ###############################################################
+        
         if self.regress_forces:
-            forces = self.force_block(x,
-                atomic_numbers,
-                edge_distance,
-                edge_index)
-            forces = forces.embedding.narrow(1, 1, 3)
-            forces = forces.view(-1, 3)            
+            flag = self.training
+            dy = torch.autograd.grad(
+                _energy,  # [n_graphs,]
+                data.pos,  # [n_nodes, 3]
+                grad_outputs=torch.ones_like(_energy),
+                create_graph=flag,
+                retain_graph=flag,
+                allow_unused=True
+            )[0]
+            assert dy is not None
+            forces = -1 * dy  # [n_nodes, 3]
+        
+        # ###############################################################
+        # # Force estimation
+        # ###############################################################
+        # if self.regress_forces:
+        #     forces = self.force_block(x,
+        #         atomic_numbers,
+        #         edge_distance,
+        #         edge_index)
+        #     forces = forces.embedding.narrow(1, 1, 3)
+        #     forces = forces.view(-1, 3)    
         
         if not predict_with_mpflow:
             if not self.regress_forces:
@@ -531,43 +555,51 @@ class EquiformerV2_OC20(BaseModel):
                 return energy, forces, x1, time_first, time_last, time_mpflow
 
 
-    def sample_trajectory(self, x0, method="heun"):
+    def sample_trajectory(self, x0, method="heun", enable_grad=False):
         """
         Samples a trajectory using ultra-fast, high-accuracy ODE solver.
         
         Args:
             x0: Starting point
             method: Sampling method ("heun", "rk4", "dopri5")
+            enable_grad: Whether to enable gradient computation
         """
         self.mpflow.eval()
         batch_size = x0.shape[0]
         device = x0.device
-        
         x = x0.clone()
-        with torch.no_grad():
-            if method == "euler":
-                # Simple Euler method
-                t = torch.zeros((batch_size, 49, 1), device=device)
-                velocity = self.mpflow(x, t)
-                x = x + velocity
-                
-            elif method == "heun":
-                # Previous Heun implementation
-                t = torch.zeros((batch_size, 49, 1), device=device)
-                k1 = self.mpflow(x, t)
-                x_pred = x + k1
-                k2 = self.mpflow(x_pred, t + 1.0)
-                x = x + 0.5 * (k1 + k2)
+        
+        if not enable_grad:
+            with torch.no_grad():
+                return self._compute_trajectory(x, method, batch_size, device)
+        else:
+            return self._compute_trajectory(x, method, batch_size, device)
+        
+        
+    def _compute_trajectory(self, x, method, batch_size, device):
+        if method == "euler":
+            # Simple Euler method
+            t = torch.zeros((batch_size, 49, 1), device=device)
+            velocity = self.mpflow(x, t)
+            x = x + velocity
             
-            elif method == "rk4":
-                # Original RK4 implementation
-                t = torch.zeros((batch_size, 49, 1), device=device)
-                k1 = self.mpflow(x, t)
-                k2 = self.mpflow(x + 0.5 * k1, t + 0.5)
-                k3 = self.mpflow(x + 0.5 * k2, t + 0.5)
-                k4 = self.mpflow(x + k3, t + 1.0)
-                x = x + (1.0 / 6.0) * (k1 + 2*k2 + 2*k3 + k4)
-                
+        elif method == "heun":
+            # Previous Heun implementation
+            t = torch.zeros((batch_size, 49, 1), device=device)
+            k1 = self.mpflow(x, t)
+            x_pred = x + k1
+            k2 = self.mpflow(x_pred, t + 1.0)
+            x = x + 0.5 * (k1 + k2)
+        
+        elif method == "rk4":
+            # Original RK4 implementation
+            t = torch.zeros((batch_size, 49, 1), device=device)
+            k1 = self.mpflow(x, t)
+            k2 = self.mpflow(x + 0.5 * k1, t + 0.5)
+            k3 = self.mpflow(x + 0.5 * k2, t + 0.5)
+            k4 = self.mpflow(x + k3, t + 1.0)
+            x = x + (1.0 / 6.0) * (k1 + 2*k2 + 2*k3 + k4)
+            
         return x
 
 
