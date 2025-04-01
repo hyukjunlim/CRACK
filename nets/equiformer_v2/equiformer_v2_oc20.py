@@ -353,7 +353,7 @@ class EquiformerV2_OC20(BaseModel):
         self.mpflow = MPFlow(
             embedding_dim=128,
             seq_length=49,
-            hidden_dims=[256, 512, 512, 256],
+            hidden_dims=[256, 256, 256, 256],
             use_attention=True,
         ).to(self.device)
             
@@ -621,9 +621,10 @@ class EquiformerV2_OC20(BaseModel):
     def num_params(self):
         # divide pretrained equiforemrv2 and mpflow
         all_params = sum(p.numel() for p in self.parameters())
+        trainable_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
         mpflow = sum(p.numel() for p in self.mpflow.parameters())
         eqv2 = all_params - mpflow
-        return eqv2, mpflow
+        return f"EquiformerV2: {eqv2} (Trainable: {trainable_params}), MPFlow: {mpflow}"
 
 
     def _init_weights(self, m):
