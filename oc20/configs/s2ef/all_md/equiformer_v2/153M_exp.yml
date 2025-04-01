@@ -88,7 +88,7 @@ model:
 
 optim:
   batch_size:                   16
-  eval_batch_size:              1
+  eval_batch_size:              16
   grad_accumulation_steps:      1         # gradient accumulation: effective batch size = `grad_accumulation_steps` * `batch_size` * (num of GPUs)
   load_balancing: atoms
   num_workers: 8
