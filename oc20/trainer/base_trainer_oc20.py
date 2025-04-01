@@ -374,7 +374,7 @@ class BaseTrainer(ABC):
         if distutils.is_master():
             logging.info(
                 f"Loaded {self.model.__class__.__name__} with "
-                f"{self.model.num_params} parameters."
+                f"{self.model.num_params} EquiformerV2 parameters"
             )
 
         if self.logger is not None:
@@ -414,14 +414,14 @@ class BaseTrainer(ABC):
             # No need for OrderedDict since dictionaries are technically ordered
             # since Python 3.6 and officially ordered since Python 3.7
             new_dict = {k[7:]: v for k, v in checkpoint["state_dict"].items()}
-            self.model.load_state_dict(new_dict)
+            self.model.load_state_dict(new_dict, strict=False)
         elif distutils.initialized() and first_key.split(".")[1] != "module":
             new_dict = {
                 f"module.{k}": v for k, v in checkpoint["state_dict"].items()
             }
-            self.model.load_state_dict(new_dict)
+            self.model.load_state_dict(new_dict, strict=False)
         else:
-            self.model.load_state_dict(checkpoint["state_dict"])
+            self.model.load_state_dict(checkpoint["state_dict"], strict=False)
 
         if "optimizer" in checkpoint:
             self.optimizer.load_state_dict(checkpoint["optimizer"])
@@ -444,6 +444,8 @@ class BaseTrainer(ABC):
         self.loss_fn = {}
         self.loss_fn["energy"] = self.config["optim"].get("loss_energy", "mae")
         self.loss_fn["force"] = self.config["optim"].get("loss_force", "mae")
+        self.loss_fn["mpflow"] = self.config["optim"].get("loss_mpflow", "mse")
+        self.loss_fn["mpflow_dir"] = self.config["optim"].get("loss_mpflow_dir", "cosine")
         for loss, loss_name in self.loss_fn.items():
             if loss_name in ["l1", "mae"]:
                 self.loss_fn[loss] = nn.L1Loss()
@@ -451,6 +453,8 @@ class BaseTrainer(ABC):
                 self.loss_fn[loss] = nn.MSELoss()
             elif loss_name == "l2mae":
                 self.loss_fn[loss] = L2MAELoss()
+            elif loss_name == "cosine":
+                self.loss_fn[loss] = nn.CosineSimilarity(dim=1)
             else:
                 raise NotImplementedError(
                     f"Unknown loss function name: {loss_name}"
@@ -757,10 +761,6 @@ class BaseTrainer(ABC):
             gather_results["ids"] = np.array(gather_results["ids"])[idx]
             for k in keys:
                 if k == "forces":
-                    gather_results[k] = np.concatenate(
-                        np.array(gather_results[k])[idx]
-                    )
-                elif k == "latents":
                     gather_results[k] = np.concatenate(
                         np.array(gather_results[k])[idx]
                     )

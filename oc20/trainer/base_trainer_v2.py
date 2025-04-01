@@ -366,8 +366,7 @@ class BaseTrainerV2(BaseTrainer):
         #    )
         self.file_logger.info(self.model)
         self.file_logger.info(
-            f"Loaded {self.model.__class__.__name__} with "
-            f"{self.model.num_params} parameters."
+            f"Loaded {self.model.__class__.__name__} with {self.model.num_params} parameters."
         )
 
         if self.logger is not None:

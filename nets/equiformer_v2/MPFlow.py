@@ -98,6 +98,9 @@ class MPFlow(nn.Module):
             nn.Linear(hidden_dims[-1] // 2, embedding_dim)
         ])
         self.output_layer = nn.Sequential(*output_layers)
+        
+    def num_params(self):
+        return sum(p.numel() for p in self.parameters())
     
     def forward(self, x, t):
         """

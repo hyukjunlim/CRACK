@@ -6,11 +6,11 @@ import seaborn as sns
 import os
 
 # Set filename based on mode
-filename = 'logs/659614/s2ef_predictions.npz'
+filename = 'save_logs/4/s2ef_predictions.npz'
 
 # Load and reshape data
 data = np.load(filename)
-print(data['latents'].shape)
+print(data.files)
 
 
 # print(data["time_first"].shape)

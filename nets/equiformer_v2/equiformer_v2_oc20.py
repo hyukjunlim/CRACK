@@ -48,7 +48,7 @@ from .transformer_block import (
     TransBlockV2, 
 )
 from .input_block import EdgeDegreeEmbedding
-
+from .MPFlow import MPFlow
 
 # Statistics of IS2RE 100K 
 _AVG_NUM_NODES  = 77.81317
@@ -349,12 +349,43 @@ class EquiformerV2_OC20(BaseModel):
                 alpha_drop=0.0
             )
             
+        # MPFlow
+        self.mpflow = MPFlow(
+            embedding_dim=128,
+            seq_length=49,
+            hidden_dims=[256, 512, 512, 256],
+            use_attention=True,
+        ).to(self.device)
+            
         self.apply(self._init_weights)
         self.apply(self._uniform_init_rad_func_linear_weights)
 
+        # Add this at the end of __init__ after all model components are initialized
+        self.freeze_backbone()
+        
+
+    def freeze_backbone(self):
+        """Freeze all parameters except energy_block, force_block, and mpflow"""
+        # First freeze everything
+        for param in self.parameters():
+            param.requires_grad = False
+        
+        # Then unfreeze
+        for param in self.norm.parameters():
+            param.requires_grad = True
+        
+        for param in self.energy_block.parameters():
+            param.requires_grad = True
+        
+        if self.regress_forces:
+            for param in self.force_block.parameters():
+                param.requires_grad = True
+        
+        for param in self.mpflow.parameters():
+            param.requires_grad = True
 
     @conditional_grad(torch.enable_grad())
-    def forward(self, data):
+    def forward(self, data, predict_with_mpflow=False):
         self.batch_size = len(data.natoms)
         self.dtype = data.pos.dtype
         self.device = data.pos.device
@@ -389,8 +420,6 @@ class EquiformerV2_OC20(BaseModel):
         ###############################################################
         # Initialize node embeddings
         ###############################################################
-        use_all_layers = True
-        import time
         start_time = time.time()
 
         # Init per node representations using an atomic number based embedding
@@ -438,13 +467,8 @@ class EquiformerV2_OC20(BaseModel):
         end_time_1 = time.time()
         time_first = torch.full((data.batch.max() + 1,), end_time_1 - start_time, device=x.embedding.device, dtype=x.embedding.dtype)
 
-        if use_all_layers:
-            latent_rep = torch.zeros(
-                (2, x.embedding.size(0), x.embedding.size(1) * x.embedding.size(2)),
-                device=x.embedding.device,
-                dtype=x.embedding.dtype
-            )
-            latent_rep[0] = x.embedding.reshape(x.embedding.size(0), -1)
+        x0 = x.embedding
+        if not predict_with_mpflow:
             for i in range(self.num_layers):
                 x = self.blocks[i](
                     x,                  # SO3_Embedding
@@ -453,17 +477,28 @@ class EquiformerV2_OC20(BaseModel):
                     edge_index,
                     batch=data.batch    # for GraphDropPath
                 )
-            latent_rep[1] = x.embedding.reshape(x.embedding.size(0), -1)
-        else:
-            latent_rep = x.embedding.unsqueeze(0)
-        latent_rep = latent_rep.transpose(0, 1).reshape(-1, 2 * x.embedding.size(1) * x.embedding.size(2))
+            x1 = x.embedding
         
         end_time_2 = time.time()
-        time_last = torch.full((data.batch.max() + 1,), end_time_2 - start_time, device=x.embedding.device, dtype=x.embedding.dtype)
+        time_last = torch.full((data.batch.max() + 1,), end_time_2 - end_time_1, device=x.embedding.device, dtype=x.embedding.dtype)
+        
+        ###############################################################
+        # MPFlow
+        ###############################################################
+        if not predict_with_mpflow:
+            ut, predicted_ut = self.calculate_predicted_ut(x0, x1, self.device)
+            predicted_x1 = self.sample_trajectory(x0, method="heun")
+            x.embedding = predicted_x1
+        else:
+            x1 = self.sample_trajectory(x0, method="heun")
+            x.embedding = x1
+        
+        end_time_3 = time.time()
+        time_mpflow = torch.full((data.batch.max() + 1,), end_time_3 - end_time_2, device=x.embedding.device, dtype=x.embedding.dtype)
         
         # Final layer norm
         x.embedding = self.norm(x.embedding)
-
+        
         ###############################################################
         # Energy estimation
         ###############################################################
@@ -477,75 +512,72 @@ class EquiformerV2_OC20(BaseModel):
         # Force estimation
         ###############################################################
         if self.regress_forces:
-            # forces = self.force_block(x,
-            #     atomic_numbers,
-            #     edge_distance,
-            #     edge_index)
-            # forces = forces.embedding.narrow(1, 1, 3)
-            # forces = forces.view(-1, 3)            
-            forces = torch.zeros(len(data.natoms), 3, device=x.embedding.device, dtype=x.embedding.dtype)
+            forces = self.force_block(x,
+                atomic_numbers,
+                edge_distance,
+                edge_index)
+            forces = forces.embedding.narrow(1, 1, 3)
+            forces = forces.view(-1, 3)            
         
-        if not self.regress_forces:
-            return energy, latent_rep, time_first, time_last
+        if not predict_with_mpflow:
+            if not self.regress_forces:
+                return energy, ut, predicted_ut, x1, predicted_x1, time_first, time_last, time_mpflow
+            else:
+                return energy, forces, ut, predicted_ut, x1, predicted_x1, time_first, time_last, time_mpflow
         else:
-            return energy, forces, latent_rep, time_first, time_last
+            if not self.regress_forces:
+                return energy, x1, time_first, time_last, time_mpflow
+            else:
+                return energy, forces, x1, time_first, time_last, time_mpflow
 
-    # def embedding_pooling(self, embeddings: torch.Tensor) -> torch.Tensor:
-    #     """
-    #     Pool embeddings with awareness of frequency bands using weighted averaging.
-    #     Handles batched input embeddings.
+
+    def sample_trajectory(self, x0, method="heun"):
+        """
+        Samples a trajectory using ultra-fast, high-accuracy ODE solver.
         
-    #     Args:
-    #         embeddings (torch.Tensor): Input embedding tensor of shape (N, C, F) where:
-    #             - N is the number of samples
-    #             - C is the total number of channels across all frequency bands
-    #             - F is the embedding dimension
+        Args:
+            x0: Starting point
+            method: Sampling method ("heun", "rk4", "dopri5")
+        """
+        self.mpflow.eval()
+        batch_size = x0.shape[0]
+        device = x0.device
+        
+        x = x0.clone()
+        with torch.no_grad():
+            if method == "euler":
+                # Simple Euler method
+                t = torch.zeros((batch_size, 49, 1), device=device)
+                velocity = self.mpflow(x, t)
+                x = x + velocity
                 
-    #     Returns:
-    #         torch.Tensor: Normalized global embeddings of shape (N, F)
+            elif method == "heun":
+                # Previous Heun implementation
+                t = torch.zeros((batch_size, 49, 1), device=device)
+                k1 = self.mpflow(x, t)
+                x_pred = x + k1
+                k2 = self.mpflow(x_pred, t + 1.0)
+                x = x + 0.5 * (k1 + k2)
             
-    #     Raises:
-    #         ValueError: If embedding shape is incorrect or doesn't match expected dimensions
-    #     """
-    #     # Input validation
-    #     if not isinstance(embeddings, torch.Tensor):
-    #         raise ValueError("Input must be a torch.Tensor")
-    #     if len(embeddings.shape) != 3:
-    #         raise ValueError(f"Expected 3D tensor, got shape {embeddings.shape}")
+            elif method == "rk4":
+                # Original RK4 implementation
+                t = torch.zeros((batch_size, 49, 1), device=device)
+                k1 = self.mpflow(x, t)
+                k2 = self.mpflow(x + 0.5 * k1, t + 0.5)
+                k3 = self.mpflow(x + 0.5 * k2, t + 0.5)
+                k4 = self.mpflow(x + k3, t + 1.0)
+                x = x + (1.0 / 6.0) * (k1 + 2*k2 + 2*k3 + k4)
+                
+        return x
+
+
+    def calculate_predicted_ut(self, x0, x1, device):
+        t = torch.rand(x0.shape[0], x0.shape[1], 1, device=device)
+        ut = x1 - x0
+        xt = x0 + t * ut
+        predicted_ut = self.mpflow(xt, t)
         
-    #     # Calculate channel sizes for each l value in lmax_list
-    #     channel_sizes = []
-    #     for lmax in self.lmax_list:
-    #         for l in range(lmax + 1):
-    #             # For each l, we have (2l + 1) channels
-    #             channel_sizes.append(2 * l + 1)
-        
-    #     total_channels = sum(channel_sizes)
-    #     if embeddings.shape[1] != total_channels:
-    #         raise ValueError(f"Expected {total_channels} channels, got {embeddings.shape[1]}")
-        
-    #     # Initialize output tensor
-    #     batch_size = embeddings.shape[0]
-    #     global_embeddings = torch.zeros((batch_size, embeddings.shape[2]), 
-    #                                   dtype=embeddings.dtype,
-    #                                   device=embeddings.device)
-        
-    #     # Process each frequency band with weighted averaging
-    #     channel_idx = 0
-    #     for size in channel_sizes:
-    #         end_idx = channel_idx + size
-    #         band_channels = embeddings[:, channel_idx:end_idx]
-    #         # Use weighted average based on number of frequency bands
-    #         global_embeddings += torch.mean(band_channels, dim=1) / len(channel_sizes)
-    #         channel_idx = end_idx
-        
-    #     # Normalize each embedding (with epsilon to prevent division by zero)
-    #     norms = torch.norm(global_embeddings, dim=1, keepdim=True)
-    #     global_embeddings = torch.where(norms > 1e-12, 
-    #                                   global_embeddings / norms, 
-    #                                   global_embeddings)
-        
-    #     return global_embeddings
+        return ut, predicted_ut
 
 
     # Initialize the edge rotation matrics
@@ -555,7 +587,11 @@ class EquiformerV2_OC20(BaseModel):
 
     @property
     def num_params(self):
-        return sum(p.numel() for p in self.parameters())
+        # divide pretrained equiforemrv2 and mpflow
+        all_params = sum(p.numel() for p in self.parameters())
+        mpflow = sum(p.numel() for p in self.mpflow.parameters())
+        eqv2 = all_params - mpflow
+        return eqv2, mpflow
 
 
     def _init_weights(self, m):

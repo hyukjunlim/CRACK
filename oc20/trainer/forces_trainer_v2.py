@@ -222,66 +222,57 @@ class ForcesTrainerV2(BaseTrainerV2):
                 predictions["energy"].extend(
                     out["energy"].to(torch.float16).tolist()
                 )
-                predictions["latents"].extend(
-                    out["latents"].to(torch.float16).tolist()
-                    # out["latents"].cpu().detach().numpy()
+                predictions["time_first"].extend(
+                    out["time_first"].to(torch.float16).tolist()
                 )
-                if use_all_layers:
-                    predictions["time_first"].extend(
-                        out["time_first"].to(torch.float16).tolist()
+                predictions["time_last"].extend(
+                    out["time_last"].to(torch.float16).tolist()
+                )
+                batch_natoms = torch.cat(
+                    [batch.natoms for batch in batch_list]
+                )
+                
+                batch_fixed = torch.cat([batch.fixed for batch in batch_list])
+                forces = out["forces"].cpu().detach().to(torch.float16)
+                per_image_forces = torch.split(forces, batch_natoms.tolist())
+                per_image_forces = [
+                    force.numpy() for force in per_image_forces
+                ]
+                
+                if results_file is not None:
+                    _per_image_fixed = torch.split(
+                        batch_fixed, batch_natoms.tolist()
                     )
-                    predictions["time_last"].extend(
-                        out["time_last"].to(torch.float16).tolist()
-                    )
-                    batch_natoms = torch.cat(
-                        [batch.natoms for batch in batch_list]
-                    )
-                    
-                    batch_fixed = torch.cat([batch.fixed for batch in batch_list])
-                    forces = out["forces"].cpu().detach().to(torch.float16)
-                    per_image_forces = torch.split(forces, batch_natoms.tolist())
-                    per_image_forces = [
-                        force.numpy() for force in per_image_forces
-                    ]
-                    
-                    if results_file is not None:
-                        _per_image_fixed = torch.split(
-                            batch_fixed, batch_natoms.tolist()
+                    _per_image_free_forces = [
+                        force[(fixed == 0).tolist()]
+                        for force, fixed in zip(
+                            per_image_forces, _per_image_fixed
                         )
-                        _per_image_free_forces = [
-                            force[(fixed == 0).tolist()]
-                            for force, fixed in zip(
-                                per_image_forces, _per_image_fixed
-                            )
-                        ]
-                    _chunk_idx = np.array(
-                        [
-                            free_force.shape[0]
-                            for free_force in _per_image_free_forces
-                        ]
-                    )
-                    per_image_forces = _per_image_free_forces
-                    predictions["chunk_idx"].extend(_chunk_idx)
-                    predictions["forces"].extend(per_image_forces)
+                    ]
+                _chunk_idx = np.array(
+                    [
+                        free_force.shape[0]
+                        for free_force in _per_image_free_forces
+                    ]
+                )
+                per_image_forces = _per_image_free_forces
+                predictions["chunk_idx"].extend(_chunk_idx)
+                predictions["forces"].extend(per_image_forces)
             else:
-                predictions["latents"] = out["latents"].detach()
                 predictions["energy"] = out["energy"].detach()
-                if use_all_layers:
-                    predictions["forces"] = out["forces"].detach()
-                    predictions["time_first"] = out["time_first"].detach()
-                    predictions["time_last"] = out["time_last"].detach()
+                predictions["forces"] = out["forces"].detach()
+                predictions["time_first"] = out["time_first"].detach()
+                predictions["time_last"] = out["time_last"].detach()
                 if self.ema:
                     self.ema.restore()
                 return predictions
 
         predictions["id"] = np.array(predictions["id"])
         predictions["energy"] = np.array(predictions["energy"])
-        predictions["latents"] = np.array(predictions["latents"])
-        if use_all_layers:
-            predictions["forces"] = np.array(predictions["forces"])
-            predictions["chunk_idx"] = np.array(predictions["chunk_idx"])
-            predictions["time_first"] = np.array(predictions["time_first"])
-            predictions["time_last"] = np.array(predictions["time_last"])
+        predictions["forces"] = np.array(predictions["forces"])
+        predictions["chunk_idx"] = np.array(predictions["chunk_idx"])
+        predictions["time_first"] = np.array(predictions["time_first"])
+        predictions["time_last"] = np.array(predictions["time_last"])
             
         if use_all_layers:
             self.save_results(
@@ -296,6 +287,7 @@ class ForcesTrainerV2(BaseTrainerV2):
             self.ema.restore()
 
         return predictions
+    
 
     def update_best(
         self,
@@ -475,13 +467,20 @@ class ForcesTrainerV2(BaseTrainerV2):
         if self.config.get("test_dataset", False):
             self.test_dataset.close_db()
 
-    def _forward(self, batch_list):
+    def _forward(self, batch_list, predict_with_mpflow=False):
         # forward pass.
-        if (self.config["model_attributes"].get("regress_forces", True)
-            or self.config['model_attributes'].get('use_auxiliary_task', False)):
-            out_energy, out_forces, latent_rep, time_first, time_last = self.model(batch_list)
+        if not predict_with_mpflow:
+            if (self.config["model_attributes"].get("regress_forces", True)
+                or self.config['model_attributes'].get('use_auxiliary_task', False)):
+                out_energy, out_forces, ut, predicted_ut, x1, predicted_x1, time_first, time_last, time_mpflow = self.model(batch_list, predict_with_mpflow=predict_with_mpflow)
+            else:
+                out_energy, ut, predicted_ut, x1, predicted_x1, time_first, time_last, time_mpflow = self.model(batch_list, predict_with_mpflow=predict_with_mpflow)
         else:
-            out_energy, latent_rep, time_first, time_last = self.model(batch_list)
+            if (self.config["model_attributes"].get("regress_forces", True)
+                or self.config['model_attributes'].get('use_auxiliary_task', False)):
+                out_energy, out_forces, x1, time_first, time_last, time_mpflow = self.model(batch_list, predict_with_mpflow=predict_with_mpflow)
+            else:
+                out_energy, x1, time_first, time_last, time_mpflow = self.model(batch_list, predict_with_mpflow=predict_with_mpflow)
 
         if out_energy.shape[-1] == 1:
             out_energy = out_energy.view(-1)
@@ -494,9 +493,16 @@ class ForcesTrainerV2(BaseTrainerV2):
            or self.config['model_attributes'].get('use_auxiliary_task', False)):
             out["forces"] = out_forces
         
-        out["latents"] = latent_rep
+        if not predict_with_mpflow:
+            out["ut"] = ut
+            out["predicted_ut"] = predicted_ut
+            out["predicted_x1"] = predicted_x1
+        else:
+            out["predicted_x1"] = x1
+        out["x1"] = x1
         out["time_first"] = time_first
         out["time_last"] = time_last
+        out["time_mpflow"] = time_mpflow
         
         return out
 
@@ -940,5 +946,525 @@ class ForcesTrainerV2(BaseTrainerV2):
 
         if self.ema and use_ema:
             self.ema.restore()
+
+        return metrics
+
+
+##################################################################################################################
+
+    def mpflow_train(self, disable_eval_tqdm=False):
+        """
+        Training loop for MPFlow model with flow matching loss.
+        """
+        eval_every = self.config["optim"].get(
+            "eval_every", len(self.train_loader)
+        )
+        checkpoint_every = self.config["optim"].get(
+            "checkpoint_every", eval_every
+        )
+        primary_metric = self.config["task"].get(
+            "primary_metric", self.evaluator.task_primary_metric[self.name]
+        )
+        if (
+            not hasattr(self, "primary_metric")
+            or self.primary_metric != primary_metric
+        ):
+            self.best_val_metric = 1e9 if "mae" in primary_metric else -1.0
+        else:
+            primary_metric = self.primary_metric
+        self.metrics = {}
+
+        # Calculate start_epoch from step instead of loading the epoch number
+        # to prevent inconsistencies due to different batch size in checkpoint.
+        start_epoch = self.step // len(self.train_loader)
+
+        for epoch_int in range(
+            start_epoch, self.config["optim"]["max_epochs"]
+        ):
+            self.train_sampler.set_epoch(epoch_int)
+            skip_steps = self.step % len(self.train_loader)
+            train_loader_iter = iter(self.train_loader)
+
+            self.metrics = {}
+
+            for i in range(skip_steps, len(self.train_loader)):
+                self.epoch = epoch_int + (i + 1) / len(self.train_loader)
+                self.step = epoch_int * len(self.train_loader) + i + 1
+                self.model.train()
+                
+                # Get a batch.
+                batch = next(train_loader_iter)
+
+                # Forward, loss, backward.
+                with torch.cuda.amp.autocast(enabled=self.scaler is not None):
+                    out = self._forward(batch)
+                    loss = self._mpflow_compute_loss(out, batch)
+                    
+                loss = self.scaler.scale(loss) if self.scaler else loss
+                if self.grad_accumulation_steps != 1:
+                    loss = loss / self.grad_accumulation_steps
+                self._backward(loss)
+                scale = self.scaler.get_scale() if self.scaler else 1.0
+
+                # Compute metrics including mpflow loss
+                self.metrics = self._mpflow_compute_metrics(
+                    out,
+                    batch,
+                    self.evaluator,
+                    self.metrics,
+                )
+                self.metrics = self.evaluator.update(
+                    "loss", loss.item() / scale * self.grad_accumulation_steps, self.metrics
+                )
+
+                # Log metrics.
+                log_dict = {k: self.metrics[k]["metric"] for k in self.metrics}
+                log_dict.update(
+                    {
+                        "lr": self.scheduler.get_lr(),
+                        "epoch": self.epoch,
+                        "step": self.step,
+                    }
+                )
+                if (
+                    (self.step % self.config["cmd"]["print_every"] == 0
+                        or i == 0
+                        or i == (len(self.train_loader) - 1))
+                    and distutils.is_master()
+                    and not self.is_hpo
+                ):
+                    log_str = [
+                        "{}: {:.2e}".format(k, v) for k, v in log_dict.items()
+                    ]
+                    self.file_logger.info(", ".join(log_str))
+                    # self.metrics = {}
+
+                if self.logger is not None:
+                    self.logger.log(
+                        log_dict,
+                        step=self.step,
+                        split="train",
+                    )
+
+                if (
+                    checkpoint_every != -1
+                    and self.step % checkpoint_every == 0
+                ):
+                    self.save(
+                        checkpoint_file="checkpoint.pt", training_state=True
+                    )
+
+                # Evaluate on val set every `eval_every` iterations.
+                if (self.step % eval_every == 0
+                    or i == (len(self.train_loader) - 1)):
+                    if self.val_loader is not None:
+                        if self.ema:
+                            val_metrics = self.mpflow_validate(split="val",
+                                disable_tqdm=disable_eval_tqdm, use_ema=True)
+                            self.update_best(primary_metric,
+                                val_metrics, disable_eval_tqdm=disable_eval_tqdm)
+                        else:
+                            val_metrics = self.mpflow_validate(split="val",
+                                disable_tqdm=disable_eval_tqdm, use_ema=False)
+                            self.update_best(primary_metric,
+                                val_metrics, disable_eval_tqdm=disable_eval_tqdm)
+
+                        if self.is_hpo:
+                            self.hpo_update(
+                                self.epoch,
+                                self.step,
+                                self.metrics,
+                                val_metrics,
+                            )
+
+                    if self.config["task"].get("eval_relaxations", False):
+                        if "relax_dataset" not in self.config["task"]:
+                            logging.warning(
+                                "Cannot evaluate relaxations, relax_dataset not specified"
+                            )
+                        else:
+                            self.run_relaxations()
+
+                if self.scheduler.scheduler_type == "ReduceLROnPlateau":
+                    if self.step % eval_every == 0:
+                        self.scheduler.step(
+                            metrics=val_metrics[primary_metric]["metric"],
+                        )
+                else:
+                    if self.grad_accumulation_steps != 1:
+                        if self.step % self.grad_accumulation_steps == 0:
+                            self.scheduler.step()
+                    else:
+                        self.scheduler.step()
+
+            torch.cuda.empty_cache()
+
+            if checkpoint_every == -1:
+                self.save(checkpoint_file="checkpoint.pt", training_state=True)
+
+        self.train_dataset.close_db()
+        if self.config.get("val_dataset", False):
+            self.val_dataset.close_db()
+        if self.config.get("test_dataset", False):
+            self.test_dataset.close_db()
+
+
+    @torch.no_grad()
+    def mpflow_validate(self, split="val", disable_tqdm=False, use_ema=False):
+        self.file_logger.info(f"Evaluating on {split}.")
+
+        if self.is_hpo:
+            disable_tqdm = True
+
+        self.model.eval()
+        
+        if self.ema and use_ema:
+            self.ema.store()
+            self.ema.copy_to()
+
+        evaluator, metrics = Evaluator(task=self.name), {}
+        rank = distutils.get_rank()
+
+        loader = self.val_loader if split == "val" else self.test_loader
+
+        for i, batch in tqdm(
+            enumerate(loader),
+            total=len(loader),
+            position=rank,
+            desc="device {}".format(rank),
+            disable=disable_tqdm,
+        ):
+            with torch.cuda.amp.autocast(enabled=self.scaler is not None):
+                out = self._forward(batch, predict_with_mpflow=True)
+            loss = self._mpflow_compute_loss(out, batch, predict_with_mpflow=True)
+            metrics = self._mpflow_compute_metrics(out, batch, evaluator, metrics, predict_with_mpflow=True)
+            metrics = evaluator.update("loss", loss.item(), metrics)
+
+        aggregated_metrics = {}
+        for k in metrics:
+            aggregated_metrics[k] = {
+                "total": distutils.all_reduce(
+                    metrics[k]["total"], average=False, device=self.device
+                ),
+                "numel": distutils.all_reduce(
+                    metrics[k]["numel"], average=False, device=self.device
+                ),
+            }
+            aggregated_metrics[k]["metric"] = (
+                aggregated_metrics[k]["total"] / aggregated_metrics[k]["numel"]
+            )
+        metrics = aggregated_metrics
+
+        log_dict = {k: metrics[k]["metric"] for k in metrics}
+        log_dict.update({"epoch": self.epoch})
+        log_str = ["{}: {:.4f}".format(k, v) for k, v in log_dict.items()]
+        log_str = ", ".join(log_str)
+        log_str = "[{}] ".format(split) + log_str
+        self.file_logger.info(log_str)
+
+        if self.logger is not None:
+            self.logger.log(
+                log_dict,
+                step=self.step,
+                split=split,
+            )
+
+        if self.ema and use_ema:
+            self.ema.restore()
+
+        return metrics
+    
+
+    @torch.no_grad()
+    def mpflow_predict(
+        self,
+        data_loader,
+        per_image=True,
+        results_file=None,
+        disable_tqdm=False,
+    ):
+        if per_image:
+            self.file_logger.info("Predicting on test.")
+        assert isinstance(
+            data_loader,
+            (
+                torch.utils.data.dataloader.DataLoader,
+                torch_geometric.data.Batch,
+            ),
+        )
+        rank = distutils.get_rank()
+
+        if isinstance(data_loader, torch_geometric.data.Batch):
+            data_loader = [[data_loader]]
+
+        self.model.eval()
+        
+        if self.ema:
+            self.ema.store()
+            self.ema.copy_to()
+
+        if self.normalizers is not None and "target" in self.normalizers:
+            self.normalizers["target"].to(self.device)
+            self.normalizers["grad_target"].to(self.device)
+
+        predictions = {"id": [], "energy": [], "forces": [], "chunk_idx": [], "time_first": [], "time_last": []}
+
+        for i, batch_list in tqdm(
+            enumerate(data_loader),
+            total=len(data_loader),
+            position=rank,
+            desc="device {}".format(rank),
+            disable=disable_tqdm,
+        ):
+            with torch.cuda.amp.autocast(enabled=self.scaler is not None):
+                out = self._forward(batch_list, predict_with_mpflow=True)
+
+            if self.normalizers is not None and "target" in self.normalizers:
+                out["energy"] = self.normalizers["target"].denorm(
+                    out["energy"]
+                )
+            out["forces"] = self.normalizers["grad_target"].denorm(
+                out["forces"]
+            )
+            if per_image:
+                systemids = [
+                    str(i) + "_" + str(j)
+                    for i, j in zip(
+                        batch_list[0].sid.tolist(), batch_list[0].fid.tolist()
+                    )
+                ]
+                predictions["id"].extend(systemids)
+                predictions["energy"].extend(
+                    out["energy"].to(torch.float16).tolist()
+                )
+                predictions["time_first"].extend(
+                    out["time_first"].to(torch.float16).tolist()
+                )
+                predictions["time_last"].extend(
+                    out["time_last"].to(torch.float16).tolist()
+                )
+                batch_natoms = torch.cat(
+                    [batch.natoms for batch in batch_list]
+                )
+                
+                batch_fixed = torch.cat([batch.fixed for batch in batch_list])
+                forces = out["forces"].cpu().detach().to(torch.float16)
+                per_image_forces = torch.split(forces, batch_natoms.tolist())
+                per_image_forces = [
+                    force.numpy() for force in per_image_forces
+                ]
+                
+                if results_file is not None:
+                    _per_image_fixed = torch.split(
+                        batch_fixed, batch_natoms.tolist()
+                    )
+                    _per_image_free_forces = [
+                        force[(fixed == 0).tolist()]
+                        for force, fixed in zip(
+                            per_image_forces, _per_image_fixed
+                        )
+                    ]
+                _chunk_idx = np.array(
+                    [
+                        free_force.shape[0]
+                        for free_force in _per_image_free_forces
+                    ]
+                )
+                per_image_forces = _per_image_free_forces
+                predictions["chunk_idx"].extend(_chunk_idx)
+                predictions["forces"].extend(per_image_forces)
+            else:
+                predictions["energy"] = out["energy"].detach()
+                predictions["forces"] = out["forces"].detach()
+                predictions["time_first"] = out["time_first"].detach()
+                predictions["time_last"] = out["time_last"].detach()
+                if self.ema:
+                    self.ema.restore()
+                return predictions
+
+        predictions["id"] = np.array(predictions["id"])
+        predictions["energy"] = np.array(predictions["energy"])
+        predictions["forces"] = np.array(predictions["forces"])
+        predictions["chunk_idx"] = np.array(predictions["chunk_idx"])
+        predictions["time_first"] = np.array(predictions["time_first"])
+        predictions["time_last"] = np.array(predictions["time_last"])
+            
+        self.save_results(
+            predictions, results_file, keys=["id", "energy", "forces", "chunk_idx", "time_first", "time_last"]
+        )
+
+        if self.ema:
+            self.ema.restore()
+
+        return predictions
+    
+
+    def _mpflow_compute_loss(self, out, batch_list, predict_with_mpflow=False):
+        loss = []
+
+        # MPFlow loss.
+        if not predict_with_mpflow:
+            mpflow_mult = self.config["optim"].get("mpflow_coefficient", 0.05)
+            loss.append(
+                mpflow_mult * self.loss_fn["mpflow"](out["predicted_ut"], out["ut"])
+            )
+            
+            mpflow_dir_mult = self.config["optim"].get("mpflow_dir_coefficient", 1)
+            loss.append(
+                mpflow_dir_mult * (1 - self.loss_fn["mpflow_dir"](out["predicted_ut"], out["ut"])).mean()
+            )
+            
+        # Energy loss.
+        energy_target = torch.cat(
+            [batch.y.to(self.device) for batch in batch_list], dim=0
+        )
+        if self.normalizer.get("normalize_labels", False):
+            energy_target = self.normalizers["target"].norm(energy_target)
+        energy_mult = self.config["optim"].get("energy_coefficient", 1)
+        loss.append(
+            energy_mult * self.loss_fn["energy"](out["energy"], energy_target)
+        )
+
+        # Force loss.
+        if (self.config["model_attributes"].get("regress_forces", True)
+           or self.config['model_attributes'].get('use_auxiliary_task', False)):
+            force_target = torch.cat(
+                [batch.force.to(self.device) for batch in batch_list], dim=0
+            )
+            if self.normalizer.get("normalize_labels", False):
+                force_target = self.normalizers["grad_target"].norm(
+                    force_target
+                )
+
+            tag_specific_weights = self.config["task"].get(
+                "tag_specific_weights", []
+            )
+            if tag_specific_weights != []:
+                # handle tag specific weights as introduced in forcenet
+                assert len(tag_specific_weights) == 3
+
+                batch_tags = torch.cat(
+                    [
+                        batch.tags.float().to(self.device)
+                        for batch in batch_list
+                    ],
+                    dim=0,
+                )
+                weight = torch.zeros_like(batch_tags)
+                weight[batch_tags == 0] = tag_specific_weights[0]
+                weight[batch_tags == 1] = tag_specific_weights[1]
+                weight[batch_tags == 2] = tag_specific_weights[2]
+
+                loss_force_list = torch.abs(out["forces"] - force_target)
+                train_loss_force_unnormalized = torch.sum(
+                    loss_force_list * weight.view(-1, 1)
+                )
+                train_loss_force_normalizer = 3.0 * weight.sum()
+
+                # add up normalizer to obtain global normalizer
+                distutils.all_reduce(train_loss_force_normalizer)
+
+                # perform loss normalization before backprop
+                train_loss_force_normalized = train_loss_force_unnormalized * (
+                    distutils.get_world_size() / train_loss_force_normalizer
+                )
+                loss.append(train_loss_force_normalized)
+
+            else:
+                # Force coefficient = 30 has been working well for us.
+                force_mult = self.config["optim"].get("force_coefficient", 30)
+                if self.config["task"].get("train_on_free_atoms", False):
+                    fixed = torch.cat(
+                        [batch.fixed.to(self.device) for batch in batch_list]
+                    )
+                    mask = fixed == 0
+                    if self.config["optim"]["loss_force"].startswith(
+                        "atomwise"
+                    ):
+                        force_mult = self.config["optim"].get(
+                            "force_coefficient", 1
+                        )
+                        natoms = torch.cat(
+                            [
+                                batch.natoms.to(self.device)
+                                for batch in batch_list
+                            ]
+                        )
+                        natoms = torch.repeat_interleave(natoms, natoms)
+                        force_loss = force_mult * self.loss_fn["force"](
+                            out["forces"][mask],
+                            force_target[mask],
+                            natoms=natoms[mask],
+                            batch_size=batch_list[0].natoms.shape[0],
+                        )
+                        loss.append(force_loss)
+                    else:
+                        loss.append(
+                            force_mult
+                            * self.loss_fn["force"](
+                                out["forces"][mask], force_target[mask]
+                            )
+                        )
+                else:
+                    loss.append(
+                        force_mult
+                        * self.loss_fn["force"](out["forces"], force_target)
+                    )
+
+        # Sanity check to make sure the compute graph is correct.
+        for lc in loss:
+            assert hasattr(lc, "grad_fn")
+
+        loss = sum(loss)
+        return loss
+    
+    
+    def _mpflow_compute_metrics(self, out, batch_list, evaluator, metrics={}, predict_with_mpflow=False):
+        natoms = torch.cat(
+            [batch.natoms.to(self.device) for batch in batch_list], dim=0
+        )
+
+        target = {
+            "energy": torch.cat(
+                [batch.y.to(self.device) for batch in batch_list], dim=0
+            ),
+            "forces": torch.cat(
+                [batch.force.to(self.device) for batch in batch_list], dim=0
+            ),
+            "natoms": natoms,
+            "x1": out["x1"],
+        }
+        if not predict_with_mpflow:
+            target["predicted_x1"] = out["predicted_x1"]
+        else:
+            target["predicted_x1"] = out["x1"]
+
+        out["natoms"] = natoms
+
+        if self.config["task"].get("eval_on_free_atoms", True):
+            fixed = torch.cat(
+                [batch.fixed.to(self.device) for batch in batch_list]
+            )
+            mask = fixed == 0
+            out["forces"] = out["forces"][mask]
+            target["forces"] = target["forces"][mask]
+
+            s_idx = 0
+            natoms_free = []
+            for natoms in target["natoms"]:
+                natoms_free.append(
+                    torch.sum(mask[s_idx : s_idx + natoms]).item()
+                )
+                s_idx += natoms
+            target["natoms"] = torch.LongTensor(natoms_free).to(self.device)
+            out["natoms"] = torch.LongTensor(natoms_free).to(self.device)
+
+        if self.normalizer.get("normalize_labels", False):
+            out["energy"] = self.normalizers["target"].denorm(out["energy"])
+            out["forces"] = self.normalizers["grad_target"].denorm(
+                out["forces"]
+            )
+
+        metrics = evaluator.eval(out, target, prev_metrics=metrics)
 
         return metrics

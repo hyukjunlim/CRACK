@@ -10,6 +10,7 @@ import os
 from sklearn.decomposition import PCA
 from torch.optim.lr_scheduler import OneCycleLR
 from MPFlow.MPFlow import MPFlow
+from MPFlow.EnergyPredictor import EnergyPredictor
     
     
 class FlowMatching:
@@ -27,6 +28,7 @@ class FlowMatching:
         hidden_dims: List of hidden dimensions
         lr: Learning rate
         use_attention: Whether to use attention
+        energy_checkpoint_path: Path to energy predictor checkpoint
         device: Device to run the model on
     """
     def __init__(
@@ -36,6 +38,7 @@ class FlowMatching:
         hidden_dims=[256, 512, 512, 256], 
         lr=1e-4, 
         use_attention=True,
+        energy_checkpoint_path=None,
         device="cuda" if torch.cuda.is_available() else "cpu"
     ):
         self.device = device
@@ -48,6 +51,16 @@ class FlowMatching:
             hidden_dims=hidden_dims,
             use_attention=use_attention
         ).to(device)
+        
+        # Initialize energy predictor if checkpoint path is provided
+        self.energy_predictor = None
+        if energy_checkpoint_path is not None:
+            self.energy_predictor = EnergyPredictor(
+                embedding_dim=embedding_dim,
+                seq_length=seq_length,
+                checkpoint_path=energy_checkpoint_path,
+                device=device
+            ).to(device)
         
         # Setup optimizer with weight decay
         self.optimizer = optim.AdamW(
@@ -130,6 +143,45 @@ class FlowMatching:
             
         trajectory = torch.stack([x0, x], dim=1)
         return trajectory
+
+    def predict_energy(self, x):
+        """
+        Predicts energy for given embeddings.
+        
+        Args:
+            x: Input embeddings of shape (batch_size, seq_length, embedding_dim)
+            
+        Returns:
+            torch.Tensor: Predicted energies of shape (batch_size,)
+        """
+        if self.energy_predictor is None:
+            raise ValueError("Energy predictor not initialized. Provide energy_checkpoint_path during initialization.")
+        
+        with torch.no_grad():
+            return self.energy_predictor(x)
+
+    def sample_trajectory_with_energy(self, x0, method="heun"):
+        """
+        Samples a trajectory and computes energies along the path.
+        
+        Args:
+            x0: Starting point
+            method: Sampling method ("heun", "rk4", "dopri5")
+            
+        Returns:
+            tuple: (trajectory, energies) where energies contains predictions for each point
+        """
+        trajectory = self.sample_trajectory(x0, method)
+        
+        if self.energy_predictor is not None:
+            energies = []
+            for t in range(trajectory.shape[1]):
+                energy = self.predict_energy(trajectory[:, t])
+                energies.append(energy)
+            energies = torch.stack(energies, dim=1)  # Shape: (batch_size, timesteps)
+            return trajectory, energies
+        
+        return trajectory, None
 
     def visualize(self, trajectories, step=100, output_dir='flow_output', plots=["2d", "3d"]):
         """
@@ -328,7 +380,8 @@ def train_flow_model(
     batch_size=32, 
     output_dir='flow_output',
     validation_interval=10,
-    hidden_dims=[256, 512, 768, 512, 256]
+    hidden_dims=[256, 512, 512, 256],
+    energy_checkpoint_path=None
 ):
     """
     Main training loop for the flow matching model.
@@ -349,6 +402,7 @@ def train_flow_model(
         hidden_dims=hidden_dims,
         lr=1e-4,
         use_attention=True,
+        energy_checkpoint_path=energy_checkpoint_path,
     )
     print(f"Model parameters: {sum(p.numel() for p in flow_model.model.parameters())}", flush=True)
     
@@ -523,7 +577,8 @@ if __name__ == "__main__":
     embedding_dim = 128
     num_epochs = 1550
     batch_size = 64
-    hidden_dims = [256, 512, 512, 256]
+    hidden_dims = [256, 512, 512, 256]  
+    energy_checkpoint_path = 'models/oc20/s2ef/2M/equiformer_v2/N@12_L@6_M@2/bs@64_lr@2e-4_wd@1e-3_epochs@12_warmup-epochs@0.1_g@1x1/eq2_153M_ec4_allmd.pt'
     
     # Train flow matching model
     flow_model, losses = train_flow_model(
@@ -532,7 +587,8 @@ if __name__ == "__main__":
         num_epochs=num_epochs,
         batch_size=batch_size,
         output_dir=output_dir,
-        hidden_dims=hidden_dims
+        hidden_dims=hidden_dims,
+        energy_checkpoint_path=energy_checkpoint_path
     )
     
     # Create comprehensive visualizations
@@ -545,3 +601,4 @@ if __name__ == "__main__":
     )
     
     print("Training completed and model saved!", flush=True)
+
