@@ -105,8 +105,14 @@ optim:
     lr_min_factor: 0.01         
 
   max_epochs: 10
-  force_coefficient: 10
+  force_coefficient: 100
   energy_coefficient: 4
+  
+  mpflow_coefficient: 0.005
+  mpflow_dir_coefficient: 1
+  force_coefficient_consistency1: 2.5
+  force_coefficient_consistency2: 25
+  
   clip_grad_norm: 100
   ema_decay: 0.999
   loss_energy: mae

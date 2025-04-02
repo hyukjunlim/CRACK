@@ -1139,9 +1139,9 @@ class ForcesTrainerV2(BaseTrainerV2):
             disable=disable_tqdm,
         ):
             with torch.cuda.amp.autocast(enabled=self.scaler is not None):
-                out = self._forward(batch, predict_with_mpflow=True)
-            loss = self._mpflow_compute_loss(out, batch, predict_with_mpflow=True)
-            metrics = self._mpflow_compute_metrics(out, batch, evaluator, metrics, predict_with_mpflow=True)
+                out = self._forward(batch, predict_with_mpflow=False)
+            loss = self._mpflow_compute_loss(out, batch, predict_with_mpflow=False)
+            metrics = self._mpflow_compute_metrics(out, batch, evaluator, metrics, predict_with_mpflow=False)
             metrics = evaluator.update("loss", loss.item(), metrics)
 
         aggregated_metrics = {}
@@ -1308,7 +1308,7 @@ class ForcesTrainerV2(BaseTrainerV2):
 
         # MPFlow loss.
         if not predict_with_mpflow:
-            mpflow_mult = self.config["optim"].get("mpflow_coefficient", 0.05)
+            mpflow_mult = self.config["optim"].get("mpflow_coefficient", 0.005)
             loss.append(
                 mpflow_mult * self.loss_fn["mpflow"](out["predicted_ut"], out["ut"])
             )
@@ -1409,17 +1409,17 @@ class ForcesTrainerV2(BaseTrainerV2):
                                 out["forces"][mask], force_target[mask]
                             )
                         )
+                        # Gradient loss.
+                        if not predict_with_mpflow:
+                            consistencyloss1 = self.config["optim"].get("force_coefficient_consistency1", force_mult * 0.025)
+                            loss.append(
+                                consistencyloss1 * self.loss_fn["force"](out["grad_forces"], force_target)
+                            )
+                            consistencyloss2 = self.config["optim"].get("force_coefficient_consistency2", force_mult * 0.25)
+                            loss.append(
+                                consistencyloss2 * self.loss_fn["force"](out["grad_forces"], out["forces"])
+                            )
                 else:
-                    # Gradient loss.
-                    if not predict_with_mpflow:
-                        consistencyloss1 = self.config["optim"].get("grad_forces_coefficient", force_mult * 0.5)
-                        loss.append(
-                            consistencyloss1 * self.loss_fn["force"](out["grad_forces"], force_target)
-                        )
-                        consistencyloss2 = self.config["optim"].get("grad_forces_coefficient", force_mult * 0.25)
-                        loss.append(
-                            consistencyloss2 * self.loss_fn["force"](out["grad_forces"], out["forces"])
-                        )
                     loss.append(
                         force_mult
                         * self.loss_fn["force"](out["forces"], force_target)
@@ -1429,7 +1429,6 @@ class ForcesTrainerV2(BaseTrainerV2):
         for lc in loss:
             assert hasattr(lc, "grad_fn")
 
-        print([i.item() for i in loss], flush=True)
         loss = sum(loss)
         return loss
     
@@ -1448,11 +1447,10 @@ class ForcesTrainerV2(BaseTrainerV2):
             ),
             "natoms": natoms,
             "x1": out["x1"],
+            "predicted_x1": out["predicted_x1"],
         }
-        if not predict_with_mpflow:
-            target["predicted_x1"] = out["predicted_x1"]
-        else:
-            target["predicted_x1"] = out["x1"]
+        if self.config["model_attributes"].get("regress_forces", True):
+            target["grad_forces"] = out["forces"]
 
         out["natoms"] = natoms
 
