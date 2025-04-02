@@ -2,6 +2,10 @@
 /models/
 /logs/
 /save_logs/
-**/__pycache__/
+/mpflow_data/
+/_mpflow_data/
+/output/
+
+__pycache__/
 *.pt
 *.pyc

@@ -2,6 +2,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
+from .so3 import SO3_Embedding, SO3_Grid, SO3_Rotation, SO3_LinearV2
+from .transformer_block import FeedForwardNetwork # Local import for clarity
+from torch.nn import SiLU, Linear, Dropout, ModuleList
+from .layer_norm import get_normalization_layer
 
 class MPFlow(nn.Module):
     """
@@ -224,83 +228,179 @@ class SinusoidalTimeEmbedding(nn.Module):
     """
     Sinusoidal time embedding module.
     Creates position encodings with extended frequency range
-    for better temporal signal representation.
+    for better temporal signal representation. Copied from original MPFlow.
     """
     def __init__(self, dim, max_period=10000.0):
         super().__init__()
         self.dim = dim
         self.max_period = max_period
-        
+
     def forward(self, t):
         """
         Convert time to sinusoidal embedding.
         Args:
-            t: Time tensor [batch_size, 1]
+            t: Time tensor [batch_size, 1] or similar leading dimensions.
         Returns:
             embedding: Time embedding [batch_size, dim]
         """
         device = t.device
         half_dim = self.dim // 2
-        
+
+        # Ensure t is atleast 2D for broadcasting: [N, 1]
+        if t.ndim == 1:
+            t = t.unsqueeze(-1)
+
         frequencies = torch.exp(
-            torch.linspace(0., np.log(self.max_period), half_dim, device=device)
+            -np.log(self.max_period) * torch.arange(start=0, end=half_dim, dtype=torch.float32, device=device) / half_dim
         )
-        
+
         args = t * frequencies
-        embedding = torch.cat([torch.sin(args), torch.cos(args)], dim=-1)
-        
+        embedding = torch.cat([torch.cos(args), torch.sin(args)], dim=-1)
+
         if self.dim % 2 == 1:
-            embedding = F.pad(embedding, (0, 1, 0, 0))
-            
+            embedding = F.pad(embedding, (0, 1, 0, 0)) # Pad last dimension
+
         return embedding
 
 
-class EnergyPredictionHead(nn.Module):
+class EquivariantMPFlow(nn.Module):
     """
-    Neural network head for predicting energy values from embeddings.
-    
-    Args:
-        embedding_dim: Dimension of the embedding input
-        hidden_dims: List of hidden dimensions for the MLP
-        pool_method: Method to aggregate sequence information
+    Equivariant Neural network for conditional flow matching based on EquiformerV2 blocks.
+
+    Operates on SO(3) equivariant features and incorporates time conditioning.
+    Uses FeedForwardNetwork blocks from EquiformerV2 for core processing.
     """
-    def __init__(self, embedding_dim, seq_length=49, hidden_dims=[256, 128, 64], pool_method='mean'):
+    def __init__(self,
+                 sphere_channels,       # Feature channels (equiv. to embedding_dim)
+                 ffn_hidden_channels,   # Hidden channels in FFN blocks
+                 time_embed_dim,        # Dimension for time embedding
+                 lmax_list,             # List of lmax for each resolution
+                 mmax_list,             # List of mmax for each resolution (passed to FFN)
+                 SO3_grid,              # SO3_grid for activations (passed to FFN)
+                 activation,            # Activation type (passed to FFN)
+                 norm_type,             # Normalization type (passed to FFN)
+                 use_gate_act,          # Use gate activation? (passed to FFN)
+                 use_grid_mlp,          # Use grid MLP? (passed to FFN)
+                 use_sep_s2_act,        # Use separable S2 activation? (passed to FFN)
+                 num_layers=4,          # Number of equivariant FFN blocks
+                 proj_drop=0.0):        # Dropout rate (applied after residual)
         super().__init__()
-        self.pool_method = pool_method  # How to aggregate sequence information
-        
-        layers = []
-        input_dim = embedding_dim
-        
-        # Create MLP layers with ReLU activation and batch normalization
-        for hidden_dim in hidden_dims:
-            layers.append(nn.Linear(input_dim, hidden_dim))
-            layers.append(nn.BatchNorm1d(hidden_dim))
-            layers.append(nn.ReLU())
-            input_dim = hidden_dim
-        
-        # Final output layer for scalar energy prediction
-        layers.append(nn.Linear(hidden_dims[-1], 1))
-        
-        self.energy_mlp = nn.Sequential(*layers)
-    
-    def forward(self, x):
+        self.sphere_channels = sphere_channels
+        self.lmax_list = lmax_list
+        self.num_resolutions = len(lmax_list)
+
+        # Time embedding network (standard MLP processing invariant time)
+        self.time_embedding = nn.Sequential(
+            SinusoidalTimeEmbedding(time_embed_dim),
+            nn.Linear(time_embed_dim, time_embed_dim * 2),
+            nn.SiLU(),
+            nn.Linear(time_embed_dim * 2, sphere_channels) # Output matches feature channels
+        )
+
+        # Calculate indices corresponding to l=0 components for time conditioning
+        # Assumes features are stored as [Node, Coeff, Channel] where Coeff concatenates
+        # (res0_l0, res0_l1...), (res1_l0, res1_l1...), ...
+        self.l0_indices = []
+        offset = 0
+        for lmax in self.lmax_list:
+            self.l0_indices.append(offset)
+            # Number of coefficients for a given lmax is (lmax + 1)**2
+            offset += (lmax + 1)**2
+        self.total_coefficients = offset
+
+        # Stack of equivariant FeedForwardNetwork blocks
+        self.blocks = nn.ModuleList()
+        self.norms = nn.ModuleList()
+        for _ in range(num_layers):
+            # Reuse the FeedForwardNetwork from transformer_block
+            # Ensure FeedForwardNetwork is imported where this class is used
+            ffn = FeedForwardNetwork(
+                sphere_channels=sphere_channels,
+                hidden_channels=ffn_hidden_channels,
+                output_channels=sphere_channels, # Corrected argument name
+                lmax_list=lmax_list,
+                mmax_list=mmax_list,
+                SO3_grid=SO3_grid,
+                activation=activation,
+                use_gate_act=use_gate_act,
+                use_grid_mlp=use_grid_mlp,
+                use_sep_s2_act=use_sep_s2_act,
+                # norm_type and proj_drop are handled outside FFN
+            )
+            self.blocks.append(ffn)
+
+            # Add normalization layer for each block
+            # Get max lmax across resolutions for the norm layer
+            current_max_lmax = max(lmax_list) if lmax_list else 0
+            norm_layer = get_normalization_layer(
+                norm_type, lmax=current_max_lmax, num_channels=sphere_channels
+            )
+            self.norms.append(norm_layer)
+
+        # Dropout layer applied after residual connection
+        self.proj_drop = Dropout(proj_drop) if proj_drop > 0. else nn.Identity()
+
+        # Ensure parameters are initialized (optional, inherit from main model apply)
+
+
+    def forward(self, x_emb, t):
         """
-        Forward pass to predict energy.
-        
+        Forward pass for the equivariant flow model.
+
         Args:
-            x: Embedding tensor of shape [batch_size, seq_length, embedding_dim]
-            
+            x_emb (torch.Tensor): Equivariant features tensor of shape
+                                  [num_nodes, num_coefficients, channels].
+            t (torch.Tensor): Time tensor of shape [num_nodes, 1].
+
         Returns:
-            Predicted energy values of shape [batch_size, 1]
+            torch.Tensor: Predicted velocity field dv/dt, same shape as x_emb.
         """
-        batch_size, seq_len, embed_dim = x.shape
-        
-        # Pool sequence dimension based on chosen method
-        if self.pool_method == 'mean':
-            x = x.mean(dim=1)  # [batch_size, embedding_dim]
-        elif self.pool_method == 'max':
-            x = x.max(dim=1)[0]  # [batch_size, embedding_dim]
-        elif self.pool_method == 'sum':
-            x = x.sum(dim=1)  # [batch_size, embedding_dim]
-        
-        return self.energy_mlp(x)
+        # Check input shapes
+        num_nodes, num_coeffs, num_channels = x_emb.shape
+        assert num_coeffs == self.total_coefficients, f"Input coefficient mismatch: {num_coeffs} vs {self.total_coefficients}"
+        assert num_channels == self.sphere_channels, f"Input channel mismatch: {num_channels} vs {self.sphere_channels}"
+        assert t.shape == (num_nodes, 1), f"Time tensor shape mismatch: {t.shape} vs ({num_nodes}, 1)"
+
+        # 1. Compute time features (invariant)
+        t_feat = self.time_embedding(t) # [num_nodes, sphere_channels]
+        # Expand for broadcasting: [num_nodes, 1, sphere_channels]
+        t_feat_expanded = t_feat.unsqueeze(1)
+
+        # 2. Apply equivariant blocks with time conditioning and residuals
+        h = x_emb
+        for i, ffn_block in enumerate(self.blocks):
+            identity = h
+
+            # Apply normalization before FFN
+            h_norm = self.norms[i](h)
+
+            # Condition with time: Add time features to l=0 components
+            h_conditioned = h_norm.clone() # Condition the normalized features
+            for l0_idx in self.l0_indices:
+                # Add expanded time features to the l=0 slice for all channels
+                h_conditioned[:, l0_idx, :] = h_conditioned[:, l0_idx, :] + t_feat_expanded[:, 0, :]
+
+            # Wrap the tensor in SO3_Embedding before passing to FFN
+            # Need num_nodes, lmax_list, sphere_channels, device, dtype
+            h_so3 = SO3_Embedding(
+                length=h_conditioned.shape[0],
+                lmax_list=self.lmax_list,
+                num_channels=self.sphere_channels,
+                device=h_conditioned.device,
+                dtype=h_conditioned.dtype
+            )
+            h_so3.embedding = h_conditioned # Assign the tensor to the object
+
+            # Call FFN with the SO3_Embedding object
+            processed_h_so3 = ffn_block(h_so3)
+
+            # Extract the tensor from the result
+            processed_h = processed_h_so3.embedding
+
+            # Add residual connection
+            h = identity + processed_h # Note: FFN might have internal dropout
+
+            # Apply projection dropout after residual
+            h = self.proj_drop(h)
+
+        return h

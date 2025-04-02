@@ -104,7 +104,7 @@ optim:
     warmup_epochs: 1
     lr_min_factor: 0.01         
 
-  max_epochs: 10
+  max_epochs: 1
   force_coefficient: 100
   energy_coefficient: 4
   

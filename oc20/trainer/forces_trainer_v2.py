@@ -113,6 +113,26 @@ class ForcesTrainerV2(BaseTrainerV2):
             noddp=noddp,
         )
 
+        # --- Embedding Saving Configuration ---
+        # Get these values from your config object (e.g., self.config.get(...))
+        self.save_embeddings_flag = self.config.get("save_embeddings", True) # Control saving
+        self.embeddings_output_dir = self.config.get("embeddings_output_dir", "mpflow_data")
+        self.embeddings_save_interval = self.config.get("embeddings_save_interval", 100) # Batches per file
+
+        if self.save_embeddings_flag:
+            print(f"Embeddings will be saved to: {self.embeddings_output_dir}")
+            os.makedirs(self.embeddings_output_dir, exist_ok=True)
+            # --- Internal state for saving ---
+            self._embeddings_buffer_x0 = []
+            self._embeddings_buffer_x1 = []
+            self._embeddings_batch_counter = 0
+            self._embeddings_file_index = 0
+            # Check if resuming and find last file index if necessary
+            existing_files = [f for f in os.listdir(self.embeddings_output_dir) if f.startswith('embeddings_') and f.endswith('.npz')]
+            if existing_files:
+                self._embeddings_file_index = max([int(f.split('_')[1].split('.')[0]) for f in existing_files]) + 1
+                print(f"Resuming embedding saving. Next file index: {self._embeddings_file_index}")
+
     def load_task(self):
         self.file_logger.info(f"Loading dataset: {self.config['task']['dataset']}")
 
@@ -472,15 +492,15 @@ class ForcesTrainerV2(BaseTrainerV2):
         if not predict_with_mpflow:
             if (self.config["model_attributes"].get("regress_forces", True)
                 or self.config['model_attributes'].get('use_auxiliary_task', False)):
-                out_energy, out_forces, out_grad_forces, ut, predicted_ut, x1, predicted_x1, time_first, time_last, time_mpflow = self.model(batch_list, predict_with_mpflow=predict_with_mpflow)
+                out_energy, out_forces, out_grad_forces, ut, predicted_ut, x0, x1, predicted_x1, time_first, time_last, time_mpflow = self.model(batch_list, predict_with_mpflow=predict_with_mpflow)
             else:
-                out_energy, ut, predicted_ut, x1, predicted_x1, time_first, time_last, time_mpflow = self.model(batch_list, predict_with_mpflow=predict_with_mpflow)
+                out_energy, ut, predicted_ut, x0, x1, predicted_x1, time_first, time_last, time_mpflow = self.model(batch_list, predict_with_mpflow=predict_with_mpflow)
         else:
             if (self.config["model_attributes"].get("regress_forces", True)
                 or self.config['model_attributes'].get('use_auxiliary_task', False)):
-                out_energy, out_forces, x1, time_first, time_last, time_mpflow = self.model(batch_list, predict_with_mpflow=predict_with_mpflow)
+                out_energy, out_forces, x0, x1, time_first, time_last, time_mpflow = self.model(batch_list, predict_with_mpflow=predict_with_mpflow)
             else:
-                out_energy, x1, time_first, time_last, time_mpflow = self.model(batch_list, predict_with_mpflow=predict_with_mpflow)
+                out_energy, x0, x1, time_first, time_last, time_mpflow = self.model(batch_list, predict_with_mpflow=predict_with_mpflow)
 
         if out_energy.shape[-1] == 1:
             out_energy = out_energy.view(-1)
@@ -501,6 +521,8 @@ class ForcesTrainerV2(BaseTrainerV2):
             out["ut"] = ut
             out["predicted_ut"] = predicted_ut
             out["predicted_x1"] = predicted_x1
+            out["x0"] = x0
+            out["x1"] = x1
         else:
             out["predicted_x1"] = x1
         out["x1"] = x1
@@ -1003,6 +1025,7 @@ class ForcesTrainerV2(BaseTrainerV2):
                 with torch.cuda.amp.autocast(enabled=self.scaler is not None):
                     out = self._forward(batch)
                     loss = self._mpflow_compute_loss(out, batch)
+                    self.save_embeddings(out)
                     
                 loss = self.scaler.scale(loss) if self.scaler else loss
                 if self.grad_accumulation_steps != 1:
@@ -1058,36 +1081,36 @@ class ForcesTrainerV2(BaseTrainerV2):
                         checkpoint_file="checkpoint.pt", training_state=True
                     )
 
-                # Evaluate on val set every `eval_every` iterations.
-                if (self.step % eval_every == 0
-                    or i == (len(self.train_loader) - 1)):
-                    if self.val_loader is not None:
-                        if self.ema:
-                            val_metrics = self.mpflow_validate(split="val",
-                                disable_tqdm=disable_eval_tqdm, use_ema=True)
-                            self.update_best(primary_metric,
-                                val_metrics, disable_eval_tqdm=disable_eval_tqdm)
-                        else:
-                            val_metrics = self.mpflow_validate(split="val",
-                                disable_tqdm=disable_eval_tqdm, use_ema=False)
-                            self.update_best(primary_metric,
-                                val_metrics, disable_eval_tqdm=disable_eval_tqdm)
+                # # Evaluate on val set every `eval_every` iterations.
+                # if (self.step % eval_every == 0
+                #     or i == (len(self.train_loader) - 1)):
+                #     if self.val_loader is not None:
+                #         if self.ema:
+                #             val_metrics = self.mpflow_validate(split="val",
+                #                 disable_tqdm=disable_eval_tqdm, use_ema=True)
+                #             self.update_best(primary_metric,
+                #                 val_metrics, disable_eval_tqdm=disable_eval_tqdm)
+                #         else:
+                #             val_metrics = self.mpflow_validate(split="val",
+                #                 disable_tqdm=disable_eval_tqdm, use_ema=False)
+                #             self.update_best(primary_metric,
+                #                 val_metrics, disable_eval_tqdm=disable_eval_tqdm)
 
-                        if self.is_hpo:
-                            self.hpo_update(
-                                self.epoch,
-                                self.step,
-                                self.metrics,
-                                val_metrics,
-                            )
+                #         if self.is_hpo:
+                #             self.hpo_update(
+                #                 self.epoch,
+                #                 self.step,
+                #                 self.metrics,
+                #                 val_metrics,
+                #             )
 
-                    if self.config["task"].get("eval_relaxations", False):
-                        if "relax_dataset" not in self.config["task"]:
-                            logging.warning(
-                                "Cannot evaluate relaxations, relax_dataset not specified"
-                            )
-                        else:
-                            self.run_relaxations()
+                #     if self.config["task"].get("eval_relaxations", False):
+                #         if "relax_dataset" not in self.config["task"]:
+                #             logging.warning(
+                #                 "Cannot evaluate relaxations, relax_dataset not specified"
+                #             )
+                #         else:
+                #             self.run_relaxations()
 
                 if self.scheduler.scheduler_type == "ReduceLROnPlateau":
                     if self.step % eval_every == 0:
@@ -1481,3 +1504,96 @@ class ForcesTrainerV2(BaseTrainerV2):
         metrics = evaluator.eval(out, target, prev_metrics=metrics)
 
         return metrics
+
+    def save_embeddings(self, output):
+        """
+        Accumulates and saves x0 and x1 embeddings passed in the model output.
+
+        Args:
+            output (tuple): The output tuple from the model's forward pass.
+                            Expected to contain x0_return and x1_return as the
+                            last two elements when self.save_embeddings_flag is True.
+        """
+        if not self.save_embeddings_flag:
+            return # Don't save if the flag isn't set
+
+        # --- Extract Embeddings ---
+        # Check if necessary keys exist in output
+        if 'x0' not in output or 'x1' not in output:
+             logging.warning("Model output missing x0 or x1 keys.")
+             return
+             
+        x0_return = output['x0']
+        x1_return = output['x1']
+
+        if x0_return is None or x1_return is None:
+            # This can happen if return_embeddings=False was used, or if
+            # predict_with_mpflow=True was used with return_embeddings=True.
+            # Ensure your validation/test loop calls forward with return_embeddings=True
+            # and predict_with_mpflow=False.
+            return
+
+        # --- Move to CPU and convert to half precision for storage efficiency ---
+        x0_cpu = x0_return.detach().cpu()
+        x1_cpu = x1_return.detach().cpu()
+        
+        # --- Accumulate ---
+        self._embeddings_buffer_x0.append(x0_cpu)
+        self._embeddings_buffer_x1.append(x1_cpu)
+        self._embeddings_batch_counter += 1
+
+        # --- Save Periodically ---
+        if self._embeddings_batch_counter >= self.embeddings_save_interval:
+            self._write_embedding_chunk()
+
+
+    def _write_embedding_chunk(self):
+        """Helper function to write the current buffer to a compressed npz file."""
+        if not self._embeddings_buffer_x0: # Nothing to save
+            return
+
+        print(f"Saving embeddings chunk {self._embeddings_file_index} ({len(self._embeddings_buffer_x0)} batches)...")
+        try:
+            # Concatenate tensors collected so far for this file
+            # Tensors should already be on CPU from save_embeddings method
+            x0_to_save = torch.cat(self._embeddings_buffer_x0, dim=0)
+            x1_to_save = torch.cat(self._embeddings_buffer_x1, dim=0)
+            
+            # Additional safety check to ensure tensors are on CPU
+            if x0_to_save.is_cuda:
+                print("Warning: x0 tensor still on CUDA despite previous CPU conversion, moving to CPU now")
+                x0_to_save = x0_to_save.cpu()
+            if x1_to_save.is_cuda:
+                print("Warning: x1 tensor still on CUDA despite previous CPU conversion, moving to CPU now")
+                x1_to_save = x1_to_save.cpu()
+            
+            # Convert to numpy
+            x0_numpy = x0_to_save.numpy()
+            x1_numpy = x1_to_save.numpy()
+
+            save_path = os.path.join(self.embeddings_output_dir, f'embeddings_{self._embeddings_file_index:04d}.npz')
+            np.savez_compressed(save_path, x0=x0_numpy, x1=x1_numpy)
+            print(f"Saved {x0_numpy.shape[0]} embedding pairs to {save_path}")
+
+            # Reset buffers and counters for the next file
+            self._embeddings_buffer_x0 = []
+            self._embeddings_buffer_x1 = []
+            self._embeddings_batch_counter = 0
+            self._embeddings_file_index += 1
+
+        except Exception as e:
+            logging.error(f"Error saving embedding file embeddings_{self._embeddings_file_index:04d}.npz: {e}")
+            # Clear buffers anyway to prevent repeated errors with the same data
+            self._embeddings_buffer_x0 = []
+            self._embeddings_buffer_x1 = []
+            self._embeddings_batch_counter = 0
+
+
+    def _finalize_embedding_save(self):
+        """Saves any remaining embeddings in the buffer, typically called at the end of an epoch."""
+        if not self.save_embeddings_flag:
+            return
+        
+        print("Finalizing embedding saving for the epoch...")
+        self._write_embedding_chunk() # Write any remaining data
+        print("Embedding saving finalized.")

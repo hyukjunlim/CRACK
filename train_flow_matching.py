@@ -7,9 +7,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import os
+import sys
 from sklearn.decomposition import PCA
 from torch.optim.lr_scheduler import OneCycleLR
-from MPFlow.MPFlow import MPFlow
+from nets.equiformer_v2.MPFlow import EquivariantMPFlow
+from nets.equiformer_v2.so3 import SO3_Grid
+from nets.equiformer_v2.module_list import ModuleListInfo
+import glob
     
     
 class FlowMatching:
@@ -23,31 +27,60 @@ class FlowMatching:
     - Implements cosine annealing with warm restarts
     
     Args:
-        embedding_dim: Dimension of the embedding
-        hidden_dims: List of hidden dimensions
         lr: Learning rate
-        use_attention: Whether to use attention
         device: Device to run the model on
     """
     def __init__(
         self, 
-        embedding_dim, 
-        seq_length=49,
-        hidden_dims=[256, 512, 512, 256], 
         lr=1e-4, 
-        use_attention=True,
         device="cuda" if torch.cuda.is_available() else "cpu"
     ):
         self.device = device
-        self.embedding_dim = embedding_dim
+        self.sphere_channels = 128
+        self.ffn_hidden_channels = 256
+        self.time_embed_dim = 128
+        self.lmax_list = [6]
+        self.mmax_list = [3]
+        self.grid_resolution = 18
+        self.ffn_activation = 'silu'
+        self.norm_type = 'layer_norm_sh'
+        self.use_gate_act = False
+        self.use_grid_mlp = True
+        self.use_sep_s2_act = True
+        self.num_layers = 4
+        self.proj_drop = 0.0
         
         # Initialize the residual flow matching network
-        self.model = MPFlow(
-            embedding_dim=embedding_dim,
-            seq_length=seq_length,
-            hidden_dims=hidden_dims,
-            use_attention=use_attention
-        ).to(device)
+        self.SO3_grid = ModuleListInfo('({}, {})'.format(max(self.lmax_list), max(self.lmax_list)))
+        for l in range(max(self.lmax_list) + 1):
+            SO3_m_grid = nn.ModuleList()
+            for m in range(max(self.lmax_list) + 1):
+                SO3_m_grid.append(
+                    SO3_Grid(
+                        l, 
+                        m, 
+                        resolution=self.grid_resolution, 
+                        normalization='component'
+                    )
+                )
+            self.SO3_grid.append(SO3_m_grid)
+            
+        self.model = EquivariantMPFlow(
+            sphere_channels=self.sphere_channels,
+            ffn_hidden_channels=self.ffn_hidden_channels,
+            time_embed_dim=self.time_embed_dim,
+            lmax_list=self.lmax_list,
+            mmax_list=self.mmax_list, # Pass mmax_list
+            SO3_grid=self.SO3_grid,     # Pass SO3_grid
+            activation=self.ffn_activation, # Reuse ffn activation
+            norm_type=self.norm_type,      # Reuse norm type
+            use_gate_act=self.use_gate_act,
+            use_grid_mlp=self.use_grid_mlp,
+            use_sep_s2_act=self.use_sep_s2_act,
+            num_layers=self.num_layers,
+            proj_drop=self.proj_drop, # Pass if needed and supported by EquivariantMPFlow's blocks
+        )
+        self.model.to(self.device)
         
         # Setup optimizer with weight decay
         self.optimizer = optim.AdamW(
@@ -71,12 +104,15 @@ class FlowMatching:
         Loss = MSE + 0.005 * DirectionalLoss
         """
         batch_size = x0.shape[0]
+        # Keep original t with shape (B, 1) for the model
+        # Create a broadcastable version for xt calculation
+        t_broadcast = t.view(batch_size, 1, 1)
         
         ut = x1 - x0
-        xt = x0 + t * ut
+        xt = x0 + t_broadcast * ut # Use broadcastable t here
             
         # Get the model's prediction
-        predicted_ut = self.model(xt, t)
+        predicted_ut = self.model(xt, t) # Use original t (B, 1) here
         
         # Flow matching loss 
         mse_loss = F.mse_loss(predicted_ut, ut)
@@ -106,25 +142,29 @@ class FlowMatching:
         x = x0.clone()
         with torch.no_grad():
             if method == "heun":
-                # Previous Heun implementation
-                t = torch.zeros((batch_size, 49, 1), device=device)
+                # Time tensor should be [batch_size, 1]
+                t = torch.zeros((batch_size, 1), device=device)
                 k1 = self.model(x, t)
                 x_pred = x + k1
-                k2 = self.model(x_pred, t + 1.0)
+                # Time t+1 should also be [batch_size, 1]
+                t_next = torch.ones((batch_size, 1), device=device)
+                k2 = self.model(x_pred, t_next)
                 x = x + 0.5 * (k1 + k2)
             
             elif method == "rk4":
-                # Original RK4 implementation
-                t = torch.zeros((batch_size, 49, 1), device=device)
+                # Time tensors should be [batch_size, 1]
+                t = torch.zeros((batch_size, 1), device=device)
+                t_half = torch.full((batch_size, 1), 0.5, device=device)
+                t_one = torch.ones((batch_size, 1), device=device)
                 k1 = self.model(x, t)
-                k2 = self.model(x + 0.5 * k1, t + 0.5)
-                k3 = self.model(x + 0.5 * k2, t + 0.5)
-                k4 = self.model(x + k3, t + 1.0)
+                k2 = self.model(x + 0.5 * k1, t_half)
+                k3 = self.model(x + 0.5 * k2, t_half)
+                k4 = self.model(x + k3, t_one)
                 x = x + (1.0 / 6.0) * (k1 + 2*k2 + 2*k3 + k4)
                 
             elif method == "euler":
-                # Simple Euler method
-                t = torch.zeros((batch_size, 49, 1), device=device)
+                # Time tensor should be [batch_size, 1]
+                t = torch.zeros((batch_size, 1), device=device)
                 velocity = self.model(x, t)
                 x = x + velocity
             
@@ -323,12 +363,11 @@ def prepare_data(trajectories, train_ratio=0.8):
 
 def train_flow_model(
     trajectories, 
-    embedding_dim, 
     num_epochs=1000, 
     batch_size=32, 
     output_dir='flow_output',
     validation_interval=10,
-    hidden_dims=[256, 512, 768, 512, 256]
+    lr=1e-4,
 ):
     """
     Main training loop for the flow matching model.
@@ -343,13 +382,7 @@ def train_flow_model(
     os.makedirs(output_dir, exist_ok=True)
     train_data, val_data = prepare_data(trajectories, train_ratio=0.8)
     
-    flow_model = FlowMatching(
-        embedding_dim=embedding_dim,
-        seq_length=49,
-        hidden_dims=hidden_dims,
-        lr=1e-4,
-        use_attention=True,
-    )
+    flow_model = FlowMatching(lr=lr)
     print(f"Model parameters: {sum(p.numel() for p in flow_model.model.parameters())}", flush=True)
     
     model_path = os.path.join(output_dir, 'flow_matching_model.pt')
@@ -373,7 +406,7 @@ def train_flow_model(
             batch_tensor = torch.tensor(train_data[batch_indices], dtype=torch.float32, device=flow_model.device)
             
             x0, x1 = batch_tensor[:, 0], batch_tensor[:, -1] # [batch_size, 49, 128]
-            t = torch.rand(batch_size, 49, 1, device=flow_model.device) # [batch_size, 49, 1]
+            t = torch.rand(batch_size, 1, device=flow_model.device) # Sample time per batch item
             
             loss = flow_model.train_step(x0, x1, t)
             epoch_losses.append(loss)
@@ -458,10 +491,12 @@ def validate_model(flow_model, val_data, batch_size=32):
             t_values = torch.linspace(0.1, 0.9, 5).repeat(batch_size_actual, 49, 1).to(flow_model.device)
             
             for t_idx in range(t_values.shape[2]):
-                t = t_values[:, :, t_idx:t_idx+1]
+                t = t_values[:, :, t_idx:t_idx+1] # Shape (B, 49, 1)
                 ut = x1 - x0
-                xt = x0 + t * ut
-                predicted_ut = flow_model.model(xt, t)
+                xt = x0 + t * ut # Broadcasting works here: (B,49,D) + (B,49,1)*(B,49,D) -> (B,49,D)
+                # Model expects t with shape (B, 1)
+                t_model = t[:, 0, :] # Take time from first seq element -> Shape (B, 1)
+                predicted_ut = flow_model.model(xt, t_model)
                 loss = F.mse_loss(predicted_ut, ut)
                 val_losses.append(loss.item())
     
@@ -476,22 +511,16 @@ def load_trajectory_data():
     Returns:
         Combined and shuffled trajectories array of shape (n_trajectories, 2, 49, 128)
     """
-    file_paths = [
-        'save_logs/0/s2ef_predictions.npz',
-        'save_logs/1/s2ef_predictions.npz', 
-        'save_logs/2/s2ef_predictions.npz',
-        'save_logs/3/s2ef_predictions.npz',
-        'save_logs/4/s2ef_predictions.npz',
-        'save_logs/5/s2ef_predictions.npz',
-        # 'save_logs/6/s2ef_predictions.npz',
-        # 'save_logs/7/s2ef_predictions.npz',
-    ]
-        
+    file_paths = sorted(glob.glob('_mpflow_data/embeddings_*.npz'))
+    
     all_trajectories = []
     for file_path in file_paths:
         data = np.load(file_path)
-        trajectories = data['latents'].reshape(-1, 2, 49, 128)
-        all_trajectories.append(trajectories)
+        x0 = data['x0'] # [N, 49, 128]
+        x1 = data['x1'] # [N, 49, 128]
+        x = np.stack([x0, x1], axis=1)  # [N, 2, 49, 128]
+        print(x.shape, flush=True)
+        all_trajectories.append(x)
     
     # First concatenate all trajectories
     combined_trajectories = np.concatenate(all_trajectories, axis=0)
@@ -520,19 +549,16 @@ if __name__ == "__main__":
     print(f"Loaded trajectories shape: {trajectories.shape}", flush=True)
     
     # Train the residual flow matching model
-    embedding_dim = 128
     num_epochs = 1550
-    batch_size = 64
-    hidden_dims = [256, 512, 512, 256]
+    batch_size = 1024
     
     # Train flow matching model
     flow_model, losses = train_flow_model(
         trajectories=trajectories,
-        embedding_dim=embedding_dim,
         num_epochs=num_epochs,
         batch_size=batch_size,
         output_dir=output_dir,
-        hidden_dims=hidden_dims
+        lr=1e-4
     )
     
     # Create comprehensive visualizations

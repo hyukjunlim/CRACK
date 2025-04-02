@@ -48,7 +48,7 @@ from .transformer_block import (
     TransBlockV2, 
 )
 from .input_block import EdgeDegreeEmbedding
-from .MPFlow import MPFlow
+from .MPFlow import MPFlow, EquivariantMPFlow
 
 # Statistics of IS2RE 100K 
 _AVG_NUM_NODES  = 77.81317
@@ -349,13 +349,41 @@ class EquiformerV2_OC20(BaseModel):
                 alpha_drop=0.0
             )
             
-        # MPFlow
-        self.mpflow = MPFlow(
-            embedding_dim=128,
-            seq_length=49,
-            hidden_dims=[256, 256, 256, 256],
-            use_attention=True,
+        # Equivariant MPFlow
+        # Define MPFlow-specific parameters here, e.g.:
+        mpflow_time_embed_dim = 128
+        mpflow_ffn_hidden_channels = 256 # Example, adjust as needed
+        mpflow_num_layers = 4           # Example, adjust as needed
+
+        self.mpflow = EquivariantMPFlow(
+            sphere_channels=self.sphere_channels,
+            ffn_hidden_channels=mpflow_ffn_hidden_channels,
+            time_embed_dim=mpflow_time_embed_dim,
+            lmax_list=self.lmax_list,
+            mmax_list=self.mmax_list, # Pass mmax_list
+            SO3_grid=self.SO3_grid,     # Pass SO3_grid
+            activation=self.ffn_activation, # Reuse ffn activation
+            norm_type=self.norm_type,      # Reuse norm type
+            use_gate_act=self.use_gate_act,
+            use_grid_mlp=self.use_grid_mlp,
+            use_sep_s2_act=self.use_sep_s2_act,
+            num_layers=mpflow_num_layers,
+            proj_drop=self.proj_drop, # Pass if needed and supported by EquivariantMPFlow's blocks
         ).to(self.device)
+        
+        print(self.sphere_channels, flush=True)
+        print(mpflow_ffn_hidden_channels, flush=True)
+        print(mpflow_time_embed_dim, flush=True)
+        print(self.lmax_list, flush=True)
+        print(self.mmax_list, flush=True)
+        print(self.SO3_grid, flush=True)
+        print(self.ffn_activation, flush=True)
+        print(self.norm_type, flush=True)
+        print(self.use_gate_act, flush=True)
+        print(self.use_grid_mlp, flush=True)
+        print(self.use_sep_s2_act, flush=True)
+        print(mpflow_num_layers, flush=True)
+        print(self.proj_drop, flush=True)
             
         self.apply(self._init_weights)
         self.apply(self._uniform_init_rad_func_linear_weights)
@@ -539,14 +567,14 @@ class EquiformerV2_OC20(BaseModel):
         
         if not predict_with_mpflow:
             if not self.regress_forces:
-                return energy, ut, predicted_ut, x1, predicted_x1, time_first, time_last, time_mpflow
+                return energy, ut, predicted_ut, x0, x1, predicted_x1, time_first, time_last, time_mpflow
             else:
-                return energy, grad_forces, forces, ut, predicted_ut, x1, predicted_x1, time_first, time_last, time_mpflow
+                return energy, grad_forces, forces, ut, predicted_ut, x0, x1, predicted_x1, time_first, time_last, time_mpflow
         else:
             if not self.regress_forces:
-                return energy, x1, time_first, time_last, time_mpflow
+                return energy, x0, x1, time_first, time_last, time_mpflow
             else:
-                return energy, forces, x1, time_first, time_last, time_mpflow
+                return energy, forces, x0, x1, time_first, time_last, time_mpflow
 
 
     def sample_trajectory(self, x0, method="heun", enable_grad=False):
@@ -560,6 +588,7 @@ class EquiformerV2_OC20(BaseModel):
         """
         self.mpflow.eval()
         batch_size = x0.shape[0]
+        num_nodes = x0.shape[0] # x0 shape: [num_nodes, num_coefficients, channels]
         device = x0.device
         x = x0.clone()
         
@@ -571,36 +600,45 @@ class EquiformerV2_OC20(BaseModel):
         
         
     def _compute_trajectory(self, x, method, batch_size, device):
+        num_nodes = x.shape[0]
         if method == "euler":
             # Simple Euler method
-            t = torch.zeros((batch_size, 49, 1), device=device)
+            # Time shape should be [num_nodes, 1]
+            t = torch.zeros((num_nodes, 1), device=device)
             velocity = self.mpflow(x, t)
             x = x + velocity
             
         elif method == "heun":
             # Previous Heun implementation
-            t = torch.zeros((batch_size, 49, 1), device=device)
+            t = torch.zeros((num_nodes, 1), device=device)
             k1 = self.mpflow(x, t)
             x_pred = x + k1
-            k2 = self.mpflow(x_pred, t + 1.0)
+            t_next = torch.ones((num_nodes, 1), device=device) # time t+1
+            k2 = self.mpflow(x_pred, t_next)
             x = x + 0.5 * (k1 + k2)
         
         elif method == "rk4":
             # Original RK4 implementation
-            t = torch.zeros((batch_size, 49, 1), device=device)
+            t = torch.zeros((num_nodes, 1), device=device)
+            t_half = torch.full((num_nodes, 1), 0.5, device=device)
+            t_one = torch.ones((num_nodes, 1), device=device)
             k1 = self.mpflow(x, t)
-            k2 = self.mpflow(x + 0.5 * k1, t + 0.5)
-            k3 = self.mpflow(x + 0.5 * k2, t + 0.5)
-            k4 = self.mpflow(x + k3, t + 1.0)
+            k2 = self.mpflow(x + 0.5 * k1, t_half)
+            k3 = self.mpflow(x + 0.5 * k2, t_half)
+            k4 = self.mpflow(x + k3, t_one)
             x = x + (1.0 / 6.0) * (k1 + 2*k2 + 2*k3 + k4)
             
         return x
 
 
     def calculate_predicted_ut(self, x0, x1, device):
-        t = torch.rand(x0.shape[0], x0.shape[1], 1, device=device)
+        num_nodes = x0.shape[0]
+        # Time shape should be [num_nodes, 1]
+        t = torch.rand(num_nodes, 1, device=device)
         ut = x1 - x0
-        xt = x0 + t * ut
+        # Explicitly broadcast t before multiplying with ut
+        t_expanded = t.unsqueeze(-1) # Shape [N, 1, 1]
+        xt = x0 + t_expanded * ut # Shape [N, 49, C] + [N, 49, C]
         predicted_ut = self.mpflow(xt, t)
         
         return ut, predicted_ut
@@ -616,9 +654,30 @@ class EquiformerV2_OC20(BaseModel):
         # divide pretrained equiforemrv2 and mpflow
         all_params = sum(p.numel() for p in self.parameters())
         trainable_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
-        mpflow = sum(p.numel() for p in self.mpflow.parameters())
-        eqv2 = all_params - mpflow
-        return f"EquiformerV2: {eqv2} (Trainable: {trainable_params}), MPFlow: {mpflow}"
+
+        # Check if mpflow is initialized before accessing parameters
+        if hasattr(self, 'mpflow') and self.mpflow is not None:
+            mpflow_params = sum(p.numel() for p in self.mpflow.parameters())
+        else:
+            mpflow_params = 0 # Or handle as an error if mpflow should always exist
+
+        # Calculate backbone params (total - mpflow)
+        backbone_params = all_params - mpflow_params
+
+        # Calculate trainable backbone params
+        trainable_backbone_params = 0
+        trainable_mpflow_params = 0
+        for name, param in self.named_parameters():
+            if param.requires_grad:
+                if name.startswith('mpflow.'):
+                    trainable_mpflow_params += param.numel()
+                else:
+                    trainable_backbone_params += param.numel()
+
+        # Verify calculation (optional)
+        # assert trainable_params == trainable_backbone_params + trainable_mpflow_params, "Trainable parameter mismatch"
+
+        return f"Backbone: {backbone_params} (Trainable: {trainable_backbone_params}), MPFlow: {mpflow_params} (Trainable: {trainable_mpflow_params})"
 
 
     def _init_weights(self, m):
