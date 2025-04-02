@@ -34,14 +34,14 @@ class Evaluator:
         "s2ef": [
             "mpflow_mae",
             "mpflow_cos",
-            "forcesx_mae",
-            "forcesy_mae",
-            "forcesz_mae",
+            # "forcesx_mae",
+            # "forcesy_mae",
+            # "forcesz_mae",
             "forces_mae",
-            "forces_cos",
-            "forces_magnitude",
+            # "forces_cos",
+            # "forces_magnitude",
             "energy_mae",
-            "energy_force_within_threshold",
+            # "energy_force_within_threshold",
         ],
         "is2rs": [
             "average_distance_within_threshold",
@@ -52,7 +52,7 @@ class Evaluator:
     }
 
     task_attributes = {
-        "s2ef": ["energy", "forces", "natoms", "x1", "predicted_x1"],
+        "s2ef": ["energy", "forces", "grad_forces", "natoms", "x1", "predicted_x1"],
         "is2rs": ["positions", "cell", "pbc", "natoms"],
         "is2re": ["energy"],
     }

@@ -516,38 +516,32 @@ class EquiformerV2_OC20(BaseModel):
         energy = _energy / _AVG_NUM_NODES
 
         ###############################################################
-        # Force estimation (via gradient)
+        # Force estimation ( + gradient aided)
         ###############################################################
-        
         if self.regress_forces:
-            flag = self.training
-            dy = torch.autograd.grad(
-                _energy,  # [n_graphs,]
-                data.pos,  # [n_nodes, 3]
-                grad_outputs=torch.ones_like(_energy),
-                create_graph=flag,
-                retain_graph=flag,
-                allow_unused=True
-            )[0]
-            assert dy is not None
-            forces = -1 * dy  # [n_nodes, 3]
-        
-        # ###############################################################
-        # # Force estimation
-        # ###############################################################
-        # if self.regress_forces:
-        #     forces = self.force_block(x,
-        #         atomic_numbers,
-        #         edge_distance,
-        #         edge_index)
-        #     forces = forces.embedding.narrow(1, 1, 3)
-        #     forces = forces.view(-1, 3)    
+            if not predict_with_mpflow:
+                dy = torch.autograd.grad(
+                    energy,  # [n_graphs,]
+                    data.pos,  # [n_nodes, 3]
+                    grad_outputs=torch.ones_like(energy),
+                    create_graph=True,
+                    retain_graph=True,
+                    allow_unused=True
+                )[0]
+                assert dy is not None
+                grad_forces = -1 * dy  # [n_nodes, 3]
+            forces = self.force_block(x,
+                atomic_numbers,
+                edge_distance,
+                edge_index)
+            forces = forces.embedding.narrow(1, 1, 3)
+            forces = forces.view(-1, 3)    
         
         if not predict_with_mpflow:
             if not self.regress_forces:
                 return energy, ut, predicted_ut, x1, predicted_x1, time_first, time_last, time_mpflow
             else:
-                return energy, forces, ut, predicted_ut, x1, predicted_x1, time_first, time_last, time_mpflow
+                return energy, grad_forces, forces, ut, predicted_ut, x1, predicted_x1, time_first, time_last, time_mpflow
         else:
             if not self.regress_forces:
                 return energy, x1, time_first, time_last, time_mpflow
