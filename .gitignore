@@ -3,7 +3,7 @@
 /logs/
 /save_logs/
 /mpflow_data/
-/_mpflow_data/
+/mpflow_data_full/
 /output/
 
 __pycache__/

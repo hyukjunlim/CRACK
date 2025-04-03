@@ -353,7 +353,7 @@ class EquiformerV2_OC20(BaseModel):
         # Define MPFlow-specific parameters here, e.g.:
         mpflow_time_embed_dim = 128
         mpflow_ffn_hidden_channels = 256 # Example, adjust as needed
-        mpflow_num_layers = 4           # Example, adjust as needed
+        mpflow_num_layers = 6           # Example, adjust as needed
 
         self.mpflow = EquivariantMPFlow(
             sphere_channels=self.sphere_channels,
@@ -371,20 +371,6 @@ class EquiformerV2_OC20(BaseModel):
             proj_drop=self.proj_drop, # Pass if needed and supported by EquivariantMPFlow's blocks
         ).to(self.device)
         
-        print(self.sphere_channels, flush=True)
-        print(mpflow_ffn_hidden_channels, flush=True)
-        print(mpflow_time_embed_dim, flush=True)
-        print(self.lmax_list, flush=True)
-        print(self.mmax_list, flush=True)
-        print(self.SO3_grid, flush=True)
-        print(self.ffn_activation, flush=True)
-        print(self.norm_type, flush=True)
-        print(self.use_gate_act, flush=True)
-        print(self.use_grid_mlp, flush=True)
-        print(self.use_sep_s2_act, flush=True)
-        print(mpflow_num_layers, flush=True)
-        print(self.proj_drop, flush=True)
-            
         self.apply(self._init_weights)
         self.apply(self._uniform_init_rad_func_linear_weights)
 
@@ -437,7 +423,6 @@ class EquiformerV2_OC20(BaseModel):
         ###############################################################
         # Initialize data structures
         ###############################################################
-        ############
         
         # Compute 3x3 rotation matrix per edge
         edge_rot_mat = self._init_edge_rot_mat(

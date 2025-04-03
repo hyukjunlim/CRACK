@@ -115,7 +115,7 @@ class ForcesTrainerV2(BaseTrainerV2):
 
         # --- Embedding Saving Configuration ---
         # Get these values from your config object (e.g., self.config.get(...))
-        self.save_embeddings_flag = self.config.get("save_embeddings", True) # Control saving
+        self.save_embeddings_flag = self.config.get("save_embeddings", False) # Control saving
         self.embeddings_output_dir = self.config.get("embeddings_output_dir", "mpflow_data")
         self.embeddings_save_interval = self.config.get("embeddings_save_interval", 100) # Batches per file
 
@@ -1025,7 +1025,8 @@ class ForcesTrainerV2(BaseTrainerV2):
                 with torch.cuda.amp.autocast(enabled=self.scaler is not None):
                     out = self._forward(batch)
                     loss = self._mpflow_compute_loss(out, batch)
-                    self.save_embeddings(out)
+                    if self.save_embeddings_flag:
+                        self.save_embeddings(out)
                     
                 loss = self.scaler.scale(loss) if self.scaler else loss
                 if self.grad_accumulation_steps != 1:
@@ -1452,6 +1453,7 @@ class ForcesTrainerV2(BaseTrainerV2):
         for lc in loss:
             assert hasattr(lc, "grad_fn")
 
+        print(f"loss: {i.item() for i in loss}")
         loss = sum(loss)
         return loss
     
