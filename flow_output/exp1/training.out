@@ -1,0 +1,9 @@
+2025-04-03 20:27:05 - INFO - [<module>] - --- Starting Training Script ---
+2025-04-03 20:27:05 - INFO - [<module>] - Output directory: flow_output/exp1
+2025-04-03 20:27:05 - INFO - [<module>] - Log file: flow_output/exp1/training.out
+2025-04-03 20:27:05 - INFO - [<module>] - Torch device: cuda
+2025-04-03 20:27:05 - INFO - [<module>] - Loading trajectory data...
+2025-04-03 20:27:05 - INFO - [load_trajectory_data] - Searching for trajectory files in mpflow_data matching pattern 'embeddings_*.npz'. Found 106 files.
+2025-04-03 20:27:05 - INFO - [load_trajectory_data] - Scanning files to determine total size and shape...
+2025-04-03 20:27:12 - INFO - [load_trajectory_data] - Determined sample shape: (2, 49, 128), dtype: float32 from mpflow_data/embeddings_0000.npz
+2025-04-03 20:32:33 - INFO - [load_trajectory_data] - Scanned 50/106 files. Current valid samples: 346914

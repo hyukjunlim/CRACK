@@ -48,7 +48,7 @@ from .transformer_block import (
     TransBlockV2, 
 )
 from .input_block import EdgeDegreeEmbedding
-from .MPFlow import MPFlow, EquivariantMPFlow
+from .MPFlow import EquivariantMPFlow
 
 # Statistics of IS2RE 100K 
 _AVG_NUM_NODES  = 77.81317
@@ -206,7 +206,6 @@ class EquiformerV2_OC20(BaseModel):
 
         self.device = 'cpu' #torch.cuda.current_device()
 
-        self.grad_forces = False
         self.num_resolutions = len(self.lmax_list)
         self.sphere_channels_all = self.num_resolutions * self.sphere_channels
         
@@ -324,36 +323,36 @@ class EquiformerV2_OC20(BaseModel):
             self.use_grid_mlp,
             self.use_sep_s2_act
         )
-        if self.regress_forces:
-            self.force_block = SO2EquivariantGraphAttention(
-                self.sphere_channels,
-                self.attn_hidden_channels,
-                self.num_heads, 
-                self.attn_alpha_channels,
-                self.attn_value_channels, 
-                1,
-                self.lmax_list,
-                self.mmax_list,
-                self.SO3_rotation, 
-                self.mappingReduced, 
-                self.SO3_grid, 
-                self.max_num_elements,
-                self.edge_channels_list,
-                self.block_use_atom_edge_embedding, 
-                self.use_m_share_rad,
-                self.attn_activation, 
-                self.use_s2_act_attn, 
-                self.use_attn_renorm,
-                self.use_gate_act,
-                self.use_sep_s2_act,
-                alpha_drop=0.0
-            )
+        # if self.regress_forces:
+            # self.force_block = SO2EquivariantGraphAttention(
+            #     self.sphere_channels,
+            #     self.attn_hidden_channels,
+            #     self.num_heads, 
+            #     self.attn_alpha_channels,
+            #     self.attn_value_channels, 
+            #     1,
+            #     self.lmax_list,
+            #     self.mmax_list,
+            #     self.SO3_rotation, 
+            #     self.mappingReduced, 
+            #     self.SO3_grid, 
+            #     self.max_num_elements,
+            #     self.edge_channels_list,
+            #     self.block_use_atom_edge_embedding, 
+            #     self.use_m_share_rad,
+            #     self.attn_activation, 
+            #     self.use_s2_act_attn, 
+            #     self.use_attn_renorm,
+            #     self.use_gate_act,
+            #     self.use_sep_s2_act,
+            #     alpha_drop=0.0
+            # )
             
         # Equivariant MPFlow
         # Define MPFlow-specific parameters here, e.g.:
         mpflow_time_embed_dim = 128
-        mpflow_ffn_hidden_channels = 256 # Example, adjust as needed
-        mpflow_num_layers = 6           # Example, adjust as needed
+        mpflow_ffn_hidden_channels = 256
+        mpflow_num_layers = 6
 
         self.mpflow = EquivariantMPFlow(
             sphere_channels=self.sphere_channels,
@@ -379,7 +378,8 @@ class EquiformerV2_OC20(BaseModel):
         
 
     def freeze_backbone(self):
-        """Freeze all parameters except energy_block, force_block, and mpflow"""
+        """Freeze all parameters except energy_block, and mpflow"""
+        # """Freeze all parameters except energy_block, force_block, and mpflow"""
         # First freeze everything
         for param in self.parameters():
             param.requires_grad = False
@@ -391,9 +391,9 @@ class EquiformerV2_OC20(BaseModel):
         for param in self.energy_block.parameters():
             param.requires_grad = True
         
-        if self.regress_forces:
-            for param in self.force_block.parameters():
-                param.requires_grad = True
+        # if self.regress_forces:
+        #     for param in self.force_block.parameters():
+        #         param.requires_grad = True
         
         for param in self.mpflow.parameters():
             param.requires_grad = True
@@ -542,19 +542,19 @@ class EquiformerV2_OC20(BaseModel):
                     allow_unused=True
                 )[0]
                 assert dy is not None
-                grad_forces = -1 * dy  # [n_nodes, 3]
-            forces = self.force_block(x,
-                atomic_numbers,
-                edge_distance,
-                edge_index)
-            forces = forces.embedding.narrow(1, 1, 3)
-            forces = forces.view(-1, 3)    
+                forces = -1 * dy  # [n_nodes, 3]
+            # forces = self.force_block(x,
+            #     atomic_numbers,
+            #     edge_distance,
+            #     edge_index)
+            # forces = forces.embedding.narrow(1, 1, 3)
+            # forces = forces.view(-1, 3)    
         
         if not predict_with_mpflow:
             if not self.regress_forces:
                 return energy, ut, predicted_ut, x0, x1, predicted_x1, time_first, time_last, time_mpflow
             else:
-                return energy, grad_forces, forces, ut, predicted_ut, x0, x1, predicted_x1, time_first, time_last, time_mpflow
+                return energy, forces, ut, predicted_ut, x0, x1, predicted_x1, time_first, time_last, time_mpflow
         else:
             if not self.regress_forces:
                 return energy, x0, x1, time_first, time_last, time_mpflow

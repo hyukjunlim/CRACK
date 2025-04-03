@@ -101,17 +101,15 @@ optim:
   scheduler_params:
     lambda_type: cosine
     warmup_factor: 0.2
-    warmup_epochs: 0.5
+    warmup_epochs: 0.1
     lr_min_factor: 0.01         
 
-  max_epochs: 1
+  max_epochs: 10
   force_coefficient: 100
-  energy_coefficient: 4
+  energy_coefficient: 10
   
-  mpflow_coefficient: 0.005
+  mpflow_coefficient: 0.1
   mpflow_dir_coefficient: 1
-  force_coefficient_consistency1: 2.5
-  force_coefficient_consistency2: 25
   
   clip_grad_norm: 100
   ema_decay: 0.999

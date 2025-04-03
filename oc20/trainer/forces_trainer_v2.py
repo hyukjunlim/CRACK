@@ -492,7 +492,7 @@ class ForcesTrainerV2(BaseTrainerV2):
         if not predict_with_mpflow:
             if (self.config["model_attributes"].get("regress_forces", True)
                 or self.config['model_attributes'].get('use_auxiliary_task', False)):
-                out_energy, out_forces, out_grad_forces, ut, predicted_ut, x0, x1, predicted_x1, time_first, time_last, time_mpflow = self.model(batch_list, predict_with_mpflow=predict_with_mpflow)
+                out_energy, out_forces, ut, predicted_ut, x0, x1, predicted_x1, time_first, time_last, time_mpflow = self.model(batch_list, predict_with_mpflow=predict_with_mpflow)
             else:
                 out_energy, ut, predicted_ut, x0, x1, predicted_x1, time_first, time_last, time_mpflow = self.model(batch_list, predict_with_mpflow=predict_with_mpflow)
         else:
@@ -512,10 +512,6 @@ class ForcesTrainerV2(BaseTrainerV2):
         if (self.config["model_attributes"].get("regress_forces", True)
            or self.config['model_attributes'].get('use_auxiliary_task', False)):
             out["forces"] = out_forces
-            if not predict_with_mpflow:
-                out["grad_forces"] = out_grad_forces
-            else:
-                out["grad_forces"] = out_forces
         
         if not predict_with_mpflow:
             out["ut"] = ut
@@ -1433,16 +1429,16 @@ class ForcesTrainerV2(BaseTrainerV2):
                                 out["forces"][mask], force_target[mask]
                             )
                         )
-                        # Gradient loss.
-                        if not predict_with_mpflow:
-                            consistencyloss1 = self.config["optim"].get("force_coefficient_consistency1", force_mult * 0.025)
-                            loss.append(
-                                consistencyloss1 * self.loss_fn["force"](out["grad_forces"], force_target)
-                            )
-                            consistencyloss2 = self.config["optim"].get("force_coefficient_consistency2", force_mult * 0.25)
-                            loss.append(
-                                consistencyloss2 * self.loss_fn["force"](out["grad_forces"], out["forces"])
-                            )
+                        # # Gradient loss.
+                        # if not predict_with_mpflow:
+                        #     consistencyloss1 = self.config["optim"].get("force_coefficient_consistency1", force_mult * 0.025)
+                        #     loss.append(
+                        #         consistencyloss1 * self.loss_fn["force"](out["grad_forces"], force_target)
+                        #     )
+                        #     consistencyloss2 = self.config["optim"].get("force_coefficient_consistency2", force_mult * 0.25)
+                        #     loss.append(
+                        #         consistencyloss2 * self.loss_fn["force"](out["grad_forces"], out["forces"])
+                        #     )
                 else:
                     loss.append(
                         force_mult
@@ -1453,7 +1449,6 @@ class ForcesTrainerV2(BaseTrainerV2):
         for lc in loss:
             assert hasattr(lc, "grad_fn")
 
-        print(f"loss: {i.item() for i in loss}")
         loss = sum(loss)
         return loss
     

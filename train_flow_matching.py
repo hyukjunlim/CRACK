@@ -94,7 +94,7 @@ class FlowMatching:
         # Cosine annealing with warm restarts
         self.scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
             self.optimizer, 
-            T_0=50,  # Restart every 50 epochs
+            T_0=10,  # Restart every 50 epochs
             T_mult=2  # Double the restart interval after each restart
         )
     
@@ -461,7 +461,7 @@ def train_flow_model(
 
         flow_model.scheduler.step()
 
-        if (epoch + 1) % 100 == 0 or epoch == num_epochs - 1 or epoch == 0: # Visualize less frequently
+        if (epoch + 1) % 50 == 0 or epoch == num_epochs - 1 or epoch == 0:
              logger.info(f"--- Generating Visualization for Epoch {epoch + 1} ---")
              flow_model.visualize(
                  val_data[:50], # Visualize on a subset of validation data
@@ -744,7 +744,7 @@ if __name__ == "__main__":
     logger.info("Starting model training...")
     num_epochs = 1550
     batch_size = 128
-    learning_rate = 1e-4
+    learning_rate = 5e-4
 
     try:
         flow_model, losses = train_flow_model(

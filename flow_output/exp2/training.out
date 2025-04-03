@@ -1,0 +1,55 @@
+2025-04-03 17:01:13 - INFO - [<module>] - --- Starting Training Script ---
+2025-04-03 17:01:13 - INFO - [<module>] - Output directory: flow_output/exp2
+2025-04-03 17:01:13 - INFO - [<module>] - Log file: flow_output/exp2/training.out
+2025-04-03 17:01:13 - INFO - [<module>] - Torch device: cuda
+2025-04-03 17:01:13 - INFO - [<module>] - Loading trajectory data...
+2025-04-03 17:01:13 - INFO - [load_trajectory_data] - Searching for trajectory files in mpflow_data matching pattern 'embeddings_*.npz'. Found 106 files.
+2025-04-03 17:01:13 - INFO - [load_trajectory_data] - Scanning files to determine total size and shape...
+2025-04-03 17:01:18 - INFO - [load_trajectory_data] - Determined sample shape: (2, 49, 128), dtype: float32 from mpflow_data/embeddings_0000.npz
+2025-04-03 17:05:37 - INFO - [load_trajectory_data] - Scanned 50/106 files. Current valid samples: 346914
+2025-04-03 17:09:59 - INFO - [load_trajectory_data] - Scanned 100/106 files. Current valid samples: 691735
+2025-04-03 17:10:31 - INFO - [load_trajectory_data] - Scan complete. Total valid samples: 733680, Sample shape: (2, 49, 128), Dtype: float32
+2025-04-03 17:10:31 - INFO - [load_trajectory_data] - Allocating array with shape: (733680, 2, 49, 128)
+2025-04-03 17:10:31 - INFO - [load_trajectory_data] - Array allocation successful.
+2025-04-03 17:10:31 - INFO - [load_trajectory_data] - Loading data from 106 valid files into pre-allocated array...
+2025-04-03 17:14:32 - INFO - [load_trajectory_data] - Shuffling 733680 trajectories...
+2025-04-03 17:14:43 - INFO - [load_trajectory_data] - Data loading and shuffling complete.
+2025-04-03 17:14:43 - INFO - [<module>] - Loaded trajectories shape: (733680, 2, 49, 128)
+2025-04-03 17:14:43 - INFO - [<module>] - Starting model training...
+2025-04-03 17:14:43 - INFO - [train_flow_model] - Preparing data...
+2025-04-03 17:14:43 - INFO - [train_flow_model] - Training samples: 586944, Validation samples: 146736
+2025-04-03 17:14:43 - INFO - [train_flow_model] - Initializing FlowMatching model...
+2025-04-03 17:14:48 - INFO - [train_flow_model] - Model parameters: 4204672
+2025-04-03 17:14:48 - INFO - [train_flow_model] - Starting training for 1550 epochs with batch size 128.
+2025-04-03 17:19:04 - INFO - [train_flow_model] - --- Generating Visualization for Epoch 1 ---
+2025-04-03 17:19:07 - INFO - [train_flow_model] - --- Visualization for Epoch 1 saved ---
+2025-04-03 17:56:54 - INFO - [train_flow_model] - Epoch 10/1550, Average Training Loss: 0.218557
+2025-04-03 17:56:54 - INFO - [train_flow_model] - --- Starting Validation for Epoch 10 ---
+2025-04-03 17:56:54 - INFO - [validate_model] - Starting validation...
+2025-04-03 17:56:54 - INFO - [validate_model] - Processing 146736 validation samples in 1147 batches.
+2025-04-03 17:57:13 - INFO - [validate_model] - Validation finished. Average loss: 0.215141
+2025-04-03 17:57:13 - INFO - [train_flow_model] - Epoch 10/1550, Validation Loss: 0.215141
+2025-04-03 17:57:13 - INFO - [train_flow_model] - New best validation loss: 0.215141 (previous: inf). Saving model.
+2025-04-03 17:57:13 - INFO - [save_model] - Saving model checkpoint to flow_output/exp2/best_flow_model.pt
+2025-04-03 18:39:07 - INFO - [train_flow_model] - Epoch 20/1550, Average Training Loss: 0.246325
+2025-04-03 18:39:07 - INFO - [train_flow_model] - --- Starting Validation for Epoch 20 ---
+2025-04-03 18:39:07 - INFO - [validate_model] - Starting validation...
+2025-04-03 18:39:07 - INFO - [validate_model] - Processing 146736 validation samples in 1147 batches.
+2025-04-03 18:39:26 - INFO - [validate_model] - Validation finished. Average loss: 0.239358
+2025-04-03 18:39:26 - INFO - [train_flow_model] - Epoch 20/1550, Validation Loss: 0.239358
+2025-04-03 18:39:26 - INFO - [train_flow_model] - Validation loss did not improve. Patience counter: 1/100
+2025-04-03 19:21:00 - INFO - [train_flow_model] - Epoch 30/1550, Average Training Loss: 0.121993
+2025-04-03 19:21:00 - INFO - [train_flow_model] - --- Starting Validation for Epoch 30 ---
+2025-04-03 19:21:00 - INFO - [validate_model] - Starting validation...
+2025-04-03 19:21:00 - INFO - [validate_model] - Processing 146736 validation samples in 1147 batches.
+2025-04-03 19:21:19 - INFO - [validate_model] - Validation finished. Average loss: 0.120596
+2025-04-03 19:21:19 - INFO - [train_flow_model] - Epoch 30/1550, Validation Loss: 0.120596
+2025-04-03 19:21:19 - INFO - [train_flow_model] - New best validation loss: 0.120596 (previous: 0.215141). Saving model.
+2025-04-03 19:21:19 - INFO - [save_model] - Saving model checkpoint to flow_output/exp2/best_flow_model.pt
+2025-04-03 20:02:33 - INFO - [train_flow_model] - Epoch 40/1550, Average Training Loss: 0.240397
+2025-04-03 20:02:33 - INFO - [train_flow_model] - --- Starting Validation for Epoch 40 ---
+2025-04-03 20:02:33 - INFO - [validate_model] - Starting validation...
+2025-04-03 20:02:33 - INFO - [validate_model] - Processing 146736 validation samples in 1147 batches.
+2025-04-03 20:02:53 - INFO - [validate_model] - Validation finished. Average loss: 0.232698
+2025-04-03 20:02:53 - INFO - [train_flow_model] - Epoch 40/1550, Validation Loss: 0.232698
+2025-04-03 20:02:53 - INFO - [train_flow_model] - Validation loss did not improve. Patience counter: 1/100

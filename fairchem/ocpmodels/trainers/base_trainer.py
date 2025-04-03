@@ -431,8 +431,31 @@ class BaseTrainer(ABC):
         else:
             new_dict = checkpoint["state_dict"]
 
+        # Filter out energy_block parameters before loading
         strict = self.config["task"].get("strict_load", True)
-        load_state_dict(self.model, new_dict, strict=strict)
+        filtered_dict = {}
+        energy_block_prefix = None
+        current_model_keys = self.model.state_dict().keys()
+        # Determine the correct prefix (e.g., 'module.energy_block.') based on model wrapping
+        for key in current_model_keys:
+            if 'energy_block.' in key:
+                energy_block_prefix = key.split('energy_block.')[0] + 'energy_block.'
+                logging.info(f"Found energy_block prefix: {energy_block_prefix}")
+                break
+
+        if energy_block_prefix:
+            logging.info(f"Excluding keys with prefix '{energy_block_prefix}' from checkpoint loading.")
+            for k, v in new_dict.items():
+                if not k.startswith(energy_block_prefix):
+                    filtered_dict[k] = v
+                else:
+                    logging.debug(f"Skipping key: {k}")
+            # Load the filtered dictionary; strict=False as we intentionally removed keys.
+            load_state_dict(self.model, filtered_dict, strict=False)
+        else:
+            logging.warning("Could not find 'energy_block.' prefix in model state_dict. Loading all parameters from checkpoint.")
+            # Fallback to original behavior if energy_block is not found
+            load_state_dict(self.model, new_dict, strict=strict)
 
         if "optimizer" in checkpoint:
             self.optimizer.load_state_dict(checkpoint["optimizer"])
