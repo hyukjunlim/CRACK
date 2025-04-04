@@ -1,3 +1,0 @@
-Time first: 0.0007 ± 0.0003 s
-Time last: 0.1069 ± 0.0277 s
-Ratio: 159.7250
