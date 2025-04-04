@@ -4,8 +4,8 @@
 #SBATCH --partition=snu-gpu1     # Partition Name
 #SBATCH --job-name=flow     # Default job name
 #SBATCH --time=10-00:00:00          # Runtime: 10 days
-#SBATCH -o output/%x.%N.%j.out   # STDOUT with job name in output directory
-#SBATCH -e output/%x.%N.%j.err   # STDERR with job name in output directory
+#SBATCH -o /dev/null   # Discard STDOUT (no output file)
+#SBATCH -e /dev/null   # Discard STDERR (no output file)
 #SBATCH --gres=gpu:1       # Request 1 A5000 GPU
 
 # Check if a script was provided as an argument
@@ -29,9 +29,6 @@ fi
 
 # Update the job name
 scontrol update job $SLURM_JOB_ID name=$SLURM_JOB_NAME
-
-# Create output directory if it doesn't exist
-mkdir -p output
 
 echo "Running on host: $(hostname)"
 echo "Job started at: $(date)"

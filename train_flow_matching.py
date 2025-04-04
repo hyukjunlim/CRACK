@@ -41,7 +41,7 @@ NUM_LAYERS = 6
 PROJ_DROP = 0.0
 
 # Training Hyperparameters
-DEFAULT_LR = 5e-4
+DEFAULT_LR = 5e-3
 DEFAULT_WEIGHT_DECAY = 1e-3
 DEFAULT_BETAS = (0.9, 0.999)
 DEFAULT_PATIENCE = 100
@@ -59,7 +59,7 @@ MAX_VIZ_SAMPLES = 8
 PLOT_DPI = 300
 
 # File Paths & Names
-DEFAULT_OUTPUT_DIR = 'flow_output/exp1'
+DEFAULT_OUTPUT_DIR = f'flow_output/exp2_lr_{DEFAULT_LR}'
 BEST_MODEL_FILENAME = 'best_flow_model.pt'
 FINAL_MODEL_FILENAME = 'flow_matching_model.pt'
 TRAINING_LOG_FILENAME = 'training.out'
