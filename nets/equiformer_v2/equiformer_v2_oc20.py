@@ -376,6 +376,8 @@ class EquiformerV2_OC20(BaseModel):
         # Add this at the end of __init__ after all model components are initialized
         self.freeze_backbone()
         
+        # Create a normalization layer specifically for MPFlow input/output
+        self.mpflow_norm = get_normalization_layer(self.norm_type, lmax=max(self.lmax_list), num_channels=self.sphere_channels)
 
     def freeze_backbone(self):
         """Freeze all parameters except energy_block, and mpflow"""
@@ -502,11 +504,37 @@ class EquiformerV2_OC20(BaseModel):
         # MPFlow
         ###############################################################
         if not predict_with_mpflow:
-            ut, predicted_ut = self.calculate_predicted_ut(x0, x1, self.device)
-            predicted_x1 = self.sample_trajectory(x0, method="heun", enable_grad=True)
+            # Option 3: Per-degree normalization respecting equivariant structure
+            # Create copy of embeddings for normalization to avoid modifying originals
+            x0_copy = x0.clone()
+            x1_copy = x1.clone()
+            
+            # Apply normalization that respects spherical harmonic structure
+            x0_norm = self.mpflow_norm(x0_copy)
+            x1_norm = self.mpflow_norm(x1_copy)
+            
+            # Calculate residuals for later denormalization
+            x0_residual = x0 - x0_norm
+            x1_residual = x1 - x1_norm
+            
+            ut, predicted_ut = self.calculate_predicted_ut(x0_norm, x1_norm, self.device)
+            predicted_x1_norm = self.sample_trajectory(x0_norm, method="heun", enable_grad=True)
+            
+            # Apply the same residual to restore the distribution
+            # This preserves learned correlations between channels while keeping equivariance
+            predicted_x1 = predicted_x1_norm + x0_residual
             x.embedding = predicted_x1
         else:
-            x1 = self.sample_trajectory(x0, method="heun", enable_grad=False)
+            # Apply normalization for inference
+            x0_copy = x0.clone()
+            x0_norm = self.mpflow_norm(x0_copy)
+            x0_residual = x0 - x0_norm
+            
+            # Run MPFlow on normalized data
+            x1_norm = self.sample_trajectory(x0_norm, method="heun", enable_grad=False)
+            
+            # Restore original scale and distribution
+            x1 = x1_norm + x0_residual
             x.embedding = x1
         
         end_time_3 = time.time()

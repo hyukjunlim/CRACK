@@ -3,7 +3,7 @@
 #SBATCH --ntasks-per-node=2      # Cores per node
 #SBATCH --partition=snu-gpu1     # Partition Name
 #SBATCH --job-name=flow     # Default job name
-#SBATCH --time=07:00:00          # Runtime: 7 hours
+#SBATCH --time=10-00:00:00          # Runtime: 10 days
 #SBATCH -o output/%x.%N.%j.out   # STDOUT with job name in output directory
 #SBATCH -e output/%x.%N.%j.err   # STDERR with job name in output directory
 #SBATCH --gres=gpu:1       # Request 1 A5000 GPU

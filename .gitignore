@@ -3,9 +3,9 @@
 /logs/
 /save_logs/
 /mpflow_data/
-/mpflow_data_full/
+/mpflow_data_small/
 /output/
-
+/flow_output/
 __pycache__/
 *.pt
 *.pyc
