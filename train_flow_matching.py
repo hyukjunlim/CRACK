@@ -10,7 +10,7 @@ import os
 import sys
 import logging
 from sklearn.decomposition import PCA
-from torch.optim.lr_scheduler import OneCycleLR
+from torch.optim.lr_scheduler import ExponentialLR
 from nets.equiformer_v2.MPFlow import EquivariantMPFlow
 from nets.equiformer_v2.so3 import SO3_Grid
 from nets.equiformer_v2.module_list import ModuleListInfo
@@ -41,7 +41,7 @@ NUM_LAYERS = 6
 PROJ_DROP = 0.0
 
 # Training Hyperparameters
-DEFAULT_LR = 5e-3
+DEFAULT_LR = 1e-3
 DEFAULT_WEIGHT_DECAY = 1e-3
 DEFAULT_BETAS = (0.9, 0.999)
 DEFAULT_PATIENCE = 100
@@ -59,7 +59,7 @@ MAX_VIZ_SAMPLES = 8
 PLOT_DPI = 300
 
 # File Paths & Names
-DEFAULT_OUTPUT_DIR = f'flow_output/exp2_lr_{DEFAULT_LR}'
+DEFAULT_OUTPUT_DIR = f'flow_output/exp1_lr_{DEFAULT_LR}'
 BEST_MODEL_FILENAME = 'best_flow_model.pt'
 FINAL_MODEL_FILENAME = 'flow_matching_model.pt'
 TRAINING_LOG_FILENAME = 'training.out'
@@ -543,7 +543,7 @@ def train_flow_model(
     Features include:
     - Data splitting.
     - Model initialization.
-    - OneCycleLR learning rate scheduling.
+    - ExponentialLR learning rate scheduling.
     - Checkpoint loading/saving.
     - Training and validation loops.
     - Early stopping based on validation loss.
@@ -590,9 +590,8 @@ def train_flow_model(
     # 3. Initialize Scheduler
     # Calculate steps considering potential partial last batch
     steps_per_epoch = (len(train_data) + batch_size - 1) // batch_size
-    total_steps = num_epochs * steps_per_epoch
-    logger.info(f"Scheduler: OneCycleLR (max_lr={lr:.2e}), Steps/epoch: {steps_per_epoch}, Total steps: {total_steps}")
-    scheduler = OneCycleLR(flow_model.optimizer, max_lr=lr, total_steps=total_steps)
+    logger.info(f"Scheduler: ExponentialLR (gamma=0.99), Initial LR={lr:.2e}, Steps/epoch: {steps_per_epoch}")
+    scheduler = ExponentialLR(flow_model.optimizer, gamma=0.99)
 
     # 4. Load Existing Checkpoint (if available)
     final_model_path = os.path.join(output_dir, FINAL_MODEL_FILENAME)
@@ -662,18 +661,18 @@ def train_flow_model(
             loss = flow_model.train_step(x0, x1, t)
             epoch_train_losses.append(loss)
 
-            # Update learning rate scheduler after optimizer step (inside train_step)
-            scheduler.step()
-
             # Update tqdm description with current loss
-            batch_iterator.set_postfix(loss=f"{loss:.4f}", lr=f"{scheduler.get_last_lr()[0]:.2e}")
+            batch_iterator.set_postfix(loss=f"{loss:.4f}", lr=f"{flow_model.optimizer.param_groups[0]['lr']:.2e}")
 
 
         # --- End of Epoch ---
         avg_epoch_loss = np.mean(epoch_train_losses) if epoch_train_losses else 0
         train_losses.append(avg_epoch_loss)
-        current_lr = scheduler.get_last_lr()[0] # Get current LR
 
+        # Update learning rate scheduler at the end of the epoch
+        scheduler.step()
+
+        current_lr = scheduler.get_last_lr()[0] # Get LR after step
         log_msg = f"Epoch {epoch_num}/{num_epochs} | Avg Train Loss: {avg_epoch_loss:.6f} | LR: {current_lr:.6e}"
 
         # 7. Validation (if applicable and interval reached)
