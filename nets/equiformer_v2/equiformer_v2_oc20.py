@@ -323,51 +323,66 @@ class EquiformerV2_OC20(BaseModel):
             self.use_grid_mlp,
             self.use_sep_s2_act
         )
-        # if self.regress_forces:
-            # self.force_block = SO2EquivariantGraphAttention(
-            #     self.sphere_channels,
-            #     self.attn_hidden_channels,
-            #     self.num_heads, 
-            #     self.attn_alpha_channels,
-            #     self.attn_value_channels, 
-            #     1,
-            #     self.lmax_list,
-            #     self.mmax_list,
-            #     self.SO3_rotation, 
-            #     self.mappingReduced, 
-            #     self.SO3_grid, 
-            #     self.max_num_elements,
-            #     self.edge_channels_list,
-            #     self.block_use_atom_edge_embedding, 
-            #     self.use_m_share_rad,
-            #     self.attn_activation, 
-            #     self.use_s2_act_attn, 
-            #     self.use_attn_renorm,
-            #     self.use_gate_act,
-            #     self.use_sep_s2_act,
-            #     alpha_drop=0.0
-            # )
+        if self.regress_forces:
+            self.force_block = SO2EquivariantGraphAttention(
+                self.sphere_channels,
+                self.attn_hidden_channels,
+                self.num_heads, 
+                self.attn_alpha_channels,
+                self.attn_value_channels, 
+                1,
+                self.lmax_list,
+                self.mmax_list,
+                self.SO3_rotation, 
+                self.mappingReduced, 
+                self.SO3_grid, 
+                self.max_num_elements,
+                self.edge_channels_list,
+                self.block_use_atom_edge_embedding, 
+                self.use_m_share_rad,
+                self.attn_activation, 
+                self.use_s2_act_attn, 
+                self.use_attn_renorm,
+                self.use_gate_act,
+                self.use_sep_s2_act,
+                alpha_drop=0.0
+            )
             
         # Equivariant MPFlow
-        # Define MPFlow-specific parameters here, e.g.:
         mpflow_time_embed_dim = 128
-        mpflow_ffn_hidden_channels = 256
-        mpflow_num_layers = 6
+        mpflow_num_layers = 1
+        mpflow_alpha_drop =  # Reuse main model alpha drop
+
+        # Create a clean copy of edge_channels_list *before* modification for shared embeddings
+        mpflow_edge_channels_list = [int(self.distance_expansion.num_output)] + [self.edge_channels] * 2
+        if self.share_atom_edge_embedding and self.use_atom_edge_embedding:
+            mpflow_edge_channels_list[0] = mpflow_edge_channels_list[0] + 2 * mpflow_edge_channels_list[-1]
 
         self.mpflow = EquivariantMPFlow(
             sphere_channels=self.sphere_channels,
-            ffn_hidden_channels=mpflow_ffn_hidden_channels,
-            time_embed_dim=mpflow_time_embed_dim,
+            attn_hidden_channels=self.attn_hidden_channels,
+            num_heads=self.num_heads,
+            attn_alpha_channels=self.attn_alpha_channels,
+            attn_value_channels=self.attn_value_channels,
             lmax_list=self.lmax_list,
-            mmax_list=self.mmax_list, # Pass mmax_list
-            SO3_grid=self.SO3_grid,     # Pass SO3_grid
-            activation=self.ffn_activation, # Reuse ffn activation
-            norm_type=self.norm_type,      # Reuse norm type
+            mmax_list=self.mmax_list,
+            SO3_rotation=self.SO3_rotation,
+            mappingReduced=self.mappingReduced,
+            SO3_grid=self.SO3_grid,
+            max_num_elements=self.max_num_elements,
+            edge_channels_list=mpflow_edge_channels_list,
+            use_atom_edge_embedding=self.block_use_atom_edge_embedding,
+            use_m_share_rad=self.use_m_share_rad,
+            activation=self.attn_activation,
+            use_s2_act_attn=self.use_s2_act_attn,
+            use_attn_renorm=self.use_attn_renorm,
             use_gate_act=self.use_gate_act,
-            use_grid_mlp=self.use_grid_mlp,
             use_sep_s2_act=self.use_sep_s2_act,
+            time_embed_dim=mpflow_time_embed_dim,
+            norm_type=self.norm_type,
             num_layers=mpflow_num_layers,
-            proj_drop=self.proj_drop, # Pass if needed and supported by EquivariantMPFlow's blocks
+            alpha_drop=self.alpha_drop,
+            proj_drop=self.proj_drop,
         ).to(self.device)
         
         self.apply(self._init_weights)
@@ -376,22 +391,18 @@ class EquiformerV2_OC20(BaseModel):
         # Add this at the end of __init__ after all model components are initialized
         self.freeze_backbone()
         
-        # Create a normalization layer specifically for MPFlow input/output
-        self.mpflow_norm = get_normalization_layer(self.norm_type, lmax=max(self.lmax_list), num_channels=self.sphere_channels)
-
     def freeze_backbone(self):
-        """Freeze all parameters except energy_block, and mpflow"""
-        # """Freeze all parameters except energy_block, force_block, and mpflow"""
+        """Freeze all parameters except mpflow"""
         # First freeze everything
         for param in self.parameters():
             param.requires_grad = False
         
-        # Then unfreeze
-        for param in self.norm.parameters():
-            param.requires_grad = True
+        # # Then unfreeze
+        # for param in self.norm.parameters():
+        #     param.requires_grad = True
         
-        for param in self.energy_block.parameters():
-            param.requires_grad = True
+        # for param in self.energy_block.parameters():
+        #     param.requires_grad = True
         
         # if self.regress_forces:
         #     for param in self.force_block.parameters():
@@ -464,18 +475,22 @@ class EquiformerV2_OC20(BaseModel):
             offset_res = offset_res + int((self.lmax_list[i] + 1) ** 2)
 
         # Edge encoding (distance and atom edge)
-        edge_distance = self.distance_expansion(edge_distance)
+        base_edge_distance = self.distance_expansion(edge_distance) # Store base distance features
         if self.share_atom_edge_embedding and self.use_atom_edge_embedding:
             source_element = atomic_numbers[edge_index[0]]  # Source atom atomic number
             target_element = atomic_numbers[edge_index[1]]  # Target atom atomic number
             source_embedding = self.source_embedding(source_element)
             target_embedding = self.target_embedding(target_element)
-            edge_distance = torch.cat((edge_distance, source_embedding, target_embedding), dim=1)
+            # This edge_distance is used by the main blocks
+            edge_distance = torch.cat((base_edge_distance, source_embedding, target_embedding), dim=1)
+        else:
+            # If not sharing, the base distance is used by main blocks too
+            edge_distance = base_edge_distance
 
         # Edge-degree embedding
         edge_degree = self.edge_degree_embedding(
             atomic_numbers,
-            edge_distance,
+            edge_distance, # Use potentially concatenated features here
             edge_index)
         x.embedding = x.embedding + edge_degree.embedding
 
@@ -504,37 +519,11 @@ class EquiformerV2_OC20(BaseModel):
         # MPFlow
         ###############################################################
         if not predict_with_mpflow:
-            # Option 3: Per-degree normalization respecting equivariant structure
-            # Create copy of embeddings for normalization to avoid modifying originals
-            x0_copy = x0.clone()
-            x1_copy = x1.clone()
-            
-            # Apply normalization that respects spherical harmonic structure
-            x0_norm = self.mpflow_norm(x0_copy)
-            x1_norm = self.mpflow_norm(x1_copy)
-            
-            # Calculate residuals for later denormalization
-            x0_residual = x0 - x0_norm
-            x1_residual = x1 - x1_norm
-            
-            ut, predicted_ut = self.calculate_predicted_ut(x0_norm, x1_norm, self.device)
-            predicted_x1_norm = self.sample_trajectory(x0_norm, method="heun", enable_grad=True)
-            
-            # Apply the same residual to restore the distribution
-            # This preserves learned correlations between channels while keeping equivariance
-            predicted_x1 = predicted_x1_norm + x0_residual
-            x.embedding = predicted_x1
+            ut, predicted_ut = self.calculate_predicted_ut(x0, x1, atomic_numbers, base_edge_distance, edge_index, self.device)
+            predicted_x1 = self.sample_trajectory(x0, atomic_numbers, base_edge_distance, edge_index, enable_grad=True)
+            # x.embedding = predicted_x1
         else:
-            # Apply normalization for inference
-            x0_copy = x0.clone()
-            x0_norm = self.mpflow_norm(x0_copy)
-            x0_residual = x0 - x0_norm
-            
-            # Run MPFlow on normalized data
-            x1_norm = self.sample_trajectory(x0_norm, method="heun", enable_grad=False)
-            
-            # Restore original scale and distribution
-            x1 = x1_norm + x0_residual
+            x1 = self.sample_trajectory(x0, atomic_numbers, base_edge_distance, edge_index, enable_grad=False)
             x.embedding = x1
         
         end_time_3 = time.time()
@@ -560,23 +549,23 @@ class EquiformerV2_OC20(BaseModel):
         # Force estimation ( + gradient aided)
         ###############################################################
         if self.regress_forces:
-            if not predict_with_mpflow:
-                dy = torch.autograd.grad(
-                    energy,  # [n_graphs,]
-                    data.pos,  # [n_nodes, 3]
-                    grad_outputs=torch.ones_like(energy),
-                    create_graph=True,
-                    retain_graph=True,
-                    allow_unused=True
-                )[0]
-                assert dy is not None
-                forces = -1 * dy  # [n_nodes, 3]
-            # forces = self.force_block(x,
-            #     atomic_numbers,
-            #     edge_distance,
-            #     edge_index)
-            # forces = forces.embedding.narrow(1, 1, 3)
-            # forces = forces.view(-1, 3)    
+            # if not predict_with_mpflow:
+                # dy = torch.autograd.grad(
+                #     energy,  # [n_graphs,]
+                #     data.pos,  # [n_nodes, 3]
+                #     grad_outputs=torch.ones_like(energy),
+                #     create_graph=True,
+                #     retain_graph=True,
+                #     allow_unused=True
+                # )[0]
+                # assert dy is not None
+                # forces = -1 * dy  # [n_nodes, 3]
+            forces = self.force_block(x,
+                atomic_numbers,
+                edge_distance,
+                edge_index)
+            forces = forces.embedding.narrow(1, 1, 3)
+            forces = forces.view(-1, 3)    
         
         if not predict_with_mpflow:
             if not self.regress_forces:
@@ -590,13 +579,16 @@ class EquiformerV2_OC20(BaseModel):
                 return energy, forces, x0, x1, time_first, time_last, time_mpflow
 
 
-    def sample_trajectory(self, x0, method="heun", enable_grad=False):
+    def sample_trajectory(self, x0, atomic_numbers, base_edge_distance, edge_index, method="euler", enable_grad=False):
         """
         Samples a trajectory using ultra-fast, high-accuracy ODE solver.
         
         Args:
             x0: Starting point
-            method: Sampling method ("heun", "rk4", "dopri5")
+            atomic_numbers: Atomic numbers of nodes
+            base_edge_distance: Base edge distance features
+            edge_index: Edge index
+            method: Sampling method ("euler", "heun", "rk4")
             enable_grad: Whether to enable gradient computation
         """
         self.mpflow.eval()
@@ -605,29 +597,35 @@ class EquiformerV2_OC20(BaseModel):
         device = x0.device
         x = x0.clone()
         
+        graph_info = {
+            "atomic_numbers": atomic_numbers,
+            "edge_distance": base_edge_distance,
+            "edge_index": edge_index
+        }
+
         if not enable_grad:
             with torch.no_grad():
-                return self._compute_trajectory(x, method, batch_size, device)
+                return self._compute_trajectory(x, method, batch_size, device, graph_info)
         else:
-            return self._compute_trajectory(x, method, batch_size, device)
+            return self._compute_trajectory(x, method, batch_size, device, graph_info)
         
         
-    def _compute_trajectory(self, x, method, batch_size, device):
+    def _compute_trajectory(self, x, method, batch_size, device, graph_info):
         num_nodes = x.shape[0]
         if method == "euler":
             # Simple Euler method
             # Time shape should be [num_nodes, 1]
             t = torch.zeros((num_nodes, 1), device=device)
-            velocity = self.mpflow(x, t)
+            velocity = self.mpflow(x, t, **graph_info)
             x = x + velocity
             
         elif method == "heun":
             # Previous Heun implementation
             t = torch.zeros((num_nodes, 1), device=device)
-            k1 = self.mpflow(x, t)
+            k1 = self.mpflow(x, t, **graph_info)
             x_pred = x + k1
             t_next = torch.ones((num_nodes, 1), device=device) # time t+1
-            k2 = self.mpflow(x_pred, t_next)
+            k2 = self.mpflow(x_pred, t_next, **graph_info)
             x = x + 0.5 * (k1 + k2)
         
         elif method == "rk4":
@@ -635,24 +633,26 @@ class EquiformerV2_OC20(BaseModel):
             t = torch.zeros((num_nodes, 1), device=device)
             t_half = torch.full((num_nodes, 1), 0.5, device=device)
             t_one = torch.ones((num_nodes, 1), device=device)
-            k1 = self.mpflow(x, t)
-            k2 = self.mpflow(x + 0.5 * k1, t_half)
-            k3 = self.mpflow(x + 0.5 * k2, t_half)
-            k4 = self.mpflow(x + k3, t_one)
+            k1 = self.mpflow(x, t, **graph_info)
+            k2 = self.mpflow(x + 0.5 * k1, t_half, **graph_info)
+            k3 = self.mpflow(x + 0.5 * k2, t_half, **graph_info)
+            k4 = self.mpflow(x + k3, t_one, **graph_info)
             x = x + (1.0 / 6.0) * (k1 + 2*k2 + 2*k3 + k4)
             
         return x
 
 
-    def calculate_predicted_ut(self, x0, x1, device):
+    def calculate_predicted_ut(self, x0, x1, atomic_numbers, base_edge_distance, edge_index, device):
         num_nodes = x0.shape[0]
-        # Time shape should be [num_nodes, 1]
-        t = torch.rand(num_nodes, 1, device=device)
+        eps = 1e-6
+        time_offset = torch.rand(1, device=device)
+        time_steps = torch.arange(num_nodes, device=device) / num_nodes
+        t = (time_offset + time_steps) % (1.0 - eps)
+        t = t.unsqueeze(1) # [B, 1]
+        t_expanded = t.unsqueeze(1) # [B, 1, 1]
         ut = x1 - x0
-        # Explicitly broadcast t before multiplying with ut
-        t_expanded = t.unsqueeze(-1) # Shape [N, 1, 1]
-        xt = x0 + t_expanded * ut # Shape [N, 49, C] + [N, 49, C]
-        predicted_ut = self.mpflow(xt, t)
+        xt = x0 + t_expanded * ut
+        predicted_ut = self.mpflow(xt, t, atomic_numbers, base_edge_distance, edge_index)
         
         return ut, predicted_ut
 

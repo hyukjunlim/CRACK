@@ -41,7 +41,7 @@ NUM_LAYERS = 6
 PROJ_DROP = 0.0
 
 # Training Hyperparameters
-DEFAULT_LR = 1e-3
+DEFAULT_LR = 3e-4
 DEFAULT_WEIGHT_DECAY = 1e-3
 DEFAULT_BETAS = (0.9, 0.999)
 DEFAULT_PATIENCE = 100
@@ -654,8 +654,8 @@ def train_flow_model(
             # Stratified time sampling for the batch
             time_offset = torch.rand(1, device=flow_model.device) # Single offset for the batch
             time_steps = torch.arange(actual_batch_size, device=flow_model.device) / actual_batch_size
-            t = (time_offset + time_steps) % (1.0 - TIME_SAMPLING_EPS) # Ensure t < 1.0
-            t = t.unsqueeze(1) # Reshape to [B, 1]
+            t = (time_offset + time_steps) % (1.0 - TIME_SAMPLING_EPS)
+            t = t.unsqueeze(1) # [B, 1]
 
             # Perform training step
             loss = flow_model.train_step(x0, x1, t)

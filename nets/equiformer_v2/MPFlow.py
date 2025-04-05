@@ -3,9 +3,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 from .so3 import SO3_Embedding, SO3_Grid, SO3_Rotation, SO3_LinearV2
-from .transformer_block import FeedForwardNetwork # Local import for clarity
+from .transformer_block import SO2EquivariantGraphAttention # Changed import
 from torch.nn import SiLU, Linear, Dropout, ModuleList
 from .layer_norm import get_normalization_layer
+import copy # Added import
 
 # class MPFlow(nn.Module):
 #     """
@@ -268,69 +269,88 @@ class EquivariantMPFlow(nn.Module):
     Equivariant Neural network for conditional flow matching based on EquiformerV2 blocks.
 
     Operates on SO(3) equivariant features and incorporates time conditioning.
-    Uses FeedForwardNetwork blocks from EquiformerV2 for core processing.
+    Uses SO2EquivariantGraphAttention blocks from EquiformerV2 for core processing.
     """
     def __init__(self,
-                 sphere_channels,       # Feature channels (equiv. to embedding_dim)
-                 ffn_hidden_channels,   # Hidden channels in FFN blocks
-                 time_embed_dim,        # Dimension for time embedding
-                 lmax_list,             # List of lmax for each resolution
-                 mmax_list,             # List of mmax for each resolution (passed to FFN)
-                 SO3_grid,              # SO3_grid for activations (passed to FFN)
-                 activation,            # Activation type (passed to FFN)
-                 norm_type,             # Normalization type (passed to FFN)
-                 use_gate_act,          # Use gate activation? (passed to FFN)
-                 use_grid_mlp,          # Use grid MLP? (passed to FFN)
-                 use_sep_s2_act,        # Use separable S2 activation? (passed to FFN)
-                 num_layers=4,          # Number of equivariant FFN blocks
-                 proj_drop=0.0):        # Dropout rate (applied after residual)
+        sphere_channels,       # Feature channels
+        attn_hidden_channels,  # Hidden channels for attention blocks
+        num_heads,             # Number of attention heads
+        attn_alpha_channels,   # Alpha channels per head
+        attn_value_channels,   # Value channels per head
+        time_embed_dim,        # Dimension for time embedding
+        lmax_list,             # List of lmax for each resolution
+        mmax_list,             # List of mmax for each resolution
+        SO3_rotation,          # SO3_Rotation module
+        mappingReduced,        # CoefficientMappingModule
+        SO3_grid,              # SO3_grid for activations
+        max_num_elements,      # Max atomic number for embeddings
+        edge_channels_list,    # Edge feature channel dimensions
+        use_atom_edge_embedding, # Use atomic embeddings in edge features?
+        use_m_share_rad,       # Share radial weights across m?
+        activation,            # Activation type (for attention's internal ops)
+        use_s2_act_attn,       # Use S2 activation in attention?
+        use_attn_renorm,       # Renormalize attention weights?
+        use_gate_act,          # Use gate activation (in attention)?
+        use_sep_s2_act,        # Use separable S2 activation (in attention)?
+        norm_type,             # Normalization type
+        num_layers=4,          # Number of equivariant Attention blocks
+        alpha_drop=0.0,        # Dropout for attention weights
+        proj_drop=0.0):        # Dropout rate (applied after residual)
+        
         super().__init__()
         self.sphere_channels = sphere_channels
         self.lmax_list = lmax_list
         self.num_resolutions = len(lmax_list)
+        self.total_coefficients = sum([(l+1)**2 for l in lmax_list]) # Recalculate based on actual list
 
-        # Time embedding network (standard MLP processing invariant time)
+        # Time embedding network
         self.time_embedding = nn.Sequential(
             SinusoidalTimeEmbedding(time_embed_dim),
-            nn.Linear(time_embed_dim, time_embed_dim * 2),
-            nn.SiLU(),
-            nn.Linear(time_embed_dim * 2, sphere_channels) # Output matches feature channels
+            Linear(time_embed_dim, time_embed_dim * 2),
+            SiLU(),
+            Linear(time_embed_dim * 2, sphere_channels) # Output matches feature channels
         )
 
         # Calculate indices corresponding to l=0 components for time conditioning
-        # Assumes features are stored as [Node, Coeff, Channel] where Coeff concatenates
-        # (res0_l0, res0_l1...), (res1_l0, res1_l1...), ...
         self.l0_indices = []
         offset = 0
         for lmax in self.lmax_list:
             self.l0_indices.append(offset)
-            # Number of coefficients for a given lmax is (lmax + 1)**2
             offset += (lmax + 1)**2
-        self.total_coefficients = offset
+        # self.total_coefficients = offset # Already calculated above
 
-        # Stack of equivariant FeedForwardNetwork blocks
-        self.blocks = nn.ModuleList()
-        self.norms = nn.ModuleList()
+        # Stack of equivariant SO2EquivariantGraphAttention blocks
+        self.blocks = ModuleList()
+        self.norms = ModuleList()
+        copied_edge_channels_list = copy.deepcopy(edge_channels_list) # Avoid modifying original list
+
         for _ in range(num_layers):
-            # Reuse the FeedForwardNetwork from transformer_block
-            # Ensure FeedForwardNetwork is imported where this class is used
-            ffn = FeedForwardNetwork(
+            attn_block = SO2EquivariantGraphAttention(
                 sphere_channels=sphere_channels,
-                hidden_channels=ffn_hidden_channels,
-                output_channels=sphere_channels, # Corrected argument name
+                hidden_channels=attn_hidden_channels,
+                num_heads=num_heads,
+                attn_alpha_channels=attn_alpha_channels,
+                attn_value_channels=attn_value_channels,
+                output_channels=sphere_channels, # Output matches input channels
                 lmax_list=lmax_list,
                 mmax_list=mmax_list,
+                SO3_rotation=SO3_rotation,
+                mappingReduced=mappingReduced,
                 SO3_grid=SO3_grid,
+                max_num_elements=max_num_elements,
+                edge_channels_list=copied_edge_channels_list, # Use copied list
+                use_atom_edge_embedding=use_atom_edge_embedding,
+                use_m_share_rad=use_m_share_rad,
                 activation=activation,
+                use_s2_act_attn=use_s2_act_attn,
+                use_attn_renorm=use_attn_renorm,
                 use_gate_act=use_gate_act,
-                use_grid_mlp=use_grid_mlp,
                 use_sep_s2_act=use_sep_s2_act,
-                # norm_type and proj_drop are handled outside FFN
+                alpha_drop=alpha_drop,
             )
-            self.blocks.append(ffn)
+            self.blocks.append(attn_block)
 
             # Add normalization layer for each block
-            # Get max lmax across resolutions for the norm layer
             current_max_lmax = max(lmax_list) if lmax_list else 0
             norm_layer = get_normalization_layer(
                 norm_type, lmax=current_max_lmax, num_channels=sphere_channels
@@ -340,17 +360,22 @@ class EquivariantMPFlow(nn.Module):
         # Dropout layer applied after residual connection
         self.proj_drop = Dropout(proj_drop) if proj_drop > 0. else nn.Identity()
 
-        # Ensure parameters are initialized (optional, inherit from main model apply)
 
-
-    def forward(self, x_emb, t):
+    def forward(self, x_emb, t, atomic_numbers, edge_distance, edge_index):
         """
-        Forward pass for the equivariant flow model.
+        Forward pass for the equivariant flow model using Attention blocks.
 
         Args:
-            x_emb (torch.Tensor): Equivariant features tensor of shape
+            x_emb (torch.Tensor): Equivariant features tensor (xt) of shape
                                   [num_nodes, num_coefficients, channels].
             t (torch.Tensor): Time tensor of shape [num_nodes, 1].
+            atomic_numbers (torch.Tensor): Atomic numbers for each node [num_nodes].
+            edge_distance (torch.Tensor): Scalar features for each edge [num_edges, edge_feat_dim].
+                                          Note: This should be the *original* edge features,
+                                          before concatenation with atomic embeddings if applicable
+                                          within the attention block itself.
+            edge_index (torch.Tensor): Edge index tensor [2, num_edges].
+
 
         Returns:
             torch.Tensor: Predicted velocity field dv/dt, same shape as x_emb.
@@ -360,6 +385,9 @@ class EquivariantMPFlow(nn.Module):
         assert num_coeffs == self.total_coefficients, f"Input coefficient mismatch: {num_coeffs} vs {self.total_coefficients}"
         assert num_channels == self.sphere_channels, f"Input channel mismatch: {num_channels} vs {self.sphere_channels}"
         assert t.shape == (num_nodes, 1), f"Time tensor shape mismatch: {t.shape} vs ({num_nodes}, 1)"
+        assert atomic_numbers.shape == (num_nodes,), f"Atomic numbers shape mismatch: {atomic_numbers.shape} vs ({num_nodes},)"
+        assert edge_index.shape[0] == 2, f"Edge index shape mismatch: {edge_index.shape}"
+        # Cannot assert edge_distance shape precisely due to potential atomic embeddings in main model's edge features
 
         # 1. Compute time features (invariant)
         t_feat = self.time_embedding(t) # [num_nodes, sphere_channels]
@@ -368,10 +396,12 @@ class EquivariantMPFlow(nn.Module):
 
         # 2. Apply equivariant blocks with time conditioning and residuals
         h = x_emb
-        for i, ffn_block in enumerate(self.blocks):
+        current_lmax_list = self.lmax_list # Use the model's lmax list
+
+        for i, attn_block in enumerate(self.blocks):
             identity = h
 
-            # Apply normalization before FFN
+            # Apply normalization before Attention
             h_norm = self.norms[i](h)
 
             # Condition with time: Add time features to l=0 components
@@ -380,27 +410,32 @@ class EquivariantMPFlow(nn.Module):
                 # Add expanded time features to the l=0 slice for all channels
                 h_conditioned[:, l0_idx, :] = h_conditioned[:, l0_idx, :] + t_feat_expanded[:, 0, :]
 
-            # Wrap the tensor in SO3_Embedding before passing to FFN
-            # Need num_nodes, lmax_list, sphere_channels, device, dtype
+            # Wrap the tensor in SO3_Embedding before passing to Attention
             h_so3 = SO3_Embedding(
                 length=h_conditioned.shape[0],
-                lmax_list=self.lmax_list,
+                lmax_list=current_lmax_list, # Pass the correct lmax_list
                 num_channels=self.sphere_channels,
                 device=h_conditioned.device,
                 dtype=h_conditioned.dtype
             )
             h_so3.embedding = h_conditioned # Assign the tensor to the object
+            h_so3.set_lmax_mmax(current_lmax_list, self.blocks[i].mmax_list) # Ensure lmax/mmax are set
 
-            # Call FFN with the SO3_Embedding object
-            processed_h_so3 = ffn_block(h_so3)
+            # Call Attention block with the SO3_Embedding object and graph info
+            processed_h_so3 = attn_block(
+                h_so3,
+                atomic_numbers,
+                edge_distance, # Pass the base edge distance features
+                edge_index
+            )
 
             # Extract the tensor from the result
             processed_h = processed_h_so3.embedding
 
             # Add residual connection
-            h = identity + processed_h # Note: FFN might have internal dropout
+            h = identity + processed_h
 
             # Apply projection dropout after residual
-            h = self.proj_drop(h)
+            h = self.proj_drop(h) # proj_drop is nn.Dropout, expects tensor
 
         return h
