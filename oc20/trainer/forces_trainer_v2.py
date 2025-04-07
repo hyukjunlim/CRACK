@@ -1078,36 +1078,36 @@ class ForcesTrainerV2(BaseTrainerV2):
                         checkpoint_file="checkpoint.pt", training_state=True
                     )
 
-                # # Evaluate on val set every `eval_every` iterations.
-                # if (self.step % eval_every == 0
-                #     or i == (len(self.train_loader) - 1)):
-                #     if self.val_loader is not None:
-                #         if self.ema:
-                #             val_metrics = self.mpflow_validate(split="val",
-                #                 disable_tqdm=disable_eval_tqdm, use_ema=True)
-                #             self.update_best(primary_metric,
-                #                 val_metrics, disable_eval_tqdm=disable_eval_tqdm)
-                #         else:
-                #             val_metrics = self.mpflow_validate(split="val",
-                #                 disable_tqdm=disable_eval_tqdm, use_ema=False)
-                #             self.update_best(primary_metric,
-                #                 val_metrics, disable_eval_tqdm=disable_eval_tqdm)
+                # Evaluate on val set every `eval_every` iterations.
+                if (self.step % eval_every == 0
+                    or i == (len(self.train_loader) - 1)):
+                    if self.val_loader is not None:
+                        if self.ema:
+                            val_metrics = self.mpflow_validate(split="val",
+                                disable_tqdm=disable_eval_tqdm, use_ema=True)
+                            self.update_best(primary_metric,
+                                val_metrics, disable_eval_tqdm=disable_eval_tqdm)
+                        else:
+                            val_metrics = self.mpflow_validate(split="val",
+                                disable_tqdm=disable_eval_tqdm, use_ema=False)
+                            self.update_best(primary_metric,
+                                val_metrics, disable_eval_tqdm=disable_eval_tqdm)
 
-                #         if self.is_hpo:
-                #             self.hpo_update(
-                #                 self.epoch,
-                #                 self.step,
-                #                 self.metrics,
-                #                 val_metrics,
-                #             )
+                        if self.is_hpo:
+                            self.hpo_update(
+                                self.epoch,
+                                self.step,
+                                self.metrics,
+                                val_metrics,
+                            )
 
-                #     if self.config["task"].get("eval_relaxations", False):
-                #         if "relax_dataset" not in self.config["task"]:
-                #             logging.warning(
-                #                 "Cannot evaluate relaxations, relax_dataset not specified"
-                #             )
-                #         else:
-                #             self.run_relaxations()
+                    if self.config["task"].get("eval_relaxations", False):
+                        if "relax_dataset" not in self.config["task"]:
+                            logging.warning(
+                                "Cannot evaluate relaxations, relax_dataset not specified"
+                            )
+                        else:
+                            self.run_relaxations()
 
                 if self.scheduler.scheduler_type == "ReduceLROnPlateau":
                     if self.step % eval_every == 0:

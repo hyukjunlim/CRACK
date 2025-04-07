@@ -518,7 +518,7 @@ class EquiformerV2_OC20(BaseModel):
         ###############################################################
         if not predict_with_mpflow:
             ut, predicted_ut = self.calculate_predicted_ut(x0, x1, atomic_numbers, edge_distance, edge_index, data.batch, self.device)
-            predicted_x1 = self.sample_trajectory(x0, atomic_numbers, edge_distance, edge_index, data.batch, self.device, enable_grad=True)
+            predicted_x1 = self.sample_trajectory(x0, atomic_numbers, edge_distance, edge_index, data.batch, self.device, enable_grad=False)
             # x = predicted_x1
         else:
             x1 = self.sample_trajectory(x0, atomic_numbers, edge_distance, edge_index, data.batch, self.device, enable_grad=False)
@@ -577,56 +577,85 @@ class EquiformerV2_OC20(BaseModel):
                 return energy, forces, x0.embedding, x1.embedding, time_first, time_last, time_mpflow
 
 
-    def sample_trajectory(self, x0, atomic_numbers, edge_distance, edge_index, batch, device, method="euler", enable_grad=False):
+    def sample_trajectory(self, x0, atomic_numbers, edge_distance, edge_index, batch, device, method="euler", n_steps=100, enable_grad=False):
         """
         Samples a trajectory using ultra-fast, high-accuracy ODE solver.
         
         Args:
-            x0: Starting point
-            method: Sampling method ("euler", "heun", "rk4")
-            enable_grad: Whether to enable gradient computation
+            x0: Starting point (SO3_Embedding object)
+            atomic_numbers: Tensor of atomic numbers for each node.
+            edge_distance: Tensor of edge features.
+            edge_index: Tensor representing graph connectivity.
+            batch: Tensor indicating batch index for each node.
+            device: The device tensors are on.
+            method: Sampling method ("euler", "heun", "rk4").
+            n_steps: Number of integration steps (used for "euler").
+            enable_grad: Whether to enable gradient computation.
         """
         self.mpflow.eval()
         x = x0.clone()
 
         if not enable_grad:
             with torch.no_grad():
-                return self._compute_trajectory(x, method, device, atomic_numbers, edge_distance, edge_index, batch)
+                return self._compute_trajectory(x, method, n_steps, device, atomic_numbers, edge_distance, edge_index, batch)
         else:
-            return self._compute_trajectory(x, method, device, atomic_numbers, edge_distance, edge_index, batch)
+            # Note: Gradient tracking through multi-step Euler might be complex/costly.
+            # Consider if this is truly needed or if single-step methods are sufficient when grad is enabled.
+            if method == "euler" and n_steps > 1:
+                logging.warning("Gradient computation requested with multi-step Euler. This might be computationally expensive or lead to unexpected behavior.")
+            return self._compute_trajectory(x, method, n_steps, device, atomic_numbers, edge_distance, edge_index, batch)
         
         
-    def _compute_trajectory(self, x, method, device, atomic_numbers, edge_distance, edge_index, batch):
+    def _compute_trajectory(self, x, method, n_steps, device, atomic_numbers, edge_distance, edge_index, batch):
         num_nodes = x.embedding.shape[0]
+        
         if method == "euler":
-            t = torch.zeros((num_nodes, 1), device=device)
-            velocity = self.mpflow(x, t, atomic_numbers, edge_distance, edge_index, batch)
-            x.embedding = x.embedding + velocity.embedding
-            
+            if n_steps <= 0:
+                logging.warning(f"Euler method called with n_steps={n_steps}. Performing single step.")
+                n_steps = 1
+            dt = 1.0 / n_steps
+            # Clone x initially to avoid modifying the input x object directly within the loop
+            x_t = x # Start with the input SO3_Embedding object
+            for i in range(n_steps):
+                # Time tensor for the current step, shape [num_nodes, 1]
+                t_current = torch.full((num_nodes, 1), i * dt, device=device, dtype=x.embedding.dtype)
+                velocity = self.mpflow(x_t, t_current, atomic_numbers, edge_distance, edge_index, batch)
+                # Update the embedding of the current state
+                x_t.embedding = x_t.embedding + dt * velocity.embedding
+            # After the loop, x_t holds the final state
+            x = x_t # Assign the final state back to x
+
         elif method == "heun":
-            t = torch.zeros((num_nodes, 1), device=device)
+            # Single-step Heun (t=0 to t=1, dt=1)
+            t = torch.zeros((num_nodes, 1), device=device, dtype=x.embedding.dtype)
             k1 = self.mpflow(x, t, atomic_numbers, edge_distance, edge_index, batch)
             x_pred = x.clone()
-            x_pred.embedding = x.embedding + k1.embedding
-            t_next = torch.ones((num_nodes, 1), device=device)
+            x_pred.embedding = x.embedding + k1.embedding # dt=1
+            t_next = torch.ones((num_nodes, 1), device=device, dtype=x.embedding.dtype)
             k2 = self.mpflow(x_pred, t_next, atomic_numbers, edge_distance, edge_index, batch)
-            x.embedding = x.embedding + 0.5 * (k1.embedding + k2.embedding)
+            x.embedding = x.embedding + 0.5 * (k1.embedding + k2.embedding) # dt=1
         
         elif method == "rk4":
-            t = torch.zeros((num_nodes, 1), device=device)
-            t_half = torch.full((num_nodes, 1), 0.5, device=device)
-            t_one = torch.ones((num_nodes, 1), device=device)
+            # Single-step RK4 (t=0 to t=1, dt=1)
+            t = torch.zeros((num_nodes, 1), device=device, dtype=x.embedding.dtype)
+            t_half = torch.full((num_nodes, 1), 0.5, device=device, dtype=x.embedding.dtype)
+            t_one = torch.ones((num_nodes, 1), device=device, dtype=x.embedding.dtype)
+            
             k1 = self.mpflow(x, t, atomic_numbers, edge_distance, edge_index, batch)
-            x_pred = x.clone()
-            x_pred.embedding = x.embedding + k1.embedding
-            k2 = self.mpflow(x_pred, t_half, atomic_numbers, edge_distance, edge_index, batch)
-            x_pred = x.clone()
-            x_pred.embedding = x.embedding + 0.5 * k2.embedding
-            k3 = self.mpflow(x_pred, t_half, atomic_numbers, edge_distance, edge_index, batch)
-            x_pred = x.clone()
-            x_pred.embedding = x.embedding + k3.embedding
-            k4 = self.mpflow(x_pred, t_one, atomic_numbers, edge_distance, edge_index, batch)
-            x.embedding = x.embedding + (1.0 / 6.0) * (k1.embedding + 2*k2.embedding + 2*k3.embedding + k4.embedding)
+            
+            x_pred1 = x.clone()
+            x_pred1.embedding = x.embedding + 0.5 * k1.embedding # dt=1 assumed
+            k2 = self.mpflow(x_pred1, t_half, atomic_numbers, edge_distance, edge_index, batch)
+            
+            x_pred2 = x.clone()
+            x_pred2.embedding = x.embedding + 0.5 * k2.embedding # dt=1 assumed
+            k3 = self.mpflow(x_pred2, t_half, atomic_numbers, edge_distance, edge_index, batch)
+            
+            x_pred3 = x.clone()
+            x_pred3.embedding = x.embedding + k3.embedding # dt=1 assumed
+            k4 = self.mpflow(x_pred3, t_one, atomic_numbers, edge_distance, edge_index, batch)
+            
+            x.embedding = x.embedding + (1.0 / 6.0) * (k1.embedding + 2*k2.embedding + 2*k3.embedding + k4.embedding) # dt=1
             
         return x
 
