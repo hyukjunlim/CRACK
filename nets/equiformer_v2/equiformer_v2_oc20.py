@@ -577,9 +577,9 @@ class EquiformerV2_OC20(BaseModel):
                 return energy, forces, x0.embedding, x1.embedding, time_first, time_last, time_mpflow
 
 
-    def sample_trajectory(self, x0, atomic_numbers, edge_distance, edge_index, batch, device, method="euler", n_steps=100, enable_grad=False):
+    def sample_trajectory(self, x0, atomic_numbers, edge_distance, edge_index, batch, device, method="euler", n_steps=1, enable_grad=False):
         """
-        Samples a trajectory using ultra-fast, high-accuracy ODE solver.
+        Samples a trajectory.
         
         Args:
             x0: Starting point (SO3_Embedding object)
@@ -626,15 +626,26 @@ class EquiformerV2_OC20(BaseModel):
             x = x_t # Assign the final state back to x
 
         elif method == "heun":
-            # Single-step Heun (t=0 to t=1, dt=1)
-            t = torch.zeros((num_nodes, 1), device=device, dtype=x.embedding.dtype)
-            k1 = self.mpflow(x, t, atomic_numbers, edge_distance, edge_index, batch)
-            x_pred = x.clone()
-            x_pred.embedding = x.embedding + k1.embedding # dt=1
-            t_next = torch.ones((num_nodes, 1), device=device, dtype=x.embedding.dtype)
-            k2 = self.mpflow(x_pred, t_next, atomic_numbers, edge_distance, edge_index, batch)
-            x.embedding = x.embedding + 0.5 * (k1.embedding + k2.embedding) # dt=1
-        
+            if n_steps <= 0:
+                logging.warning(f"Heun method called with n_steps={n_steps}. Performing single step.")
+                n_steps = 1
+            dt = 1.0 / n_steps
+            x_t = x # Start with the input SO3_Embedding object, will be updated in place
+            for i in range(n_steps):
+                t_current = torch.full((num_nodes, 1), i * dt, device=device, dtype=x.embedding.dtype)
+                t_next = torch.full((num_nodes, 1), (i + 1) * dt, device=device, dtype=x.embedding.dtype)
+
+                # Predictor step
+                k1 = self.mpflow(x_t, t_current, atomic_numbers, edge_distance, edge_index, batch)
+                x_pred = x_t.clone()
+                x_pred.embedding = x_t.embedding + dt * k1.embedding 
+
+                # Corrector step
+                k2 = self.mpflow(x_pred, t_next, atomic_numbers, edge_distance, edge_index, batch)
+                x_t.embedding = x_t.embedding + 0.5 * dt * (k1.embedding + k2.embedding)
+            # After the loop, x_t (which is x) holds the final state
+            x = x_t # Assign the final state back to x (though it was updated in place)
+
         elif method == "rk4":
             # Single-step RK4 (t=0 to t=1, dt=1)
             t = torch.zeros((num_nodes, 1), device=device, dtype=x.embedding.dtype)
