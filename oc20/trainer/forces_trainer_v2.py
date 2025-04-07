@@ -1468,6 +1468,8 @@ class ForcesTrainerV2(BaseTrainerV2):
             "natoms": natoms,
             "x1": out["x1"],
             "predicted_x1": out["predicted_x1"],
+            "ut": out["ut"],
+            "predicted_ut": out["predicted_ut"],
         }
         if self.config["model_attributes"].get("regress_forces", True):
             target["grad_forces"] = out["forces"]

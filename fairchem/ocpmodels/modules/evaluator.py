@@ -34,6 +34,7 @@ class Evaluator:
         "s2ef": [
             "mpflow_mae",
             "mpflow_cos",
+            "mpflow_loss_mae",
             # "forcesx_mae",
             # "forcesy_mae",
             # "forcesz_mae",
@@ -52,13 +53,13 @@ class Evaluator:
     }
 
     task_attributes = {
-        "s2ef": ["energy", "forces", "natoms", "x1", "predicted_x1"],
+        "s2ef": ["energy", "forces", "natoms", "x1", "predicted_x1", "ut", "predicted_ut"],
         "is2rs": ["positions", "cell", "pbc", "natoms"],
         "is2re": ["energy"],
     }
 
     task_primary_metric = {
-        "s2ef": "energy_force_within_threshold",
+        "s2ef": "mpflow_loss_mae",
         "is2rs": "average_distance_within_threshold",
         "is2re": "energy_mae",
     }
@@ -115,6 +116,10 @@ def mpflow_mae(prediction, target):
 
 def mpflow_cos(prediction, target):
     return cosine_similarity(prediction["x1"], prediction["predicted_x1"])
+
+
+def mpflow_loss_mae(prediction, target):
+    return absolute_error(prediction["predicted_ut"], target["ut"])
 
 
 def energy_mae(prediction, target):
