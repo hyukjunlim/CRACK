@@ -17,7 +17,7 @@ logger: wandb
 
 task:
   dataset: trajectory_lmdb_v2
-  primary_metric: forces_mae
+  primary_metric: mpflow_loss_mae
   labels:
     - potential energy
   grad_input: atomic forces
