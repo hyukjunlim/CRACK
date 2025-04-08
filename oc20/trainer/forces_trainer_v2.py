@@ -529,14 +529,6 @@ class ForcesTrainerV2(BaseTrainerV2):
         out["time_last"] = time_last
         out["time_mpflow"] = time_mpflow
         
-        
-        # x0_mean = torch.mean(out["x0"]).item()
-        # x1_mean = torch.mean(out["x1"]).item()
-        # x1_x0_mean = torch.mean(out["x1"] - out["x0"]).item()
-        # ut_mean = torch.mean(out["ut"]).item()
-        # self.file_logger.info(f"Mean absolute values - x0: {x0_mean:.4f}, x1: {x1_mean:.4f}, x1-x0: {x1_x0_mean:.4f}, ut: {ut_mean:.4f}")
-        
-        
         return out
 
     def _compute_loss(self, out, batch_list):

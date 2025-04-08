@@ -577,7 +577,7 @@ class EquiformerV2_OC20(BaseModel):
                 return energy, forces, x0.embedding, x1.embedding, time_first, time_last, time_mpflow
 
 
-    def sample_trajectory(self, x0, atomic_numbers, edge_distance, edge_index, batch, device, method="euler", n_steps=100, enable_grad=False):
+    def sample_trajectory(self, x0, atomic_numbers, edge_distance, edge_index, batch, device, method="euler", n_steps=1, enable_grad=False):
         """
         Samples a trajectory.
         
