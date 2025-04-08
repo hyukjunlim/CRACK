@@ -6,6 +6,7 @@
 /mpflow_data_small/
 /output/
 /flow_output/
+/scripts_ssup/
 __pycache__/
 *.pt
 *.pyc
