@@ -498,7 +498,7 @@ class EquiformerV2_OC20(BaseModel):
         end_time_1 = time.time()
         time_first = torch.full((data.batch.max() + 1,), end_time_1 - start_time, device=x.embedding.device, dtype=x.embedding.dtype)
 
-        x0 = x
+        x0 = x.clone()
         if not predict_with_mpflow:
             for i in range(self.num_layers):
                 x = self.blocks[i](
@@ -508,7 +508,7 @@ class EquiformerV2_OC20(BaseModel):
                     edge_index,
                     batch=data.batch    # for GraphDropPath
                 )
-            x1 = x
+            x1 = x.clone()
         
         end_time_2 = time.time()
         time_last = torch.full((data.batch.max() + 1,), end_time_2 - end_time_1, device=x.embedding.device, dtype=x.embedding.dtype)
@@ -577,7 +577,7 @@ class EquiformerV2_OC20(BaseModel):
                 return energy, forces, x0.embedding, x1.embedding, time_first, time_last, time_mpflow
 
 
-    def sample_trajectory(self, x0, atomic_numbers, edge_distance, edge_index, batch, device, method="euler", n_steps=1, enable_grad=False):
+    def sample_trajectory(self, x0, atomic_numbers, edge_distance, edge_index, batch, device, method="euler", n_steps=100, enable_grad=False):
         """
         Samples a trajectory.
         
@@ -676,10 +676,8 @@ class EquiformerV2_OC20(BaseModel):
         xt = x0.clone()
         eps = 1e-6
         
-        time_offset = torch.rand(1, device=device)
-        time_steps = torch.arange(num_nodes, device=device) / num_nodes
-        t = (time_offset + time_steps) % (1.0 - eps)
-        t = t.unsqueeze(1) # [B, 1]
+        t = torch.rand(1, device=device) # [1]
+        t = t.expand(num_nodes, 1)  # [B, 1]
         t_expanded = t.unsqueeze(1) # [B, 1, 1]
         
         ut = x1.embedding - x0.embedding

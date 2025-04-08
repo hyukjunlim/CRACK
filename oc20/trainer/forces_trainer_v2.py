@@ -124,16 +124,10 @@ class ForcesTrainerV2(BaseTrainerV2):
             noddp=noddp,
         )
 
-        # --- Embedding Saving Configuration ---
-        # Get these values from your config object (e.g., self.config.get(...))
-        self.save_embeddings_flag = self.config.get("save_embeddings", False) # Control saving
-        self.embeddings_output_dir = self.config.get("embeddings_output_dir", "mpflow_data")
-        self.embeddings_save_interval = self.config.get("embeddings_save_interval", 100) # Batches per file
-
         # --- MPFlow Visualization Configuration ---
         self.visualize_mpflow = self.config.get("visualize_mpflow", True) # Enable/disable visualization
         self.viz_output_dir = self.config.get("visualization_output_dir", os.path.join(self.run_dir, "mpflow_visualizations")) # Default to run_dir subdir
-        self.viz_num_samples = self.config.get("visualization_num_samples", 8) # Max samples to plot
+        self.viz_num_samples = self.config.get("visualization_num_samples", 10) # Max samples to plot
         self.viz_plots = self.config.get("visualization_plots", ["2d", "3d"]) # Plots to generate ('2d', '3d')
         self.viz_pca_dpi = self.config.get("visualization_pca_dpi", 300)
 
@@ -141,19 +135,6 @@ class ForcesTrainerV2(BaseTrainerV2):
             os.makedirs(self.viz_output_dir, exist_ok=True)
             print(f"MPFlow visualizations will be saved to: {self.viz_output_dir}")
 
-        if self.save_embeddings_flag:
-            print(f"Embeddings will be saved to: {self.embeddings_output_dir}")
-            os.makedirs(self.embeddings_output_dir, exist_ok=True)
-            # --- Internal state for saving ---
-            self._embeddings_buffer_x0 = []
-            self._embeddings_buffer_x1 = []
-            self._embeddings_batch_counter = 0
-            self._embeddings_file_index = 0
-            # Check if resuming and find last file index if necessary
-            existing_files = [f for f in os.listdir(self.embeddings_output_dir) if f.startswith('embeddings_') and f.endswith('.npz')]
-            if existing_files:
-                self._embeddings_file_index = max([int(f.split('_')[1].split('.')[0]) for f in existing_files]) + 1
-                print(f"Resuming embedding saving. Next file index: {self._embeddings_file_index}")
 
     def load_task(self):
         self.file_logger.info(f"Loading dataset: {self.config['task']['dataset']}")
@@ -357,6 +338,7 @@ class ForcesTrainerV2(BaseTrainerV2):
                     disable_tqdm=disable_eval_tqdm,
                 )
 
+
     def train(self, disable_eval_tqdm=False):
         eval_every = self.config["optim"].get(
             "eval_every", len(self.train_loader)
@@ -540,13 +522,20 @@ class ForcesTrainerV2(BaseTrainerV2):
             out["predicted_ut"] = predicted_ut
             out["predicted_x1"] = predicted_x1
             out["x0"] = x0
-            out["x1"] = x1
         else:
             out["predicted_x1"] = x1
         out["x1"] = x1
         out["time_first"] = time_first
         out["time_last"] = time_last
         out["time_mpflow"] = time_mpflow
+        
+        
+        # x0_mean = torch.mean(out["x0"]).item()
+        # x1_mean = torch.mean(out["x1"]).item()
+        # x1_x0_mean = torch.mean(out["x1"] - out["x0"]).item()
+        # ut_mean = torch.mean(out["ut"]).item()
+        # self.file_logger.info(f"Mean absolute values - x0: {x0_mean:.4f}, x1: {x1_mean:.4f}, x1-x0: {x1_x0_mean:.4f}, ut: {ut_mean:.4f}")
+        
         
         return out
 
@@ -1043,8 +1032,6 @@ class ForcesTrainerV2(BaseTrainerV2):
                 with torch.cuda.amp.autocast(enabled=self.scaler is not None):
                     out = self._forward(batch)
                     loss = self._mpflow_compute_loss(out, batch)
-                    if self.save_embeddings_flag:
-                        self.save_embeddings(out)
                     
                 loss = self.scaler.scale(loss) if self.scaler else loss
                 if self.grad_accumulation_steps != 1:
@@ -1189,7 +1176,6 @@ class ForcesTrainerV2(BaseTrainerV2):
             loss = self._mpflow_compute_loss(out, batch, predict_with_mpflow=False)
             metrics = self._mpflow_compute_metrics(out, batch, evaluator, metrics, predict_with_mpflow=False)
             metrics = evaluator.update("loss", loss.item(), metrics)
-            #self.visualize_predictions(out)
 
             # Collect visualization data on master process
             if distutils.is_master() and self.visualize_mpflow and samples_collected < self.viz_num_samples:
@@ -1554,100 +1540,7 @@ class ForcesTrainerV2(BaseTrainerV2):
 
         return metrics
 
-    def save_embeddings(self, output):
-        """
-        Accumulates and saves x0 and x1 embeddings passed in the model output.
 
-        Args:
-            output (tuple): The output tuple from the model's forward pass.
-                            Expected to contain x0_return and x1_return as the
-                            last two elements when self.save_embeddings_flag is True.
-        """
-        if not self.save_embeddings_flag:
-            return # Don't save if the flag isn't set
-
-        # --- Extract Embeddings ---
-        # Check if necessary keys exist in output
-        if 'x0' not in output or 'x1' not in output:
-             logging.warning("Model output missing x0 or x1 keys.")
-             return
-             
-        x0_return = output['x0']
-        x1_return = output['x1']
-
-        if x0_return is None or x1_return is None:
-            # This can happen if return_embeddings=False was used, or if
-            # predict_with_mpflow=True was used with return_embeddings=True.
-            # Ensure your validation/test loop calls forward with return_embeddings=True
-            # and predict_with_mpflow=False.
-            return
-
-        # --- Move to CPU and convert to half precision for storage efficiency ---
-        x0_cpu = x0_return.detach().cpu()
-        x1_cpu = x1_return.detach().cpu()
-        
-        # --- Accumulate ---
-        self._embeddings_buffer_x0.append(x0_cpu)
-        self._embeddings_buffer_x1.append(x1_cpu)
-        self._embeddings_batch_counter += 1
-
-        # --- Save Periodically ---
-        if self._embeddings_batch_counter >= self.embeddings_save_interval:
-            self._write_embedding_chunk()
-
-
-    def _write_embedding_chunk(self):
-        """Helper function to write the current buffer to a compressed npz file."""
-        if not self._embeddings_buffer_x0: # Nothing to save
-            return
-
-        print(f"Saving embeddings chunk {self._embeddings_file_index} ({len(self._embeddings_buffer_x0)} batches)...")
-        try:
-            # Concatenate tensors collected so far for this file
-            # Tensors should already be on CPU from save_embeddings method
-            x0_to_save = torch.cat(self._embeddings_buffer_x0, dim=0)
-            x1_to_save = torch.cat(self._embeddings_buffer_x1, dim=0)
-            
-            # Additional safety check to ensure tensors are on CPU
-            if x0_to_save.is_cuda:
-                print("Warning: x0 tensor still on CUDA despite previous CPU conversion, moving to CPU now")
-                x0_to_save = x0_to_save.cpu()
-            if x1_to_save.is_cuda:
-                print("Warning: x1 tensor still on CUDA despite previous CPU conversion, moving to CPU now")
-                x1_to_save = x1_to_save.cpu()
-            
-            # Convert to numpy
-            x0_numpy = x0_to_save.numpy()
-            x1_numpy = x1_to_save.numpy()
-
-            save_path = os.path.join(self.embeddings_output_dir, f'embeddings_{self._embeddings_file_index:04d}.npz')
-            np.savez_compressed(save_path, x0=x0_numpy, x1=x1_numpy)
-            print(f"Saved {x0_numpy.shape[0]} embedding pairs to {save_path}")
-
-            # Reset buffers and counters for the next file
-            self._embeddings_buffer_x0 = []
-            self._embeddings_buffer_x1 = []
-            self._embeddings_batch_counter = 0
-            self._embeddings_file_index += 1
-
-        except Exception as e:
-            logging.error(f"Error saving embedding file embeddings_{self._embeddings_file_index:04d}.npz: {e}")
-            # Clear buffers anyway to prevent repeated errors with the same data
-            self._embeddings_buffer_x0 = []
-            self._embeddings_buffer_x1 = []
-            self._embeddings_batch_counter = 0
-
-
-    def _finalize_embedding_save(self):
-        """Saves any remaining embeddings in the buffer, typically called at the end of an epoch."""
-        if not self.save_embeddings_flag:
-            return
-        
-        print("Finalizing embedding saving for the epoch...")
-        self._write_embedding_chunk() # Write any remaining data
-        print("Embedding saving finalized.")
-        
-        
     def visualize_predictions(self, x0: torch.Tensor, x1_true: torch.Tensor, x1_pred: torch.Tensor):
         """
         Visualizes the predicted MPFlow states (x1_pred) compared to the ground 

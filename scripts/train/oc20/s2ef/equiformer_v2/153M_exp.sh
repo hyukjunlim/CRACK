@@ -5,8 +5,7 @@ python main_oc20.py \
     --print-every 200 \
     --submit \
     --amp \
-    --checkpoint 'models/oc20/s2ef/2M/equiformer_v2/N@12_L@6_M@2/bs@64_lr@2e-4_wd@1e-3_epochs@12_warmup-epochs@0.1_g@1x1/checkpoints/2025-04-08-08-45-04/best_checkpoint.pt'
-    # --checkpoint 'models/oc20/s2ef/2M/equiformer_v2/N@12_L@6_M@2/bs@64_lr@2e-4_wd@1e-3_epochs@12_warmup-epochs@0.1_g@1x1/mpflow_exp1_lr3e-4.pt'
+    --checkpoint 'models/oc20/s2ef/2M/equiformer_v2/N@12_L@6_M@2/bs@64_lr@2e-4_wd@1e-3_epochs@12_warmup-epochs@0.1_g@1x1/mpflow_exp2_lr5e-4_wu1.pt'
 
 
 # python main_oc20.py \
