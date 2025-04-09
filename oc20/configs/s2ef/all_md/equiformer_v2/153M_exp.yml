@@ -106,7 +106,7 @@ optim:
 
   max_epochs: 10
   force_coefficient: 100
-  energy_coefficient: 10
+  energy_coefficient: 4
   
   mpflow_coefficient: 1
   mpflow_dir_coefficient: 1
