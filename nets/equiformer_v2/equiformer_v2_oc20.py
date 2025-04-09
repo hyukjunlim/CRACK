@@ -509,10 +509,10 @@ class EquiformerV2_OC20(BaseModel):
                     edge_index,
                     batch=data.batch    # for GraphDropPath
                 )
+            # Final layer norm
+            x.embedding = self.norm(x.embedding)
+            x1 = x.clone()
                 
-        # Final layer norm
-        x.embedding = self.norm(x.embedding)
-        x1 = x.clone()
         
         end_time_2 = time.time()
         time_last = torch.full((data.batch.max() + 1,), end_time_2 - end_time_1, device=x.embedding.device, dtype=x.embedding.dtype)
@@ -523,7 +523,7 @@ class EquiformerV2_OC20(BaseModel):
         if not predict_with_mpflow:
             ut, predicted_ut = self.calculate_predicted_ut(x0, x1, atomic_numbers, edge_distance, edge_index, data.batch, self.device)
             predicted_x1 = self.sample_trajectory(x0, atomic_numbers, edge_distance, edge_index, data.batch, self.device, enable_grad=False)
-            # x = predicted_x1
+            x = predicted_x1
         else:
             x1 = self.sample_trajectory(x0, atomic_numbers, edge_distance, edge_index, data.batch, self.device, enable_grad=False)
             x = x1
