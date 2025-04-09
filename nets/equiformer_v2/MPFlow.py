@@ -367,7 +367,8 @@ class EquivariantMPFlow(nn.Module):
             )
             self.blocks.append(block)
 
-
+        self.norm = get_normalization_layer(norm_type, lmax=max(lmax_list), num_channels=sphere_channels)
+        
     def forward(self, x, t, atomic_numbers, edge_distance, edge_index, batch):
         """
         Forward pass for the equivariant flow model using Attention blocks.
@@ -410,4 +411,6 @@ class EquivariantMPFlow(nn.Module):
                 batch=batch
             )
 
+        h.embedding = self.norm(h.embedding)
+        
         return h

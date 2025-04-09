@@ -367,7 +367,7 @@ class EquiformerV2_OC20(BaseModel):
             self.mappingReduced,
             self.SO3_grid,
             self.max_num_elements,
-            self.edge_channels_list,
+            mpflow_edge_channels_list,
             self.block_use_atom_edge_embedding,
             self.use_m_share_rad,
             self.attn_activation,
@@ -508,7 +508,10 @@ class EquiformerV2_OC20(BaseModel):
                     edge_index,
                     batch=data.batch    # for GraphDropPath
                 )
-            x1 = x.clone()
+                
+        # Final layer norm
+        x.embedding = self.norm(x.embedding)
+        x1 = x.clone()
         
         end_time_2 = time.time()
         time_last = torch.full((data.batch.max() + 1,), end_time_2 - end_time_1, device=x.embedding.device, dtype=x.embedding.dtype)
@@ -527,8 +530,6 @@ class EquiformerV2_OC20(BaseModel):
         end_time_3 = time.time()
         time_mpflow = torch.full((data.batch.max() + 1,), end_time_3 - end_time_2, device=x.embedding.device, dtype=x.embedding.dtype)
         
-        # Final layer norm
-        x.embedding = self.norm(x.embedding)
         
         ###############################################################
         # Energy estimation
