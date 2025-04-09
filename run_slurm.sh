@@ -6,7 +6,7 @@
 #SBATCH --time=10-00:00:00          # Runtime: 10 days
 #SBATCH -o output/%x.%N.%j.out   # STDOUT with job name in output directory
 #SBATCH -e output/%x.%N.%j.err   # STDERR with job name in output directory
-#SBATCH --gres=gpu:a5000:1       # Request 1 A5000 GPU
+#SBATCH --gres=gpu:a6000:1       # Request 1 A5000 GPU
 
 # # Check if a script was provided as an argument
 # if [ $# -eq 0 ]; then
