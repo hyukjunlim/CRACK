@@ -1477,6 +1477,8 @@ class ForcesTrainerV2(BaseTrainerV2):
         for lc in loss:
             assert hasattr(lc, "grad_fn")
         
+        print([i.item() for i in loss], flush=True)
+        
         loss = sum(loss)
         return loss
     
