@@ -311,7 +311,7 @@ class EquiformerV2_OC20(BaseModel):
         
         # Output blocks for energy and forces
         self.norm = get_normalization_layer(self.norm_type, lmax=max(self.lmax_list), num_channels=self.sphere_channels)
-        self.energy_block = FeedForwardNetwork(
+        self.energy_block_v2 = FeedForwardNetwork(
             self.sphere_channels,
             self.ffn_hidden_channels, 
             1,
@@ -324,7 +324,7 @@ class EquiformerV2_OC20(BaseModel):
             self.use_sep_s2_act
         )
         if self.regress_forces:
-            self.force_block = SO2EquivariantGraphAttention(
+            self.force_block_v2 = SO2EquivariantGraphAttention(
                 self.sphere_channels,
                 self.attn_hidden_channels,
                 self.num_heads, 
@@ -407,14 +407,14 @@ class EquiformerV2_OC20(BaseModel):
         #     for param in self.force_block.parameters():
         #         param.requires_grad = True
         
-        # # Unfreeze energy block
-        # for param in self.energy_block_v2.parameters():
-        #     param.requires_grad = True
+        # Unfreeze energy block
+        for param in self.energy_block_v2.parameters():
+            param.requires_grad = True
         
-        # # Unfreeze force block
-        # if self.regress_forces:
-        #     for param in self.force_block_v2.parameters():
-        #         param.requires_grad = True
+        # Unfreeze force block
+        if self.regress_forces:
+            for param in self.force_block_v2.parameters():
+                param.requires_grad = True
         
         # Unfreeze mpflow
         for param in self.mpflow.parameters():
@@ -532,7 +532,7 @@ class EquiformerV2_OC20(BaseModel):
         if not predict_with_mpflow:
             ut, predicted_ut = self.calculate_predicted_ut(x0, x1, atomic_numbers, edge_distance, edge_index, data.batch, self.device)
             predicted_x1 = self.sample_trajectory(x0, atomic_numbers, edge_distance, edge_index, data.batch, self.device, enable_grad=True)
-            # x = predicted_x1
+            x = predicted_x1
         else:
             x1 = self.sample_trajectory(x0, atomic_numbers, edge_distance, edge_index, data.batch, self.device, enable_grad=True)
             x = x1
@@ -544,7 +544,7 @@ class EquiformerV2_OC20(BaseModel):
         ###############################################################
         # Energy estimation
         ###############################################################
-        node_energy = self.energy_block(x) 
+        node_energy = self.energy_block_v2(x) 
         node_energy = node_energy.embedding.narrow(1, 0, 1)
         _energy = torch.scatter_add(
             torch.zeros(data.batch.max() + 1, device=node_energy.device, dtype=node_energy.dtype),
@@ -559,22 +559,22 @@ class EquiformerV2_OC20(BaseModel):
         ###############################################################
         if self.regress_forces:
             # if not predict_with_mpflow:
-            # dy = torch.autograd.grad(
-            #     energy,  # [n_graphs,]
-            #     data.pos,  # [n_nodes, 3]
-            #     grad_outputs=torch.ones_like(energy),
-            #     create_graph=True,
-            #     retain_graph=True,
-            #     allow_unused=True
-            # )[0]
-            # assert dy is not None
-            # forces = -1 * dy  # [n_nodes, 3]
-            forces = self.force_block(x,
-                atomic_numbers,
-                edge_distance,
-                edge_index)
-            forces = forces.embedding.narrow(1, 1, 3)
-            forces = forces.view(-1, 3)    
+            dy = torch.autograd.grad(
+                energy,  # [n_graphs,]
+                data.pos,  # [n_nodes, 3]
+                grad_outputs=torch.ones_like(energy),
+                create_graph=True,
+                retain_graph=True,
+                allow_unused=True
+            )[0]
+            assert dy is not None
+            forces = -1 * dy  # [n_nodes, 3]
+            # forces = self.force_block_v2(x,
+            #     atomic_numbers,
+            #     edge_distance,
+            #     edge_index)
+            # forces = forces.embedding.narrow(1, 1, 3)
+            # forces = forces.view(-1, 3)    
         
         if not predict_with_mpflow:
             if not self.regress_forces:
