@@ -1022,8 +1022,8 @@ class ForcesTrainerV2(BaseTrainerV2):
 
                 # Forward, loss, backward.
                 with torch.cuda.amp.autocast(enabled=self.scaler is not None):
-                    out = self._forward(batch)
-                    loss = self._mpflow_compute_loss(out, batch)
+                    out = self._forward(batch, predict_with_mpflow=False)
+                    loss = self._mpflow_compute_loss(out, batch, predict_with_mpflow=False)
                     
                 loss = self.scaler.scale(loss) if self.scaler else loss
                 if self.grad_accumulation_steps != 1:
@@ -1164,9 +1164,9 @@ class ForcesTrainerV2(BaseTrainerV2):
             disable=disable_tqdm,
         ):
             with torch.cuda.amp.autocast(enabled=self.scaler is not None):
-                out = self._forward(batch, predict_with_mpflow=False)
-            loss = self._mpflow_compute_loss(out, batch, predict_with_mpflow=False)
-            metrics = self._mpflow_compute_metrics(out, batch, evaluator, metrics, predict_with_mpflow=False)
+                out = self._forward(batch, predict_with_mpflow=True)
+            loss = self._mpflow_compute_loss(out, batch, predict_with_mpflow=True)
+            metrics = self._mpflow_compute_metrics(out, batch, evaluator, metrics, predict_with_mpflow=True)
             metrics = evaluator.update("loss", loss.item(), metrics)
 
             # Collect visualization data on master process
@@ -1496,13 +1496,14 @@ class ForcesTrainerV2(BaseTrainerV2):
             "natoms": natoms,
             "x1": out["x1"],
             "predicted_x1": out["predicted_x1"],
-            "ut": out["ut"],
-            "predicted_ut": out["predicted_ut"],
         }
+        out["natoms"] = natoms
         if self.config["model_attributes"].get("regress_forces", True):
             target["grad_forces"] = out["forces"]
 
-        out["natoms"] = natoms
+        if not predict_with_mpflow:
+            target["ut"] = out["ut"]
+            target["predicted_ut"] = out["predicted_ut"]
 
         if self.config["task"].get("eval_on_free_atoms", True):
             fixed = torch.cat(
