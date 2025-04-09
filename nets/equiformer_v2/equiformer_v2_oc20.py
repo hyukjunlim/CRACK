@@ -355,11 +355,11 @@ class EquiformerV2_OC20(BaseModel):
 
         self.mpflow = EquivariantMPFlow(
             self.sphere_channels,
-            self.attn_hidden_channels,
+            self.attn_hidden_channels // 2,
             self.num_heads,
-            self.attn_alpha_channels,
-            self.attn_value_channels,
-            self.ffn_hidden_channels,
+            self.attn_alpha_channels // 2,
+            self.attn_value_channels // 2,
+            self.ffn_hidden_channels // 2,
             self.sphere_channels, 
             self.lmax_list,
             self.mmax_list,
@@ -380,7 +380,8 @@ class EquiformerV2_OC20(BaseModel):
             self.norm_type,
             self.alpha_drop, 
             self.drop_path_rate,
-            self.proj_drop
+            self.proj_drop,
+            num_layers=2
         ).to(self.device)
         
         self.apply(self._init_weights)
@@ -395,16 +396,16 @@ class EquiformerV2_OC20(BaseModel):
         for param in self.parameters():
             param.requires_grad = False
         
-        # # Then unfreeze
-        # for param in self.norm.parameters():
-        #     param.requires_grad = True
+        # Then unfreeze
+        for param in self.norm.parameters():
+            param.requires_grad = True
         
-        # for param in self.energy_block.parameters():
-        #     param.requires_grad = True
+        for param in self.energy_block.parameters():
+            param.requires_grad = True
         
-        # if self.regress_forces:
-        #     for param in self.force_block.parameters():
-        #         param.requires_grad = True
+        if self.regress_forces:
+            for param in self.force_block.parameters():
+                param.requires_grad = True
         
         for param in self.mpflow.parameters():
             param.requires_grad = True
