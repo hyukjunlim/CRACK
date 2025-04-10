@@ -355,11 +355,11 @@ class EquiformerV2_OC20(BaseModel):
 
         self.mpflow = EquivariantMPFlow(
             self.sphere_channels,
-            self.attn_hidden_channels // 2,
+            self.attn_hidden_channels,
             self.num_heads,
-            self.attn_alpha_channels // 2,
-            self.attn_value_channels // 2,
-            self.ffn_hidden_channels // 2,
+            self.attn_alpha_channels,
+            self.attn_value_channels,
+            self.ffn_hidden_channels,
             self.sphere_channels, 
             self.lmax_list,
             self.mmax_list,
@@ -381,7 +381,7 @@ class EquiformerV2_OC20(BaseModel):
             self.alpha_drop, 
             self.drop_path_rate,
             self.proj_drop,
-            num_layers=2
+            num_layers=3
         ).to(self.device)
         
         self.apply(self._init_weights)
@@ -531,10 +531,10 @@ class EquiformerV2_OC20(BaseModel):
         ###############################################################
         if not predict_with_mpflow:
             ut, predicted_ut = self.calculate_predicted_ut(x0, x1, atomic_numbers, edge_distance, edge_index, data.batch, self.device)
-            predicted_x1 = self.sample_trajectory(x0, atomic_numbers, edge_distance, edge_index, data.batch, self.device, enable_grad=True)
+            predicted_x1 = self.sample_trajectory(x0, atomic_numbers, edge_distance, edge_index, data.batch, self.device, enable_grad=False)
             # x = predicted_x1
         else:
-            x1 = self.sample_trajectory(x0, atomic_numbers, edge_distance, edge_index, data.batch, self.device, enable_grad=True)
+            x1 = self.sample_trajectory(x0, atomic_numbers, edge_distance, edge_index, data.batch, self.device, enable_grad=False)
             x = x1
         
         end_time_3 = time.time()

@@ -531,10 +531,10 @@ class EquiformerV2_OC20(BaseModel):
         ###############################################################
         if not predict_with_mpflow:
             ut, predicted_ut = self.calculate_predicted_ut(x0, x1, atomic_numbers, edge_distance, edge_index, data.batch, self.device)
-            predicted_x1 = self.sample_trajectory(x0, atomic_numbers, edge_distance, edge_index, data.batch, self.device, enable_grad=True)
+            predicted_x1 = self.sample_trajectory(x0, atomic_numbers, edge_distance, edge_index, data.batch, self.device, enable_grad=False)
             # x = predicted_x1
         else:
-            x1 = self.sample_trajectory(x0, atomic_numbers, edge_distance, edge_index, data.batch, self.device, enable_grad=True)
+            x1 = self.sample_trajectory(x0, atomic_numbers, edge_distance, edge_index, data.batch, self.device, enable_grad=False)
             x = x1
         
         end_time_3 = time.time()
