@@ -44,7 +44,7 @@ StartTime=$(date +%s)
 # cd $SLURM_SUBMIT_DIR
 
 # Run the specified Python script
-sh scripts/train/oc20/s2ef/equiformer_v2/153M_exp.sh
+sh scripts/train/oc20/s2ef/equiformer_v2/83M_exp.sh
 
 EndTime=$(date +%s)
 
