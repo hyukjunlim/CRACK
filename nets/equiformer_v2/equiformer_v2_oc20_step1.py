@@ -355,11 +355,11 @@ class EquiformerV2_OC20(BaseModel):
 
         self.mpflow = EquivariantMPFlow(
             self.sphere_channels,
-            self.attn_hidden_channels // 2,
+            self.attn_hidden_channels,
             self.num_heads,
-            self.attn_alpha_channels // 2,
-            self.attn_value_channels // 2,
-            self.ffn_hidden_channels // 2,
+            self.attn_alpha_channels,
+            self.attn_value_channels,
+            self.ffn_hidden_channels,
             self.sphere_channels, 
             self.lmax_list,
             self.mmax_list,
@@ -381,7 +381,7 @@ class EquiformerV2_OC20(BaseModel):
             self.alpha_drop, 
             self.drop_path_rate,
             self.proj_drop,
-            num_layers=2
+            num_layers=3
         ).to(self.device)
         
         self.apply(self._init_weights)
