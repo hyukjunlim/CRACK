@@ -19,6 +19,7 @@ task:
   description: "Regressing to energies and forces for DFT trajectories from OCP"
   type: regression
   metric: force_mae
+  primary_metric: mpflow_mae
   labels:
     - potential energy
   grad_input: atomic forces

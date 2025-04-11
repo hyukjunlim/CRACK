@@ -411,15 +411,6 @@ class EquiformerV2_OC20(BaseModel):
         #     for param in self.force_block.parameters():
         #         param.requires_grad = True
         
-        # # Unfreeze energy block
-        # for param in self.energy_block_v2.parameters():
-        #     param.requires_grad = True
-        
-        # # Unfreeze force block
-        # if self.regress_forces:
-        #     for param in self.force_block_v2.parameters():
-        #         param.requires_grad = True
-        
         # Unfreeze mpflow
         for param in self.mpflow.parameters():
             param.requires_grad = True
@@ -427,8 +418,6 @@ class EquiformerV2_OC20(BaseModel):
 
     @conditional_grad(torch.enable_grad())
     def forward(self, data, predict_with_mpflow=False):
-        data.pos.requires_grad_(True)
-        
         self.batch_size = len(data.natoms)
         self.dtype = data.pos.dtype
         self.device = data.pos.device
@@ -513,18 +502,17 @@ class EquiformerV2_OC20(BaseModel):
         time_first = torch.full((data.batch.max() + 1,), end_time_1 - start_time, device=x.embedding.device, dtype=x.embedding.dtype)
 
         x0 = x.clone()
-        if not predict_with_mpflow:
-            for i in range(self.num_layers):
-                x = self.blocks[i](
-                    x,                  # SO3_Embedding
-                    atomic_numbers,
-                    edge_distance,
-                    edge_index,
-                    batch=data.batch    # for GraphDropPath
-                )
-            # Final layer norm
-            x.embedding = self.norm(x.embedding)
-            x1 = x.clone()
+        for i in range(self.num_layers):
+            x = self.blocks[i](
+                x,                  # SO3_Embedding
+                atomic_numbers,
+                edge_distance,
+                edge_index,
+                batch=data.batch    # for GraphDropPath
+            )
+        # Final layer norm
+        x.embedding = self.norm(x.embedding)
+        x1 = x.clone()
                 
         
         end_time_2 = time.time()
@@ -533,13 +521,10 @@ class EquiformerV2_OC20(BaseModel):
         ###############################################################
         # MPFlow
         ###############################################################
-        if not predict_with_mpflow:
-            ut, predicted_ut = self.calculate_predicted_ut(x0, x1, atomic_numbers, edge_distance, edge_index, data.batch, self.device)
+        ut, predicted_ut = self.calculate_predicted_ut(x0, x1, atomic_numbers, edge_distance, edge_index, data.batch, self.device)
+        if predict_with_mpflow:
             predicted_x1 = self.sample_trajectory(x0, atomic_numbers, edge_distance, edge_index, data.batch, self.device)
-            # x = predicted_x1
-        else:
-            x1 = self.sample_trajectory(x0, atomic_numbers, edge_distance, edge_index, data.batch, self.device)
-            x = x1
+            x = predicted_x1
         
         end_time_3 = time.time()
         time_mpflow = torch.full((data.batch.max() + 1,), end_time_3 - end_time_2, device=x.embedding.device, dtype=x.embedding.dtype)
@@ -562,7 +547,6 @@ class EquiformerV2_OC20(BaseModel):
         # Force estimation ( + gradient aided)
         ###############################################################
         if self.regress_forces:
-            # if not predict_with_mpflow:
             # dy = torch.autograd.grad(
             #     energy,  # [n_graphs,]
             #     data.pos,  # [n_nodes, 3]
@@ -582,14 +566,14 @@ class EquiformerV2_OC20(BaseModel):
         
         if not predict_with_mpflow:
             if not self.regress_forces:
+                return energy, ut, predicted_ut, time_first, time_last, time_mpflow
+            else:
+                return energy, forces, ut, predicted_ut, time_first, time_last, time_mpflow
+        else:
+            if not self.regress_forces:
                 return energy, ut, predicted_ut, x0.embedding, x1.embedding, predicted_x1.embedding, time_first, time_last, time_mpflow
             else:
                 return energy, forces, ut, predicted_ut, x0.embedding, x1.embedding, predicted_x1.embedding, time_first, time_last, time_mpflow
-        else:
-            if not self.regress_forces:
-                return energy, x0.embedding, x1.embedding, time_first, time_last, time_mpflow
-            else:
-                return energy, forces, x0.embedding, x1.embedding, time_first, time_last, time_mpflow
 
 
     def sample_trajectory(self, x0, atomic_numbers, edge_distance, edge_index, batch, device, method="dopri5", rtol=1e-5, atol=1e-5, options=None):

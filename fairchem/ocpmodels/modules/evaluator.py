@@ -33,7 +33,6 @@ class Evaluator:
     task_metrics = {
         "s2ef": [
             "mpflow_mae",
-            "mpflow_cos",
             # "forcesx_mae",
             # "forcesy_mae",
             # "forcesz_mae",
@@ -52,7 +51,7 @@ class Evaluator:
     }
 
     task_attributes = {
-        "s2ef": ["energy", "forces", "natoms", "x1", "predicted_x1"],
+        "s2ef": ["energy", "forces", "natoms", "ut", "predicted_ut"],
         "is2rs": ["positions", "cell", "pbc", "natoms"],
         "is2re": ["energy"],
     }
@@ -110,11 +109,7 @@ class Evaluator:
         return metrics
 
 def mpflow_mae(prediction, target):
-    return absolute_error(prediction["x1"], prediction["predicted_x1"])
-
-
-def mpflow_cos(prediction, target):
-    return cosine_similarity(prediction["x1"], prediction["predicted_x1"])
+    return absolute_error(prediction["ut"], prediction["predicted_ut"])
 
 
 def energy_mae(prediction, target):
