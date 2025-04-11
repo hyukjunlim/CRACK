@@ -33,6 +33,8 @@ class Evaluator:
     task_metrics = {
         "s2ef": [
             "mpflow_mae",
+            "mpflow_predict_mae",
+            "mpflow_predict_cos",
             # "forcesx_mae",
             # "forcesy_mae",
             # "forcesz_mae",
@@ -76,8 +78,11 @@ class Evaluator:
         metrics = prev_metrics
 
         for fn in self.task_metrics[self.task]:
-            res = eval(fn)(prediction, target)
-            metrics = self.update(fn, res, metrics)
+            try:
+                res = eval(fn)(prediction, target)
+                metrics = self.update(fn, res, metrics)
+            except Exception as e:
+                continue
 
         return metrics
 
@@ -110,6 +115,14 @@ class Evaluator:
 
 def mpflow_mae(prediction, target):
     return absolute_error(prediction["ut"], prediction["predicted_ut"])
+
+
+def mpflow_predict_mae(prediction, target):
+    return absolute_error(prediction["x1"], prediction["predicted_x1"])
+
+
+def mpflow_predict_cos(prediction, target):
+    return cosine_similarity(prediction["x1"], prediction["predicted_x1"])
 
 
 def energy_mae(prediction, target):

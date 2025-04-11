@@ -611,7 +611,7 @@ class EquiformerV2_OC20(BaseModel):
             ode_func,
             y0,
             t_span,
-            method=method,
+            method='euler',
             rtol=rtol,
             atol=atol,
             options=options
