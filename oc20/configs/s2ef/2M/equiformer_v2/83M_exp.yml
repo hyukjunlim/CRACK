@@ -8,7 +8,7 @@ dataset:
     target_std: 2.887317180633545
     grad_target_mean: 0.0
     grad_target_std: 2.887317180633545
-  - src: datasets/oc20/Oabs_val/
+  - src: datasets/oc20/s2ef/all/val_id/
 
 
 logger: wandb

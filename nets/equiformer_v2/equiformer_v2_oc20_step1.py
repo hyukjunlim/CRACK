@@ -400,20 +400,20 @@ class EquiformerV2_OC20(BaseModel):
         for param in self.parameters():
             param.requires_grad = False
         
-        # # Then unfreeze
-        # for param in self.norm.parameters():
-        #     param.requires_grad = True
-        
+        ### Turn on at step 2 ###
         # for param in self.energy_block.parameters():
         #     param.requires_grad = True
         
         # if self.regress_forces:
         #     for param in self.force_block.parameters():
         #         param.requires_grad = True
+        #########################
         
+        ### Turn on at step 1 ###
         # Unfreeze mpflow
         for param in self.mpflow.parameters():
             param.requires_grad = True
+        #########################
 
 
     @conditional_grad(torch.enable_grad())

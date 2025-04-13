@@ -1359,11 +1359,6 @@ class ForcesTrainerV2(BaseTrainerV2):
             mpflow_mult * self.loss_fn["mpflow"](out["predicted_ut"], out["ut"])
         )
             
-            # mpflow_dir_mult = self.config["optim"].get("mpflow_dir_coefficient", 1)
-            # loss.append(
-            #     mpflow_dir_mult * (1 - self.loss_fn["mpflow_dir"](out["predicted_ut"], out["ut"])).mean()
-            # )
-            
         # # Energy loss.
         # energy_target = torch.cat(
         #     [batch.y.to(self.device) for batch in batch_list], dim=0

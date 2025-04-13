@@ -1020,7 +1020,7 @@ class ForcesTrainerV2(BaseTrainerV2):
 
                 # Forward, loss, backward.
                 with torch.cuda.amp.autocast(enabled=self.scaler is not None):
-                    out = self._forward(batch, predict_with_mpflow=False)
+                    out = self._forward(batch, predict_with_mpflow=True)
                     loss = self._mpflow_compute_loss(out, batch)
                     
                 loss = self.scaler.scale(loss) if self.scaler else loss
@@ -1035,7 +1035,7 @@ class ForcesTrainerV2(BaseTrainerV2):
                     batch,
                     self.evaluator,
                     self.metrics,
-                    predict_with_mpflow=False
+                    predict_with_mpflow=True
                 )
                 self.metrics = self.evaluator.update(
                     "loss", loss.item() / scale * self.grad_accumulation_steps, self.metrics
@@ -1353,123 +1353,118 @@ class ForcesTrainerV2(BaseTrainerV2):
     def _mpflow_compute_loss(self, out, batch_list):
         loss = []
 
-        # MPFlow loss.
-        mpflow_mult = self.config["optim"].get("mpflow_coefficient", 10)
-        loss.append(
-            mpflow_mult * self.loss_fn["mpflow"](out["predicted_ut"], out["ut"])
-        )
-            
-            # mpflow_dir_mult = self.config["optim"].get("mpflow_dir_coefficient", 1)
-            # loss.append(
-            #     mpflow_dir_mult * (1 - self.loss_fn["mpflow_dir"](out["predicted_ut"], out["ut"])).mean()
-            # )
-            
-        # # Energy loss.
-        # energy_target = torch.cat(
-        #     [batch.y.to(self.device) for batch in batch_list], dim=0
-        # )
-        # if self.normalizer.get("normalize_labels", False):
-        #     energy_target = self.normalizers["target"].norm(energy_target)
-        # energy_mult = self.config["optim"].get("energy_coefficient", 1)
+        # # MPFlow loss.
+        # mpflow_mult = self.config["optim"].get("mpflow_coefficient", 10)
         # loss.append(
-        #     energy_mult * self.loss_fn["energy"](out["energy"], energy_target)
+        #     mpflow_mult * self.loss_fn["mpflow"](out["predicted_ut"], out["ut"])
         # )
+        
+        # Energy loss.
+        energy_target = torch.cat(
+            [batch.y.to(self.device) for batch in batch_list], dim=0
+        )
+        if self.normalizer.get("normalize_labels", False):
+            energy_target = self.normalizers["target"].norm(energy_target)
+        energy_mult = self.config["optim"].get("energy_coefficient", 1)
+        loss.append(
+            energy_mult * self.loss_fn["energy"](out["energy"], energy_target)
+        )
 
-        # # Force loss.
-        # if (self.config["model_attributes"].get("regress_forces", True)
-        #    or self.config['model_attributes'].get('use_auxiliary_task', False)):
-        #     force_target = torch.cat(
-        #         [batch.force.to(self.device) for batch in batch_list], dim=0
-        #     )
-        #     if self.normalizer.get("normalize_labels", False):
-        #         force_target = self.normalizers["grad_target"].norm(
-        #             force_target
-        #         )
+        # Force loss.
+        if (self.config["model_attributes"].get("regress_forces", True)
+           or self.config['model_attributes'].get('use_auxiliary_task', False)):
+            force_target = torch.cat(
+                [batch.force.to(self.device) for batch in batch_list], dim=0
+            )
+            if self.normalizer.get("normalize_labels", False):
+                force_target = self.normalizers["grad_target"].norm(
+                    force_target
+                )
 
-        #     tag_specific_weights = self.config["task"].get(
-        #         "tag_specific_weights", []
-        #     )
-        #     if tag_specific_weights != []:
-        #         # handle tag specific weights as introduced in forcenet
-        #         assert len(tag_specific_weights) == 3
+            tag_specific_weights = self.config["task"].get(
+                "tag_specific_weights", []
+            )
+            if tag_specific_weights != []:
+                # handle tag specific weights as introduced in forcenet
+                assert len(tag_specific_weights) == 3
 
-        #         batch_tags = torch.cat(
-        #             [
-        #                 batch.tags.float().to(self.device)
-        #                 for batch in batch_list
-        #             ],
-        #             dim=0,
-        #         )
-        #         weight = torch.zeros_like(batch_tags)
-        #         weight[batch_tags == 0] = tag_specific_weights[0]
-        #         weight[batch_tags == 1] = tag_specific_weights[1]
-        #         weight[batch_tags == 2] = tag_specific_weights[2]
+                batch_tags = torch.cat(
+                    [
+                        batch.tags.float().to(self.device)
+                        for batch in batch_list
+                    ],
+                    dim=0,
+                )
+                weight = torch.zeros_like(batch_tags)
+                weight[batch_tags == 0] = tag_specific_weights[0]
+                weight[batch_tags == 1] = tag_specific_weights[1]
+                weight[batch_tags == 2] = tag_specific_weights[2]
 
-        #         loss_force_list = torch.abs(out["forces"] - force_target)
-        #         train_loss_force_unnormalized = torch.sum(
-        #             loss_force_list * weight.view(-1, 1)
-        #         )
-        #         train_loss_force_normalizer = 3.0 * weight.sum()
+                loss_force_list = torch.abs(out["forces"] - force_target)
+                train_loss_force_unnormalized = torch.sum(
+                    loss_force_list * weight.view(-1, 1)
+                )
+                train_loss_force_normalizer = 3.0 * weight.sum()
 
-        #         # add up normalizer to obtain global normalizer
-        #         distutils.all_reduce(train_loss_force_normalizer)
+                # add up normalizer to obtain global normalizer
+                distutils.all_reduce(train_loss_force_normalizer)
 
-        #         # perform loss normalization before backprop
-        #         train_loss_force_normalized = train_loss_force_unnormalized * (
-        #             distutils.get_world_size() / train_loss_force_normalizer
-        #         )
-        #         loss.append(train_loss_force_normalized)
+                # perform loss normalization before backprop
+                train_loss_force_normalized = train_loss_force_unnormalized * (
+                    distutils.get_world_size() / train_loss_force_normalizer
+                )
+                loss.append(train_loss_force_normalized)
 
-        #     else:
-        #         # Force coefficient = 30 has been working well for us.
-        #         force_mult = self.config["optim"].get("force_coefficient", 30)
-        #         if self.config["task"].get("train_on_free_atoms", False):
-        #             fixed = torch.cat(
-        #                 [batch.fixed.to(self.device) for batch in batch_list]
-        #             )
-        #             mask = fixed == 0
-        #             if self.config["optim"]["loss_force"].startswith(
-        #                 "atomwise"
-        #             ):
-        #                 force_mult = self.config["optim"].get(
-        #                     "force_coefficient", 1
-        #                 )
-        #                 natoms = torch.cat(
-        #                     [
-        #                         batch.natoms.to(self.device)
-        #                         for batch in batch_list
-        #                     ]
-        #                 )
-        #                 natoms = torch.repeat_interleave(natoms, natoms)
-        #                 force_loss = force_mult * self.loss_fn["force"](
-        #                     out["forces"][mask],
-        #                     force_target[mask],
-        #                     natoms=natoms[mask],
-        #                     batch_size=batch_list[0].natoms.shape[0],
-        #                 )
-        #                 loss.append(force_loss)
-        #             else:
-        #                 loss.append(
-        #                     force_mult
-        #                     * self.loss_fn["force"](
-        #                         out["forces"][mask], force_target[mask]
-        #                     )
-        #                 )
-        #                 # # Gradient loss.
-        #                 # if not predict_with_mpflow:
-        #                 #     consistencyloss1 = self.config["optim"].get("force_coefficient_consistency1", force_mult * 0.025)
-        #                 #     loss.append(
-        #                 #         consistencyloss1 * self.loss_fn["force"](out["grad_forces"], force_target)
-        #                 #     )
-        #                 #     consistencyloss2 = self.config["optim"].get("force_coefficient_consistency2", force_mult * 0.25)
-        #                 #     loss.append(
-        #                 #         consistencyloss2 * self.loss_fn["force"](out["grad_forces"], out["forces"])
-        #                 #     )
-        #         else:
-        #             loss.append(
-        #                 force_mult
-        #                 * self.loss_fn["force"](out["forces"], force_target)
-        #             )
+            else:
+                # Force coefficient = 30 has been working well for us.
+                force_mult = self.config["optim"].get("force_coefficient", 30)
+                if self.config["task"].get("train_on_free_atoms", False):
+                    fixed = torch.cat(
+                        [batch.fixed.to(self.device) for batch in batch_list]
+                    )
+                    mask = fixed == 0
+                    if self.config["optim"]["loss_force"].startswith(
+                        "atomwise"
+                    ):
+                        force_mult = self.config["optim"].get(
+                            "force_coefficient", 1
+                        )
+                        natoms = torch.cat(
+                            [
+                                batch.natoms.to(self.device)
+                                for batch in batch_list
+                            ]
+                        )
+                        natoms = torch.repeat_interleave(natoms, natoms)
+                        force_loss = force_mult * self.loss_fn["force"](
+                            out["forces"][mask],
+                            force_target[mask],
+                            natoms=natoms[mask],
+                            batch_size=batch_list[0].natoms.shape[0],
+                        )
+                        loss.append(force_loss)
+                    else:
+                        loss.append(
+                            force_mult
+                            * self.loss_fn["force"](
+                                out["forces"][mask], force_target[mask]
+                            )
+                        )
+                        # # Gradient loss.
+                        # if not predict_with_mpflow:
+                        #     consistencyloss1 = self.config["optim"].get("force_coefficient_consistency1", force_mult * 0.025)
+                        #     loss.append(
+                        #         consistencyloss1 * self.loss_fn["force"](out["grad_forces"], force_target)
+                        #     )
+                        #     consistencyloss2 = self.config["optim"].get("force_coefficient_consistency2", force_mult * 0.25)
+                        #     loss.append(
+                        #         consistencyloss2 * self.loss_fn["force"](out["grad_forces"], out["forces"])
+                        #     )
+                else:
+                    loss.append(
+                        force_mult
+                        * self.loss_fn["force"](out["forces"], force_target)
+                    )
 
         # Sanity check to make sure the compute graph is correct.
         for lc in loss:

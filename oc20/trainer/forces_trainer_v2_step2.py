@@ -496,15 +496,15 @@ class ForcesTrainerV2(BaseTrainerV2):
         if not predict_with_mpflow:
             if (self.config["model_attributes"].get("regress_forces", True)
                 or self.config['model_attributes'].get('use_auxiliary_task', False)):
-                out_energy, out_forces, ut, predicted_ut, x0, x1, predicted_x1, time_first, time_last, time_mpflow = self.model(batch_list, predict_with_mpflow=predict_with_mpflow)
+                out_energy, out_forces, ut, predicted_ut, time_first, time_last, time_mpflow = self.model(batch_list, predict_with_mpflow=predict_with_mpflow)
             else:
-                out_energy, ut, predicted_ut, x0, x1, predicted_x1, time_first, time_last, time_mpflow = self.model(batch_list, predict_with_mpflow=predict_with_mpflow)
+                out_energy, ut, predicted_ut, time_first, time_last, time_mpflow = self.model(batch_list, predict_with_mpflow=predict_with_mpflow)
         else:
             if (self.config["model_attributes"].get("regress_forces", True)
                 or self.config['model_attributes'].get('use_auxiliary_task', False)):
-                out_energy, out_forces, x0, x1, time_first, time_last, time_mpflow = self.model(batch_list, predict_with_mpflow=predict_with_mpflow)
+                out_energy, out_forces, ut, predicted_ut, x0, x1, predicted_x1, time_first, time_last, time_mpflow = self.model(batch_list, predict_with_mpflow=predict_with_mpflow)
             else:
-                out_energy, x0, x1, time_first, time_last, time_mpflow = self.model(batch_list, predict_with_mpflow=predict_with_mpflow)
+                out_energy, ut, predicted_ut, x0, x1, predicted_x1, time_first, time_last, time_mpflow = self.model(batch_list, predict_with_mpflow=predict_with_mpflow)
 
         if out_energy.shape[-1] == 1:
             out_energy = out_energy.view(-1)
@@ -517,14 +517,12 @@ class ForcesTrainerV2(BaseTrainerV2):
            or self.config['model_attributes'].get('use_auxiliary_task', False)):
             out["forces"] = out_forces
         
-        out["x0"] = x0
-        out["x1"] = x1
-        if not predict_with_mpflow:
-            out["ut"] = ut
-            out["predicted_ut"] = predicted_ut
+        out["ut"] = ut
+        out["predicted_ut"] = predicted_ut
+        if predict_with_mpflow:
+            out["x0"] = x0
+            out["x1"] = x1
             out["predicted_x1"] = predicted_x1
-        else:
-            out["predicted_x1"] = x1
         out["time_first"] = time_first
         out["time_last"] = time_last
         out["time_mpflow"] = time_mpflow
@@ -1022,8 +1020,8 @@ class ForcesTrainerV2(BaseTrainerV2):
 
                 # Forward, loss, backward.
                 with torch.cuda.amp.autocast(enabled=self.scaler is not None):
-                    out = self._forward(batch, predict_with_mpflow=False)
-                    loss = self._mpflow_compute_loss(out, batch, predict_with_mpflow=False)
+                    out = self._forward(batch, predict_with_mpflow=True)
+                    loss = self._mpflow_compute_loss(out, batch)
                     
                 loss = self.scaler.scale(loss) if self.scaler else loss
                 if self.grad_accumulation_steps != 1:
@@ -1037,6 +1035,7 @@ class ForcesTrainerV2(BaseTrainerV2):
                     batch,
                     self.evaluator,
                     self.metrics,
+                    predict_with_mpflow=True
                 )
                 self.metrics = self.evaluator.update(
                     "loss", loss.item() / scale * self.grad_accumulation_steps, self.metrics
@@ -1164,9 +1163,9 @@ class ForcesTrainerV2(BaseTrainerV2):
             disable=disable_tqdm,
         ):
             with torch.cuda.amp.autocast(enabled=self.scaler is not None):
-                out = self._forward(batch, predict_with_mpflow=False)
-            loss = self._mpflow_compute_loss(out, batch, predict_with_mpflow=False)
-            metrics = self._mpflow_compute_metrics(out, batch, evaluator, metrics, predict_with_mpflow=False)
+                out = self._forward(batch, predict_with_mpflow=True)
+            loss = self._mpflow_compute_loss(out, batch)
+            metrics = self._mpflow_compute_metrics(out, batch, evaluator, metrics, predict_with_mpflow=True)
             metrics = evaluator.update("loss", loss.item(), metrics)
 
             # Collect visualization data on master process
@@ -1351,16 +1350,15 @@ class ForcesTrainerV2(BaseTrainerV2):
         return predictions
     
 
-    def _mpflow_compute_loss(self, out, batch_list, predict_with_mpflow=False):
+    def _mpflow_compute_loss(self, out, batch_list):
         loss = []
 
         # # MPFlow loss.
-        # if not predict_with_mpflow:
-        #     mpflow_mult = self.config["optim"].get("mpflow_coefficient", 1)
-        #     loss.append(
-        #         mpflow_mult * self.loss_fn["mpflow"](out["predicted_ut"], out["ut"])
-        #     )
-            
+        # mpflow_mult = self.config["optim"].get("mpflow_coefficient", 10)
+        # loss.append(
+        #     mpflow_mult * self.loss_fn["mpflow"](out["predicted_ut"], out["ut"])
+        # )
+        
         # Energy loss.
         energy_target = torch.cat(
             [batch.y.to(self.device) for batch in batch_list], dim=0
@@ -1491,16 +1489,16 @@ class ForcesTrainerV2(BaseTrainerV2):
                 [batch.force.to(self.device) for batch in batch_list], dim=0
             ),
             "natoms": natoms,
-            "x1": out["x1"],
-            "predicted_x1": out["predicted_x1"],
+            "ut": out["ut"],
+            "predicted_ut": out["predicted_ut"],
         }
         out["natoms"] = natoms
         if self.config["model_attributes"].get("regress_forces", True):
             target["grad_forces"] = out["forces"]
 
-        if not predict_with_mpflow:
-            target["ut"] = out["ut"]
-            target["predicted_ut"] = out["predicted_ut"]
+        if predict_with_mpflow:
+            target["x1"] = out["x1"]
+            target["predicted_x1"] = out["predicted_x1"]
 
         if self.config["task"].get("eval_on_free_atoms", True):
             fixed = torch.cat(

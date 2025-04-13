@@ -19,8 +19,12 @@ from ocpmodels.models.scn.smearing import (
 
 try:
     from e3nn import o3
+    from torchdiffeq import odeint_adjoint as odeint
 except ImportError:
-    pass
+    print("torchdiffeq not found. Please install it: pip install torchdiffeq")
+    # Fallback or raise error if torchdiffeq is essential
+    # from torchdiffeq import odeint # If adjoint is not needed or causing issues
+    odeint = None
 
 from .gaussian_rbf import GaussianRadialBasisLayer
 from torch.nn import Linear
@@ -311,7 +315,7 @@ class EquiformerV2_OC20(BaseModel):
         
         # Output blocks for energy and forces
         self.norm = get_normalization_layer(self.norm_type, lmax=max(self.lmax_list), num_channels=self.sphere_channels)
-        self.energy_block_v2 = FeedForwardNetwork(
+        self.energy_block = FeedForwardNetwork(
             self.sphere_channels,
             self.ffn_hidden_channels, 
             1,
@@ -324,7 +328,7 @@ class EquiformerV2_OC20(BaseModel):
             self.use_sep_s2_act
         )
         if self.regress_forces:
-            self.force_block_v2 = SO2EquivariantGraphAttention(
+            self.force_block = SO2EquivariantGraphAttention(
                 self.sphere_channels,
                 self.attn_hidden_channels,
                 self.num_heads, 
@@ -381,7 +385,7 @@ class EquiformerV2_OC20(BaseModel):
             self.alpha_drop, 
             self.drop_path_rate,
             self.proj_drop,
-            num_layers=3
+            num_layers=2
         ).to(self.device)
         
         self.apply(self._init_weights)
@@ -396,26 +400,24 @@ class EquiformerV2_OC20(BaseModel):
         for param in self.parameters():
             param.requires_grad = False
         
-        # # Then unfreeze
-        # for param in self.norm.parameters():
-        #     param.requires_grad = True
-        
-        for param in self.energy_block_v2.parameters():
+        ### Turn on at step 2 ###
+        for param in self.energy_block.parameters():
             param.requires_grad = True
         
         if self.regress_forces:
-            for param in self.force_block_v2.parameters():
+            for param in self.force_block.parameters():
                 param.requires_grad = True
+        #########################
         
+        ### Turn on at step 1 ###
         # # Unfreeze mpflow
         # for param in self.mpflow.parameters():
         #     param.requires_grad = True
+        #########################
 
 
     @conditional_grad(torch.enable_grad())
     def forward(self, data, predict_with_mpflow=False):
-        data.pos.requires_grad_(True)
-        
         self.batch_size = len(data.natoms)
         self.dtype = data.pos.dtype
         self.device = data.pos.device
@@ -500,18 +502,17 @@ class EquiformerV2_OC20(BaseModel):
         time_first = torch.full((data.batch.max() + 1,), end_time_1 - start_time, device=x.embedding.device, dtype=x.embedding.dtype)
 
         x0 = x.clone()
-        if not predict_with_mpflow:
-            for i in range(self.num_layers):
-                x = self.blocks[i](
-                    x,                  # SO3_Embedding
-                    atomic_numbers,
-                    edge_distance,
-                    edge_index,
-                    batch=data.batch    # for GraphDropPath
-                )
-            # Final layer norm
-            x.embedding = self.norm(x.embedding)
-            x1 = x.clone()
+        for i in range(self.num_layers):
+            x = self.blocks[i](
+                x,                  # SO3_Embedding
+                atomic_numbers,
+                edge_distance,
+                edge_index,
+                batch=data.batch    # for GraphDropPath
+            )
+        # Final layer norm
+        x.embedding = self.norm(x.embedding)
+        x1 = x.clone()
                 
         
         end_time_2 = time.time()
@@ -520,13 +521,10 @@ class EquiformerV2_OC20(BaseModel):
         ###############################################################
         # MPFlow
         ###############################################################
-        if not predict_with_mpflow:
-            ut, predicted_ut = self.calculate_predicted_ut(x0, x1, atomic_numbers, edge_distance, edge_index, data.batch, self.device)
-            predicted_x1 = self.sample_trajectory(x0, atomic_numbers, edge_distance, edge_index, data.batch, self.device, enable_grad=False)
+        ut, predicted_ut = self.calculate_predicted_ut(x0, x1, atomic_numbers, edge_distance, edge_index, data.batch, self.device)
+        if predict_with_mpflow:
+            predicted_x1 = self.sample_trajectory(x0, atomic_numbers, edge_distance, edge_index, data.batch, self.device)
             x = predicted_x1
-        else:
-            x1 = self.sample_trajectory(x0, atomic_numbers, edge_distance, edge_index, data.batch, self.device, enable_grad=False)
-            x = x1
         
         end_time_3 = time.time()
         time_mpflow = torch.full((data.batch.max() + 1,), end_time_3 - end_time_2, device=x.embedding.device, dtype=x.embedding.dtype)
@@ -535,7 +533,7 @@ class EquiformerV2_OC20(BaseModel):
         ###############################################################
         # Energy estimation
         ###############################################################
-        node_energy = self.energy_block_v2(x) 
+        node_energy = self.energy_block(x) 
         node_energy = node_energy.embedding.narrow(1, 0, 1)
         _energy = torch.scatter_add(
             torch.zeros(data.batch.max() + 1, device=node_energy.device, dtype=node_energy.dtype),
@@ -549,7 +547,6 @@ class EquiformerV2_OC20(BaseModel):
         # Force estimation ( + gradient aided)
         ###############################################################
         if self.regress_forces:
-            # if not predict_with_mpflow:
             # dy = torch.autograd.grad(
             #     energy,  # [n_graphs,]
             #     data.pos,  # [n_nodes, 3]
@@ -560,7 +557,7 @@ class EquiformerV2_OC20(BaseModel):
             # )[0]
             # assert dy is not None
             # forces = -1 * dy  # [n_nodes, 3]
-            forces = self.force_block_v2(x,
+            forces = self.force_block(x,
                 atomic_numbers,
                 edge_distance,
                 edge_index)
@@ -569,19 +566,19 @@ class EquiformerV2_OC20(BaseModel):
         
         if not predict_with_mpflow:
             if not self.regress_forces:
+                return energy, ut, predicted_ut, time_first, time_last, time_mpflow
+            else:
+                return energy, forces, ut, predicted_ut, time_first, time_last, time_mpflow
+        else:
+            if not self.regress_forces:
                 return energy, ut, predicted_ut, x0.embedding, x1.embedding, predicted_x1.embedding, time_first, time_last, time_mpflow
             else:
                 return energy, forces, ut, predicted_ut, x0.embedding, x1.embedding, predicted_x1.embedding, time_first, time_last, time_mpflow
-        else:
-            if not self.regress_forces:
-                return energy, x0.embedding, x1.embedding, time_first, time_last, time_mpflow
-            else:
-                return energy, forces, x0.embedding, x1.embedding, time_first, time_last, time_mpflow
 
 
-    def sample_trajectory(self, x0, atomic_numbers, edge_distance, edge_index, batch, device, method="euler", n_steps=1, enable_grad=False):
+    def sample_trajectory(self, x0, atomic_numbers, edge_distance, edge_index, batch, device, method="dopri5", rtol=1e-5, atol=1e-5, options=None):
         """
-        Samples a trajectory.
+        Samples a trajectory using torchdiffeq.odeint.
         
         Args:
             x0: Starting point (SO3_Embedding object)
@@ -590,86 +587,39 @@ class EquiformerV2_OC20(BaseModel):
             edge_index: Tensor representing graph connectivity.
             batch: Tensor indicating batch index for each node.
             device: The device tensors are on.
-            method: Sampling method ("euler", "heun", "rk4").
-            n_steps: Number of integration steps (used for "euler").
-            enable_grad: Whether to enable gradient computation.
+            method: Solver method for odeint (e.g., "dopri5", "rk4", "euler").
+            rtol: Relative tolerance for the solver.
+            atol: Absolute tolerance for the solver.
+            options: Dictionary of additional options for the solver (e.g., {'step_size': dt} for fixed step methods).
         """
+        if odeint is None:
+            raise ImportError("torchdiffeq is required for sample_trajectory but not found.")
         self.mpflow.eval()
         x = x0.clone()
 
-        if not enable_grad:
-            with torch.no_grad():
-                return self._compute_trajectory(x, method, n_steps, device, atomic_numbers, edge_distance, edge_index, batch)
-        else:
-            # Note: Gradient tracking through multi-step Euler might be complex/costly.
-            # Consider if this is truly needed or if single-step methods are sufficient when grad is enabled.
-            if method == "euler" and n_steps > 1:
-                logging.warning("Gradient computation requested with multi-step Euler. This might be computationally expensive or lead to unexpected behavior.")
-            return self._compute_trajectory(x, method, n_steps, device, atomic_numbers, edge_distance, edge_index, batch)
+        # Time span from t=0 to t=1
+        t_span = torch.tensor([0.0, 1.0], device=device, dtype=x.embedding.dtype)
         
+        # Initial state tensor
+        y0 = x.embedding
         
-    def _compute_trajectory(self, x, method, n_steps, device, atomic_numbers, edge_distance, edge_index, batch):
-        num_nodes = x.embedding.shape[0]
+        # Create the ODE function wrapper
+        ode_func = MpflowWrapper(self.mpflow, x, atomic_numbers, edge_distance, edge_index, batch)
+
+        # Solve the ODE
+        solution = odeint(
+            ode_func,
+            y0,
+            t_span,
+            method='euler',
+            rtol=rtol,
+            atol=atol,
+            options=options
+        )
         
-        if method == "euler":
-            if n_steps <= 0:
-                logging.warning(f"Euler method called with n_steps={n_steps}. Performing single step.")
-                n_steps = 1
-            dt = 1.0 / n_steps
-            # Clone x initially to avoid modifying the input x object directly within the loop
-            x_t = x # Start with the input SO3_Embedding object
-            for i in range(n_steps * 10):
-                # Time tensor for the current step, shape [num_nodes, 1]
-                t_current = torch.full((num_nodes, 1), i * dt, device=device, dtype=x.embedding.dtype)
-                velocity = self.mpflow(x_t, t_current, atomic_numbers, edge_distance, edge_index, batch)
-                # Update the embedding of the current state
-                x_t.embedding = x_t.embedding + dt * velocity.embedding
-            # After the loop, x_t holds the final state
-            x = x_t # Assign the final state back to x
-
-        elif method == "heun":
-            if n_steps <= 0:
-                logging.warning(f"Heun method called with n_steps={n_steps}. Performing single step.")
-                n_steps = 1
-            dt = 1.0 / n_steps
-            x_t = x # Start with the input SO3_Embedding object, will be updated in place
-            for i in range(n_steps):
-                t_current = torch.full((num_nodes, 1), i * dt, device=device, dtype=x.embedding.dtype)
-                t_next = torch.full((num_nodes, 1), (i + 1) * dt, device=device, dtype=x.embedding.dtype)
-
-                # Predictor step
-                k1 = self.mpflow(x_t, t_current, atomic_numbers, edge_distance, edge_index, batch)
-                x_pred = x_t.clone()
-                x_pred.embedding = x_t.embedding + dt * k1.embedding 
-
-                # Corrector step
-                k2 = self.mpflow(x_pred, t_next, atomic_numbers, edge_distance, edge_index, batch)
-                x_t.embedding = x_t.embedding + 0.5 * dt * (k1.embedding + k2.embedding)
-            # After the loop, x_t (which is x) holds the final state
-            x = x_t # Assign the final state back to x (though it was updated in place)
-
-        elif method == "rk4":
-            # Single-step RK4 (t=0 to t=1, dt=1)
-            t = torch.zeros((num_nodes, 1), device=device, dtype=x.embedding.dtype)
-            t_half = torch.full((num_nodes, 1), 0.5, device=device, dtype=x.embedding.dtype)
-            t_one = torch.ones((num_nodes, 1), device=device, dtype=x.embedding.dtype)
-            
-            k1 = self.mpflow(x, t, atomic_numbers, edge_distance, edge_index, batch)
-            
-            x_pred1 = x.clone()
-            x_pred1.embedding = x.embedding + 0.5 * k1.embedding # dt=1 assumed
-            k2 = self.mpflow(x_pred1, t_half, atomic_numbers, edge_distance, edge_index, batch)
-            
-            x_pred2 = x.clone()
-            x_pred2.embedding = x.embedding + 0.5 * k2.embedding # dt=1 assumed
-            k3 = self.mpflow(x_pred2, t_half, atomic_numbers, edge_distance, edge_index, batch)
-            
-            x_pred3 = x.clone()
-            x_pred3.embedding = x.embedding + k3.embedding # dt=1 assumed
-            k4 = self.mpflow(x_pred3, t_one, atomic_numbers, edge_distance, edge_index, batch)
-            
-            x.embedding = x.embedding + (1.0 / 6.0) * (k1.embedding + 2*k2.embedding + 2*k3.embedding + k4.embedding) # dt=1
-            
+        y1 = solution[1] 
+        x.embedding = y1
+        
         return x
 
 
@@ -776,3 +726,43 @@ class EquiformerV2_OC20(BaseModel):
                     assert global_parameter_name in named_parameters_list
                     no_wd_list.append(global_parameter_name)
         return set(no_wd_list)
+
+
+class MpflowWrapper(nn.Module):
+    def __init__(self, mpflow, x_template, atomic_numbers, edge_distance, edge_index, batch):
+        super().__init__()
+        self.mpflow = mpflow
+        self.num_nodes = x_template.embedding.shape[0]
+        self.lmax_list = x_template.lmax_list
+        self.num_channels = x_template.num_channels
+        self.device = x_template.device
+        self.dtype = x_template.dtype
+        self.atomic_numbers = atomic_numbers
+        self.edge_distance = edge_distance
+        self.edge_index = edge_index
+        self.batch = batch
+
+    def forward(self, t, y):
+        # y is the state tensor (x.embedding) of shape [num_nodes, num_features, num_channels]
+        # t is a scalar time
+        
+        # Create a temporary SO3_Embedding object from the current state y
+        x_t = SO3_Embedding(
+            self.num_nodes, 
+            lmax_list=self.lmax_list, 
+            num_channels=self.num_channels,
+            device=self.device, 
+            dtype=self.dtype
+        )
+        x_t.embedding = y # Assign the current state tensor
+
+        # Reshape t for mpflow: [1] -> [num_nodes, 1]
+        t_reshaped = t.repeat(self.num_nodes, 1) # Assuming mpflow expects [N, 1]
+        # If t is already a tensor with more elements, handle appropriately,
+        # maybe t_reshaped = t.expand(self.num_nodes, -1) or similar if odeint passes non-scalar t
+
+        # Call mpflow
+        velocity = self.mpflow(x_t, t_reshaped, self.atomic_numbers, self.edge_distance, self.edge_index, self.batch)
+        
+        # Return the derivative dy/dt (velocity.embedding)
+        return velocity.embedding
