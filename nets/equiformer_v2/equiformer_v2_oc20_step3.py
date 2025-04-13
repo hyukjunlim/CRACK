@@ -386,20 +386,7 @@ class EquiformerV2_OC20(BaseModel):
             self.drop_path_rate,
             self.proj_drop,
             num_layers=2
-        )
-        
-        self.mpflow_delta = FeedForwardNetwork(
-            self.sphere_channels,
-            self.ffn_hidden_channels, 
-            self.sphere_channels,
-            self.lmax_list,
-            self.mmax_list,
-            self.SO3_grid,  
-            self.ffn_activation,
-            self.use_gate_act,
-            self.use_grid_mlp,
-            self.use_sep_s2_act
-        )
+        ).to(self.device)
         
         self.apply(self._init_weights)
         self.apply(self._uniform_init_rad_func_linear_weights)
@@ -413,18 +400,13 @@ class EquiformerV2_OC20(BaseModel):
         for param in self.parameters():
             param.requires_grad = False
         
-        # ### Turn on at step 3 ###
-        # for param in self.energy_block.parameters():
-        #     param.requires_grad = True
-        
-        # if self.regress_forces:
-        #     for param in self.force_block.parameters():
-        #         param.requires_grad = True
-        # #########################
-        
         ### Turn on at step 2 ###
-        for param in self.mpflow_delta.parameters():
+        for param in self.energy_block.parameters():
             param.requires_grad = True
+        
+        if self.regress_forces:
+            for param in self.force_block.parameters():
+                param.requires_grad = True
         #########################
         
         ### Turn on at step 1 ###
@@ -541,8 +523,7 @@ class EquiformerV2_OC20(BaseModel):
         ###############################################################
         ut, predicted_ut = self.calculate_predicted_ut(x0, x1, atomic_numbers, edge_distance, edge_index, data.batch, self.device)
         if predict_with_mpflow:
-            mpflow_predicted_x1 = self.sample_trajectory(x0, atomic_numbers, edge_distance, edge_index, data.batch, self.device)
-            predicted_x1 = self.mpflow_delta(mpflow_predicted_x1)
+            predicted_x1 = self.sample_trajectory(x0, atomic_numbers, edge_distance, edge_index, data.batch, self.device)
             x = predicted_x1
         
         end_time_3 = time.time()
