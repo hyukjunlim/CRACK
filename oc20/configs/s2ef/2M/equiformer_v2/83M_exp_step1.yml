@@ -77,8 +77,8 @@ model:
 
 
 optim:
-  batch_size:                   32         
-  eval_batch_size:              1         
+  batch_size:                   16         
+  eval_batch_size:              16         
   grad_accumulation_steps:      1         # gradient accumulation: effective batch size = `grad_accumulation_steps` * `batch_size` * (num of GPUs)
   load_balancing: atoms
   num_workers: 8
@@ -91,12 +91,12 @@ optim:
   scheduler_params:
     lambda_type: cosine
     warmup_factor: 0.2
-    warmup_epochs: 0.01
+    warmup_epochs: 0.1
     lr_min_factor: 0.01         
 
-  max_epochs: 1
-  force_coefficient: 10
-  energy_coefficient: 10
+  max_epochs: 30
+  force_coefficient: 100
+  energy_coefficient: 2
   clip_grad_norm: 100
   ema_decay: 0.999
   loss_energy: mae
