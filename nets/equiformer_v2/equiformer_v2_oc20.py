@@ -370,7 +370,7 @@ class EquiformerV2_OC20(BaseModel):
             self.use_sep_s2_act,
             'rms_norm_sh',
             num_layers=4
-        ).to(self.device)
+        )
         
         self.apply(self._init_weights)
         self.apply(self._uniform_init_rad_func_linear_weights)

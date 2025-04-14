@@ -289,19 +289,26 @@ class EquivariantMPFlow(nn.Module):
 
         ### MPFlow ###
         time_embed_dim=128,
-        num_layers=1
+        num_layers=4
         ):
         
         super().__init__()
         self.sphere_channels = sphere_channels
         self.total_coefficients = sum([(l+1)**2 for l in lmax_list]) # Recalculate based on actual list
-
+        self.time_embed_dim = time_embed_dim
         # Time embedding network
-        self.time_embedding = nn.Sequential(
-            SinusoidalTimeEmbedding(time_embed_dim),
-            Linear(time_embed_dim, time_embed_dim * 2),
-            SiLU(),
-            Linear(time_embed_dim * 2, sphere_channels) # Output matches feature channels
+        self.sinusoidal_time_embedding = SinusoidalTimeEmbedding(time_embed_dim)
+        self.time_ffn = FeedForwardNetwork(
+            time_embed_dim,
+            time_embed_dim,
+            sphere_channels,
+            [0],
+            [0],
+            SO3_grid,
+            activation,
+            use_gate_act,
+            use_grid_mlp,
+            use_sep_s2_act
         )
 
         # Calculate indices corresponding to l=0 components for time conditioning
@@ -314,7 +321,7 @@ class EquivariantMPFlow(nn.Module):
         # Stack of equivariant SO2EquivariantGraphAttention blocks
         self.blocks = ModuleList()
         self.ffn_shortcuts = ModuleList()
-        for _ in range(num_layers - 1):
+        for _ in range(num_layers):
             block = FeedForwardNetwork(
                 sphere_channels,
                 hidden_channels, 
@@ -337,6 +344,7 @@ class EquivariantMPFlow(nn.Module):
         self.norms = ModuleList()
         for _ in range(num_layers + 1):
             self.norms.append(get_normalization_layer(norm_type, lmax=max(lmax_list), num_channels=sphere_channels))
+
         
         
     def forward(self, x, t):
@@ -357,8 +365,16 @@ class EquivariantMPFlow(nn.Module):
         assert t.shape == (num_nodes, 1), f"Time tensor shape mismatch: {t.shape} vs ({num_nodes}, 1)"
 
         # 1. Compute time features (invariant)
-        t_feat = self.time_embedding(t) # [num_nodes, sphere_channels]
-        t_feat_expanded = t_feat.unsqueeze(1) # [num_nodes, 1, sphere_channels]
+        t = self.sinusoidal_time_embedding(t)
+        t_embedding = SO3_Embedding(
+            0,
+            [0],
+            self.time_embed_dim,
+            device=x.device,
+            dtype=x.dtype
+        )
+        t_embedding.set_embedding(t.unsqueeze(1))
+        t_feat = self.time_ffn(t_embedding).embedding # [num_nodes, 1, sphere_channels]
 
         # 2. Apply equivariant blocks with time conditioning and residuals
         h = x.clone()
@@ -368,7 +384,7 @@ class EquivariantMPFlow(nn.Module):
             h.embedding = self.norms[i](h.embedding)
 
             for l0_idx in self.l0_indices:
-                h.embedding[:, l0_idx, :] = h.embedding[:, l0_idx, :] + t_feat_expanded[:, 0, :]
+                h.embedding[:, l0_idx, :] = h.embedding[:, l0_idx, :] + t_feat[:, 0, :]
             
             h = block(h)
 
