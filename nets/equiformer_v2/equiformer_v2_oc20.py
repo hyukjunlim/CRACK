@@ -359,7 +359,7 @@ class EquiformerV2_OC20(BaseModel):
 
         self.mpflow = EquivariantMPFlow(
             self.sphere_channels,
-            self.ffn_hidden_channels, 
+            self.ffn_hidden_channels * 2, 
             self.sphere_channels,
             self.lmax_list,
             self.mmax_list,
@@ -588,7 +588,7 @@ class EquiformerV2_OC20(BaseModel):
         y0 = x.embedding
         
         # Create the ODE function wrapper
-        ode_func = MpflowWrapper(self.mpflow, x, atomic_numbers, edge_distance, edge_index, batch)
+        ode_func = MpflowWrapper(self.mpflow, x)
 
         # Solve the ODE
         solution = odeint(
@@ -713,7 +713,7 @@ class EquiformerV2_OC20(BaseModel):
 
 
 class MpflowWrapper(nn.Module):
-    def __init__(self, mpflow, x_template, atomic_numbers, edge_distance, edge_index, batch):
+    def __init__(self, mpflow, x_template):
         super().__init__()
         self.mpflow = mpflow
         self.num_nodes = x_template.embedding.shape[0]
@@ -721,10 +721,6 @@ class MpflowWrapper(nn.Module):
         self.num_channels = x_template.num_channels
         self.device = x_template.device
         self.dtype = x_template.dtype
-        self.atomic_numbers = atomic_numbers
-        self.edge_distance = edge_distance
-        self.edge_index = edge_index
-        self.batch = batch
 
     def forward(self, t, y):
         # y is the state tensor (x.embedding) of shape [num_nodes, num_features, num_channels]
@@ -746,7 +742,7 @@ class MpflowWrapper(nn.Module):
         # maybe t_reshaped = t.expand(self.num_nodes, -1) or similar if odeint passes non-scalar t
 
         # Call mpflow
-        velocity = self.mpflow(x_t, t_reshaped, self.atomic_numbers, self.edge_distance, self.edge_index, self.batch)
+        velocity = self.mpflow(x_t, t_reshaped)
         
         # Return the derivative dy/dt (velocity.embedding)
         return velocity.embedding
