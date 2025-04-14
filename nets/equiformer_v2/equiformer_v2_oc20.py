@@ -359,7 +359,7 @@ class EquiformerV2_OC20(BaseModel):
 
         self.mpflow = EquivariantMPFlow(
             self.sphere_channels,
-            self.ffn_hidden_channels * 2, 
+            self.ffn_hidden_channels, 
             self.sphere_channels,
             self.lmax_list,
             self.mmax_list,
