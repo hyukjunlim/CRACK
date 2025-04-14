@@ -13,4 +13,5 @@ python main_oc20.py \
     --run-dir 'models' \
     --print-every 200 \
     --amp \
-    --checkpoint 'save_models/mpflow_83M_2M_step1.pt'
+    --checkpoint 'save_models/eq2_83M_2M.pt'
+    # --checkpoint 'save_models/mpflow_83M_2M_step1.pt'
