@@ -359,37 +359,6 @@ class EquiformerV2_OC20(BaseModel):
 
         self.mpflow = EquivariantMPFlow(
             self.sphere_channels,
-            self.attn_hidden_channels,
-            self.num_heads,
-            self.attn_alpha_channels,
-            self.attn_value_channels,
-            self.ffn_hidden_channels,
-            self.sphere_channels, 
-            self.lmax_list,
-            self.mmax_list,
-            self.SO3_rotation,
-            self.mappingReduced,
-            self.SO3_grid,
-            self.max_num_elements,
-            mpflow_edge_channels_list,
-            self.block_use_atom_edge_embedding,
-            self.use_m_share_rad,
-            self.attn_activation,
-            self.use_s2_act_attn,
-            self.use_attn_renorm,
-            self.ffn_activation,
-            self.use_gate_act,
-            self.use_grid_mlp,
-            self.use_sep_s2_act,
-            self.norm_type,
-            self.alpha_drop, 
-            self.drop_path_rate,
-            self.proj_drop,
-            num_layers=2
-        )
-        
-        self.mpflow_delta = FeedForwardNetwork(
-            self.sphere_channels,
             self.ffn_hidden_channels, 
             self.sphere_channels,
             self.lmax_list,
@@ -398,8 +367,10 @@ class EquiformerV2_OC20(BaseModel):
             self.ffn_activation,
             self.use_gate_act,
             self.use_grid_mlp,
-            self.use_sep_s2_act
-        )
+            self.use_sep_s2_act,
+            self.norm_type,
+            num_layers=4
+        ).to(self.device)
         
         self.apply(self._init_weights)
         self.apply(self._uniform_init_rad_func_linear_weights)
@@ -413,24 +384,19 @@ class EquiformerV2_OC20(BaseModel):
         for param in self.parameters():
             param.requires_grad = False
         
-        # ### Turn on at step 3 ###
+        ### Turn on at step 2 ###
         # for param in self.energy_block.parameters():
         #     param.requires_grad = True
         
         # if self.regress_forces:
         #     for param in self.force_block.parameters():
         #         param.requires_grad = True
-        # #########################
-        
-        ### Turn on at step 2 ###
-        for param in self.mpflow_delta.parameters():
-            param.requires_grad = True
         #########################
         
         ### Turn on at step 1 ###
-        # # Unfreeze mpflow
-        # for param in self.mpflow.parameters():
-        #     param.requires_grad = True
+        # Unfreeze mpflow
+        for param in self.mpflow.parameters():
+            param.requires_grad = True
         #########################
 
 
@@ -539,10 +505,9 @@ class EquiformerV2_OC20(BaseModel):
         ###############################################################
         # MPFlow
         ###############################################################
-        ut, predicted_ut = self.calculate_predicted_ut(x0, x1, atomic_numbers, edge_distance, edge_index, data.batch, self.device)
+        ut, predicted_ut = self.calculate_predicted_ut(x0, x1, self.device)
         if predict_with_mpflow:
-            mpflow_predicted_x1 = self.sample_trajectory(x0, atomic_numbers, edge_distance, edge_index, data.batch, self.device)
-            predicted_x1 = self.mpflow_delta(mpflow_predicted_x1)
+            predicted_x1 = self.sample_trajectory(x0, self.device)
             x = predicted_x1
         
         end_time_3 = time.time()
@@ -595,7 +560,7 @@ class EquiformerV2_OC20(BaseModel):
                 return energy, forces, ut, predicted_ut, x0.embedding, x1.embedding, predicted_x1.embedding, time_first, time_last, time_mpflow
 
 
-    def sample_trajectory(self, x0, atomic_numbers, edge_distance, edge_index, batch, device, method="dopri5", rtol=1e-5, atol=1e-5, options=None):
+    def sample_trajectory(self, x0, device, method="dopri5", rtol=1e-5, atol=1e-5, options=None):
         """
         Samples a trajectory using torchdiffeq.odeint.
         
@@ -642,7 +607,7 @@ class EquiformerV2_OC20(BaseModel):
         return x
 
 
-    def calculate_predicted_ut(self, x0, x1, atomic_numbers, edge_distance, edge_index, batch, device):
+    def calculate_predicted_ut(self, x0, x1, device):
         num_nodes = x0.embedding.shape[0]
         xt = x0.clone()
         eps = 1e-6
@@ -653,7 +618,7 @@ class EquiformerV2_OC20(BaseModel):
         
         ut = x1.embedding - x0.embedding
         xt.embedding = x0.embedding + t_expanded * ut
-        predicted_ut = self.mpflow(xt, t, atomic_numbers, edge_distance, edge_index, batch)
+        predicted_ut = self.mpflow(xt, t)
         
         return ut, predicted_ut.embedding
 

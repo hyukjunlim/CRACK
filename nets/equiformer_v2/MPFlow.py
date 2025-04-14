@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 from .so3 import SO3_Embedding, SO3_Grid, SO3_Rotation, SO3_LinearV2
-from .transformer_block import TransBlockV2
+from .transformer_block import TransBlockV2, FeedForwardNetwork
 from torch.nn import SiLU, Linear, Dropout, ModuleList
 from .layer_norm import get_normalization_layer
 import copy # Added import
@@ -272,48 +272,28 @@ class EquivariantMPFlow(nn.Module):
     Uses TransBlockV2 blocks from EquiformerV2 for core processing.
     """
     def __init__(self,
+        ### Feedforward network ###
         sphere_channels,
-        attn_hidden_channels,
-        num_heads,
-        attn_alpha_channels, 
-        attn_value_channels,
-        ffn_hidden_channels,
-        output_channels, 
-
+        hidden_channels, 
+        output_channels,
         lmax_list,
         mmax_list,
-        
-        SO3_rotation,
-        mappingReduced,
-        SO3_grid,
-
-        max_num_elements,
-        edge_channels_list,
-        use_atom_edge_embedding=True,
-        use_m_share_rad=False,
-
-        attn_activation='silu',
-        use_s2_act_attn=False, 
-        use_attn_renorm=True,
-        ffn_activation='silu',
+        SO3_grid,  
+        activation='scaled_silu', 
         use_gate_act=False, 
-        use_grid_mlp=False,
+        use_grid_mlp=False, 
         use_sep_s2_act=True,
 
+        ### Norm ###
         norm_type='rms_norm_sh',
 
-        alpha_drop=0.0, 
-        drop_path_rate=0.0, 
-        proj_drop=0.0,
-        
+        ### MPFlow ###
         time_embed_dim=128,
         num_layers=1
         ):
         
         super().__init__()
         self.sphere_channels = sphere_channels
-        self.lmax_list = lmax_list
-        self.num_resolutions = len(lmax_list)
         self.total_coefficients = sum([(l+1)**2 for l in lmax_list]) # Recalculate based on actual list
 
         # Time embedding network
@@ -327,59 +307,45 @@ class EquivariantMPFlow(nn.Module):
         # Calculate indices corresponding to l=0 components for time conditioning
         self.l0_indices = []
         offset = 0
-        for lmax in self.lmax_list:
+        for lmax in lmax_list:
             self.l0_indices.append(offset)
             offset += (lmax + 1)**2
 
         # Stack of equivariant SO2EquivariantGraphAttention blocks
         self.blocks = ModuleList()
-        copied_edge_channels_list = copy.deepcopy(edge_channels_list) # Avoid modifying original list
-
-        for _ in range(num_layers):
-            block = TransBlockV2(
+        self.ffn_shortcuts = ModuleList()
+        for _ in range(num_layers - 1):
+            block = FeedForwardNetwork(
                 sphere_channels,
-                attn_hidden_channels,
-                num_heads,
-                attn_alpha_channels,
-                attn_value_channels,
-                ffn_hidden_channels,
-                sphere_channels, 
+                hidden_channels, 
+                output_channels,
                 lmax_list,
                 mmax_list,
-                SO3_rotation,
-                mappingReduced,
-                SO3_grid,
-                max_num_elements,
-                copied_edge_channels_list,
-                use_atom_edge_embedding,
-                use_m_share_rad,
-                attn_activation,
-                use_s2_act_attn,
-                use_attn_renorm,
-                ffn_activation,
+                SO3_grid,  
+                activation,
                 use_gate_act,
                 use_grid_mlp,
-                use_sep_s2_act,
-                norm_type,
-                alpha_drop, 
-                drop_path_rate,
-                proj_drop
+                use_sep_s2_act
             )
             self.blocks.append(block)
-
-        self.norm = get_normalization_layer(norm_type, lmax=max(lmax_list), num_channels=sphere_channels)
+            
+            if sphere_channels != output_channels:
+                self.ffn_shortcuts.append(SO3_LinearV2(sphere_channels, output_channels, lmax=max(lmax_list)))
+            else:
+                self.ffn_shortcuts.append(None)
+                
+        self.norms = ModuleList()
+        for _ in range(num_layers + 1):
+            self.norms.append(get_normalization_layer(norm_type, lmax=max(lmax_list), num_channels=sphere_channels))
         
-    def forward(self, x, t, atomic_numbers, edge_distance, edge_index, batch):
+        
+    def forward(self, x, t):
         """
         Forward pass for the equivariant flow model using Attention blocks.
 
         Args:
             x (torch.Tensor): SO3_Embedding object.
             t (torch.Tensor): Time tensor of shape [num_nodes, 1].
-            atomic_numbers (torch.Tensor): Atomic numbers of the nodes.
-            edge_distance (torch.Tensor): Distance between nodes.
-            edge_index (torch.Tensor): Index of the edges between nodes.
-            batch (torch.Tensor): Batch tensor of shape [num_nodes].
             
         Returns:
             torch.Tensor: Predicted velocity field dv/dt, same type as x.
@@ -398,19 +364,29 @@ class EquivariantMPFlow(nn.Module):
         h = x.clone()
 
         for i, block in enumerate(self.blocks):
+            x_res = h.embedding
+            h.embedding = self.norms[i](h.embedding)
+
             for l0_idx in self.l0_indices:
-                # Add expanded time features to the l=0 slice for all channels
                 h.embedding[:, l0_idx, :] = h.embedding[:, l0_idx, :] + t_feat_expanded[:, 0, :]
             
-            # Call Attention block with the SO3_Embedding object and graph info
-            h = block(
-                h,
-                atomic_numbers,
-                edge_distance,
-                edge_index,
-                batch=batch
-            )
+            h = block(h)
 
-        h.embedding = self.norm(h.embedding)
+            if self.ffn_shortcuts[i] is not None:
+                shortcut_embedding = SO3_Embedding(
+                    0, 
+                    h.lmax_list.copy(), 
+                    self.ffn_shortcuts[i].in_features, 
+                    device=h.device, 
+                    dtype=h.dtype
+                )
+                shortcut_embedding.set_embedding(x_res)
+                shortcut_embedding.set_lmax_mmax(h.lmax_list.copy(), h.lmax_list.copy())
+                shortcut_embedding = self.ffn_shortcuts[i](shortcut_embedding)
+                x_res = shortcut_embedding.embedding
+                
+            h.embedding = h.embedding + x_res
+            
+        h.embedding = self.norms[-1](h.embedding)
         
         return h
