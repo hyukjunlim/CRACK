@@ -404,7 +404,9 @@ class EquivariantMPFlow(nn.Module):
 
         for i, block in enumerate(self.blocks):
             h = block(h, atomic_numbers, edge_distance, edge_index, batch)
-            h.embedding = h.embedding * (1 + scale) + shift
+            h_embedding_scaled = h.embedding * (1 + scale) # Scale all components (equivariant)
+            h_embedding_scaled[:, 0:1, :] = h_embedding_scaled[:, 0:1, :] + shift # Add shift ONLY to the l=0 component
+            h.embedding = h_embedding_scaled # Assign back
 
         h.embedding = self.norm(h.embedding)
         
