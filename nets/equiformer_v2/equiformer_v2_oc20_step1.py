@@ -386,7 +386,7 @@ class EquiformerV2_OC20(BaseModel):
             self.drop_path_rate,
             self.proj_drop,
             num_layers=2
-        ).to(self.device)
+        )
         
         self.apply(self._init_weights)
         self.apply(self._uniform_init_rad_func_linear_weights)

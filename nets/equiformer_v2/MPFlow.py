@@ -272,24 +272,42 @@ class EquivariantMPFlow(nn.Module):
     Uses TransBlockV2 blocks from EquiformerV2 for core processing.
     """
     def __init__(self,
-        ### Feedforward network ###
         sphere_channels,
-        hidden_channels, 
-        output_channels,
+        attn_hidden_channels,
+        num_heads,
+        attn_alpha_channels, 
+        attn_value_channels,
+        ffn_hidden_channels,
+        output_channels, 
+
         lmax_list,
         mmax_list,
-        SO3_grid,  
-        activation='scaled_silu', 
+        
+        SO3_rotation,
+        mappingReduced,
+        SO3_grid,
+
+        max_num_elements,
+        edge_channels_list,
+        use_atom_edge_embedding=True,   
+        use_m_share_rad=False,
+
+        attn_activation='silu',
+        use_s2_act_attn=False, 
+        use_attn_renorm=True,
+        ffn_activation='silu',
         use_gate_act=False, 
-        use_grid_mlp=False, 
+        use_grid_mlp=False,
         use_sep_s2_act=True,
 
-        ### Norm ###
         norm_type='rms_norm_sh',
 
-        ### MPFlow ###
+        alpha_drop=0.0, 
+        drop_path_rate=0.0, 
+        proj_drop=0.0,
+        
         time_embed_dim=128,
-        num_layers=4
+        num_layers=2
         ):
         
         super().__init__()
@@ -305,7 +323,7 @@ class EquivariantMPFlow(nn.Module):
             [0],
             [0],
             SO3_grid,
-            activation,
+            ffn_activation,
             use_gate_act,
             use_grid_mlp,
             use_sep_s2_act
@@ -318,42 +336,53 @@ class EquivariantMPFlow(nn.Module):
             self.l0_indices.append(offset)
             offset += (lmax + 1)**2
 
-        # Stack of equivariant SO2EquivariantGraphAttention blocks
+        # Stack of TransBlockV2 blocks
         self.blocks = ModuleList()
-        self.ffn_shortcuts = ModuleList()
         for _ in range(num_layers):
-            block = FeedForwardNetwork(
+            block = TransBlockV2(
                 sphere_channels,
-                hidden_channels, 
-                output_channels,
+                attn_hidden_channels,
+                num_heads,
+                attn_alpha_channels,
+                attn_value_channels,
+                ffn_hidden_channels,
+                sphere_channels, 
                 lmax_list,
                 mmax_list,
-                SO3_grid,  
-                activation,
+                SO3_rotation,
+                mappingReduced,
+                SO3_grid,
+                max_num_elements,
+                edge_channels_list,
+                use_atom_edge_embedding,
+                use_m_share_rad,
+                attn_activation,
+                use_s2_act_attn,
+                use_attn_renorm,
+                ffn_activation,
                 use_gate_act,
                 use_grid_mlp,
-                use_sep_s2_act
+                use_sep_s2_act,
+                norm_type,
+                alpha_drop, 
+                drop_path_rate,
+                proj_drop
             )
             self.blocks.append(block)
-            
-            if sphere_channels != output_channels:
-                self.ffn_shortcuts.append(SO3_LinearV2(sphere_channels, output_channels, lmax=max(lmax_list)))
-            else:
-                self.ffn_shortcuts.append(None)
                 
-        self.norms = ModuleList()
-        for _ in range(num_layers + 1):
-            self.norms.append(get_normalization_layer(norm_type, lmax=max(lmax_list), num_channels=sphere_channels))
+        self.norm = get_normalization_layer(norm_type, lmax=max(lmax_list), num_channels=sphere_channels)
 
-        
-        
-    def forward(self, x, t):
+    def forward(self, x, t, atomic_numbers, edge_distance, edge_index, batch):
         """
-        Forward pass for the equivariant flow model using Attention blocks.
+        Forward pass for the equivariant flow model using TransBlockV2 blocks.
 
         Args:
             x (torch.Tensor): SO3_Embedding object.
             t (torch.Tensor): Time tensor of shape [num_nodes, 1].
+            atomic_numbers (torch.Tensor): Atomic numbers of shape [num_nodes].
+            edge_distance (torch.Tensor): Edge distance of shape [num_nodes, num_neighbors].
+            edge_index (torch.Tensor): Edge index of shape [2, num_edges].
+            batch (torch.Tensor): Batch tensor of shape [num_nodes].
             
         Returns:
             torch.Tensor: Predicted velocity field dv/dt, same type as x.
@@ -380,29 +409,11 @@ class EquivariantMPFlow(nn.Module):
         h = x.clone()
 
         for i, block in enumerate(self.blocks):
-            x_res = h.embedding
-            h.embedding = self.norms[i](h.embedding)
-
             for l0_idx in self.l0_indices:
                 h.embedding[:, l0_idx, :] = h.embedding[:, l0_idx, :] + t_feat[:, 0, :]
             
-            h = block(h)
+            h = block(h, atomic_numbers, edge_distance, edge_index, batch)
 
-            if self.ffn_shortcuts[i] is not None:
-                shortcut_embedding = SO3_Embedding(
-                    0, 
-                    h.lmax_list.copy(), 
-                    self.ffn_shortcuts[i].in_features, 
-                    device=h.device, 
-                    dtype=h.dtype
-                )
-                shortcut_embedding.set_embedding(x_res)
-                shortcut_embedding.set_lmax_mmax(h.lmax_list.copy(), h.lmax_list.copy())
-                shortcut_embedding = self.ffn_shortcuts[i](shortcut_embedding)
-                x_res = shortcut_embedding.embedding
-                
-            h.embedding = h.embedding + x_res
-            
-        h.embedding = self.norms[-1](h.embedding)
+        h.embedding = self.norm(h.embedding)
         
         return h
