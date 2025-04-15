@@ -318,7 +318,7 @@ class EquivariantMPFlow(nn.Module):
         self.sinusoidal_time_embedding = SinusoidalTimeEmbedding(time_embed_dim)
         self.time_ffn = FeedForwardNetwork(
             time_embed_dim,
-            time_embed_dim,
+            time_embed_dim * 2,
             sphere_channels * 2,
             [0],
             [0],
