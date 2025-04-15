@@ -3,6 +3,7 @@
 /logs/
 /save_logs/
 /save_models/
+/mpflow_paper/
 /mpflow_data/
 /mpflow_data_small/
 /output/

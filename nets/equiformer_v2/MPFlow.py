@@ -319,7 +319,7 @@ class EquivariantMPFlow(nn.Module):
         self.time_ffn = FeedForwardNetwork(
             time_embed_dim,
             time_embed_dim,
-            sphere_channels,
+            sphere_channels * 2,
             [0],
             [0],
             SO3_grid,
@@ -328,13 +328,6 @@ class EquivariantMPFlow(nn.Module):
             use_grid_mlp,
             use_sep_s2_act
         )
-
-        # Calculate indices corresponding to l=0 components for time conditioning
-        self.l0_indices = []
-        offset = 0
-        for lmax in lmax_list:
-            self.l0_indices.append(offset)
-            offset += (lmax + 1)**2
 
         # Stack of TransBlockV2 blocks
         self.blocks = ModuleList()
@@ -403,16 +396,15 @@ class EquivariantMPFlow(nn.Module):
             dtype=x.dtype
         )
         t_embedding.set_embedding(t.unsqueeze(1))
-        t_feat = self.time_ffn(t_embedding).embedding # [num_nodes, 1, sphere_channels]
-
+        t_feat = self.time_ffn(t_embedding).embedding # [num_nodes, 1, sphere_channels * 2]
+        scale, shift = torch.chunk(t_feat, 2, dim=-1)
+        
         # 2. Apply equivariant blocks with time conditioning and residuals
         h = x.clone()
 
         for i, block in enumerate(self.blocks):
-            for l0_idx in self.l0_indices:
-                h.embedding[:, l0_idx, :] = h.embedding[:, l0_idx, :] + t_feat[:, 0, :]
-            
             h = block(h, atomic_numbers, edge_distance, edge_index, batch)
+            h.embedding = h.embedding * (1 + scale) + shift
 
         h.embedding = self.norm(h.embedding)
         
