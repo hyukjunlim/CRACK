@@ -6,6 +6,7 @@ from .so3 import SO3_Embedding
 from .transformer_block import FeedForwardNetwork
 from torch.nn import ModuleList
 from .layer_norm import get_normalization_layer
+from .so3 import SO3_LinearV2
 
 class SinusoidalTimeEmbedding(nn.Module):
     """
@@ -122,41 +123,19 @@ class EquivariantMPFlow(nn.Module):
         assert num_layers >= 2
         self.ffn_shortcuts = ModuleList()
         if sphere_channels != hidden_channels:
-            ffn_shortcut = FeedForwardNetwork(
-                sphere_channels,
-                hidden_channels,
-                hidden_channels,
-                lmax_list,
-                mmax_list,
-                SO3_grid,
-                activation,
-                use_gate_act,
-                use_grid_mlp,
-                use_sep_s2_act
-            )
+            ffn_shortcut = SO3_LinearV2(sphere_channels, hidden_channels, lmax=max_lmax)
             self.ffn_shortcuts.append(ffn_shortcut)
         else:
             self.ffn_shortcuts.append(None)
         for _ in range(num_layers - 2):
             self.ffn_shortcuts.append(None)
         if hidden_channels != output_channels:
-            ffn_shortcut = FeedForwardNetwork(
-                hidden_channels,
-                hidden_channels,
-                output_channels,
-                lmax_list,
-                mmax_list,
-                SO3_grid,
-                activation,
-                use_gate_act,
-                use_grid_mlp,
-                use_sep_s2_act
-            )
+            ffn_shortcut = SO3_LinearV2(hidden_channels, output_channels, lmax=max_lmax)
             self.ffn_shortcuts.append(ffn_shortcut)
         else:
             self.ffn_shortcuts.append(None)
 
-    def forward(self, x, t, batch):
+    def forward(self, x, t):
         """
         Forward pass for the equivariant flow model using TransBlockV2 blocks.
 
@@ -191,22 +170,21 @@ class EquivariantMPFlow(nn.Module):
         scale, shift = torch.chunk(t_feat, 2, dim=-1)
         
         h = x.clone()
+        
+        h_norm = self.norms[0](h.embedding)
+        
+        # Time conditioning (Scale and Shift)
+        h_timed = h_norm * (1 + scale)
+        h_timed[:, 0:1, :] = h_timed[:, 0:1, :] + shift
+        h.embedding = h_timed
 
         for i, block in enumerate(self.blocks):
             x_res = h.embedding # Store residual input
 
-            # 1. Normalize
-            h_norm = self.norms[i](h.embedding)
-
-            # 2. Apply Time conditioning (Scale and Shift)
-            h_timed = h_norm * (1 + scale)
-            h_timed[:, 0:1, :] = h_timed[:, 0:1, :] + shift
-            h.embedding = h_timed
-
-            # 3. Apply Equivariant Block
+            # 1. Apply Equivariant Block
             h = block(h)
 
-            # 4. Handle FFN shortcut
+            # 2. Handle FFN shortcut
             if self.ffn_shortcuts[i] is not None:
                 shortcut_embedding = SO3_Embedding(
                     0,
@@ -220,10 +198,10 @@ class EquivariantMPFlow(nn.Module):
                 shortcut_embedding = self.ffn_shortcuts[i](shortcut_embedding)
                 x_res = shortcut_embedding.embedding
 
-            # 5. Add Residual
+            # 3. Add Residual
             h.embedding = h.embedding + x_res
+            
+            # 4. Normalize
+            h_norm = self.norms[i+1](h.embedding)
 
-        # Final normalization
-        h.embedding = self.norms[i+1](h.embedding)
-        
         return h
