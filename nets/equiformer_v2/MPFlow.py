@@ -2,11 +2,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
-from .so3 import SO3_Embedding, SO3_Grid, SO3_Rotation, SO3_LinearV2
-from .transformer_block import TransBlockV2, FeedForwardNetwork
-from torch.nn import SiLU, Linear, Dropout, ModuleList
+from .so3 import SO3_Embedding
+from .transformer_block import FeedForwardNetwork
+from torch.nn import ModuleList
 from .layer_norm import get_normalization_layer
-import copy # Added import
 
 # class MPFlow(nn.Module):
 #     """
@@ -271,49 +270,33 @@ class EquivariantMPFlow(nn.Module):
     Operates on SO(3) equivariant features and incorporates time conditioning.
     Uses TransBlockV2 blocks from EquiformerV2 for core processing.
     """
-    def __init__(self,
+    def __init__(
+        self,
+        ### FeedForwardNetwork ###
         sphere_channels,
-        attn_hidden_channels,
-        num_heads,
-        attn_alpha_channels, 
-        attn_value_channels,
-        ffn_hidden_channels,
-        output_channels, 
-
+        hidden_channels, 
+        output_channels,
         lmax_list,
         mmax_list,
-        
-        SO3_rotation,
-        mappingReduced,
-        SO3_grid,
-
-        max_num_elements,
-        edge_channels_list,
-        use_atom_edge_embedding=True,   
-        use_m_share_rad=False,
-
-        attn_activation='silu',
-        use_s2_act_attn=False, 
-        use_attn_renorm=True,
-        ffn_activation='silu',
+        SO3_grid,  
+        activation='scaled_silu', 
         use_gate_act=False, 
-        use_grid_mlp=False,
+        use_grid_mlp=False, 
         use_sep_s2_act=True,
-
+        
+        ### Normalization ###
         norm_type='rms_norm_sh',
 
-        alpha_drop=0.0, 
-        drop_path_rate=0.0, 
-        proj_drop=0.0,
-        
+        ### MPFlow ###
         time_embed_dim=128,
         num_layers=2
-        ):
+    ):
         
         super().__init__()
         self.sphere_channels = sphere_channels
         self.total_coefficients = sum([(l+1)**2 for l in lmax_list]) # Recalculate based on actual list
         self.time_embed_dim = time_embed_dim
+        
         # Time embedding network
         self.sinusoidal_time_embedding = SinusoidalTimeEmbedding(time_embed_dim)
         self.time_ffn = FeedForwardNetwork(
@@ -323,7 +306,7 @@ class EquivariantMPFlow(nn.Module):
             [0],
             [0],
             SO3_grid,
-            ffn_activation,
+            activation,
             use_gate_act,
             use_grid_mlp,
             use_sep_s2_act
@@ -332,40 +315,27 @@ class EquivariantMPFlow(nn.Module):
         # Stack of TransBlockV2 blocks
         self.blocks = ModuleList()
         for _ in range(num_layers):
-            block = TransBlockV2(
+            block = FeedForwardNetwork(
                 sphere_channels,
-                attn_hidden_channels,
-                num_heads,
-                attn_alpha_channels,
-                attn_value_channels,
-                ffn_hidden_channels,
-                sphere_channels, 
+                hidden_channels, 
+                sphere_channels,
                 lmax_list,
                 mmax_list,
-                SO3_rotation,
-                mappingReduced,
-                SO3_grid,
-                max_num_elements,
-                edge_channels_list,
-                use_atom_edge_embedding,
-                use_m_share_rad,
-                attn_activation,
-                use_s2_act_attn,
-                use_attn_renorm,
-                ffn_activation,
+                SO3_grid,  
+                activation,
                 use_gate_act,
                 use_grid_mlp,
                 use_sep_s2_act,
-                norm_type,
-                alpha_drop, 
-                drop_path_rate,
-                proj_drop
             )
             self.blocks.append(block)
-                
-        self.norm = get_normalization_layer(norm_type, lmax=max(lmax_list), num_channels=sphere_channels)
+        
+        # Normalization
+        self.norms = ModuleList()
+        for _ in range(num_layers + 1):
+            norm = get_normalization_layer(norm_type, lmax=max(lmax_list), num_channels=sphere_channels)
+            self.norms.append(norm)
 
-    def forward(self, x, t, atomic_numbers, edge_distance, edge_index, batch):
+    def forward(self, x, t):
         """
         Forward pass for the equivariant flow model using TransBlockV2 blocks.
 
@@ -403,11 +373,11 @@ class EquivariantMPFlow(nn.Module):
         h = x.clone()
 
         for i, block in enumerate(self.blocks):
-            h = block(h, atomic_numbers, edge_distance, edge_index, batch)
+            h = block(h)
             h_embedding_scaled = h.embedding * (1 + scale) # Scale all components (equivariant)
             h_embedding_scaled[:, 0:1, :] = h_embedding_scaled[:, 0:1, :] + shift # Add shift ONLY to the l=0 component
             h.embedding = h_embedding_scaled # Assign back
 
-        h.embedding = self.norm(h.embedding)
+        h.embedding = self.norms[i+1](h.embedding)
         
         return h
