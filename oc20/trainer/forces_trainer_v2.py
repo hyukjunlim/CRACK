@@ -127,7 +127,7 @@ class ForcesTrainerV2(BaseTrainerV2):
         # --- MPFlow Visualization Configuration ---
         self.visualize_mpflow = self.config.get("visualize_mpflow", True) # Enable/disable visualization
         self.viz_output_dir = self.config.get("visualization_output_dir", os.path.join(self.run_dir, "mpflow_visualizations")) # Default to run_dir subdir
-        self.viz_num_samples = self.config.get("visualization_num_samples", 10) # Max samples to plot
+        self.viz_num_samples = self.config.get("visualization_num_samples", 5) # Max samples to plot
         self.viz_plots = self.config.get("visualization_plots", ["2d", "3d"]) # Plots to generate ('2d', '3d')
         self.viz_pca_dpi = self.config.get("visualization_pca_dpi", 300)
 

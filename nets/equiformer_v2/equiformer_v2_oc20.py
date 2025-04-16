@@ -487,7 +487,7 @@ class EquiformerV2_OC20(BaseModel):
 
         x0 = x.clone()
         traj = torch.zeros((self.num_layers + 1, x0.embedding.shape[0], x0.embedding.shape[1] * x0.embedding.shape[2]), device=x0.embedding.device, dtype=x0.embedding.dtype)
-        traj[0] = x0.embedding.view(x0.embedding.shape[0], -1)
+        traj[0] = x0.embedding.reshape(x0.embedding.shape[0], -1)
         for i in range(self.num_layers):
             x = self.blocks[i](
                 x,                  # SO3_Embedding
@@ -496,7 +496,7 @@ class EquiformerV2_OC20(BaseModel):
                 edge_index,
                 batch=data.batch    # for GraphDropPath
             )
-            traj[i+1] = x.embedding.view(x.embedding.shape[0], -1)
+            traj[i+1] = x.embedding.reshape(x.embedding.shape[0], -1)
         # Final layer norm
         x.embedding = self.norm(x.embedding)
         x1 = x.clone()
