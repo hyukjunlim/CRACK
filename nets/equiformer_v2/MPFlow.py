@@ -97,12 +97,26 @@ class EquivariantMPFlow(nn.Module):
         )
 
         # Stack of TransBlockV2 blocks
+        assert num_layers >= 2
         self.blocks = ModuleList()
-        for _ in range(num_layers):
+        block = FeedForwardNetwork(
+            sphere_channels,
+            hidden_channels, 
+            hidden_channels,
+            lmax_list,
+            mmax_list,
+            SO3_grid,  
+            activation,
+            use_gate_act,
+            use_grid_mlp,
+            use_sep_s2_act
+        )
+        self.blocks.append(block)
+        for _ in range(num_layers - 2):
             block = FeedForwardNetwork(
-                sphere_channels,
+                hidden_channels,
                 hidden_channels, 
-                sphere_channels,
+                hidden_channels,
                 lmax_list,
                 mmax_list,
                 SO3_grid,  
@@ -112,6 +126,19 @@ class EquivariantMPFlow(nn.Module):
                 use_sep_s2_act
             )
             self.blocks.append(block)
+        block = FeedForwardNetwork(
+            hidden_channels,
+            hidden_channels, 
+            output_channels,
+            lmax_list,
+            mmax_list,
+            SO3_grid,  
+            activation,
+            use_gate_act,
+            use_grid_mlp,
+            use_sep_s2_act
+        )
+        self.blocks.append(block)
         
         # Normalization
         self.norms = ModuleList()
