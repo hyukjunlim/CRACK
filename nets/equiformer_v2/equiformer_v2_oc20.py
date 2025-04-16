@@ -381,7 +381,7 @@ class EquiformerV2_OC20(BaseModel):
             self.use_gate_act,
             self.use_grid_mlp,
             self.use_sep_s2_act,
-            'rms_norm_sh',
+            self.norm_type,
             self.alpha_drop, 
             self.drop_path_rate,
             self.proj_drop,
