@@ -127,7 +127,7 @@ class ForcesTrainerV2(BaseTrainerV2):
         # --- MPFlow Visualization Configuration ---
         self.visualize_mpflow = self.config.get("visualize_mpflow", True) # Enable/disable visualization
         self.viz_output_dir = self.config.get("visualization_output_dir", os.path.join(self.run_dir, "mpflow_visualizations")) # Default to run_dir subdir
-        self.viz_num_samples = self.config.get("visualization_num_samples", 5) # Max samples to plot
+        self.viz_num_samples = self.config.get("visualization_num_samples", 10) # Max samples to plot
         self.viz_plots = self.config.get("visualization_plots", ["2d", "3d"]) # Plots to generate ('2d', '3d')
         self.viz_pca_dpi = self.config.get("visualization_pca_dpi", 300)
 
@@ -502,9 +502,9 @@ class ForcesTrainerV2(BaseTrainerV2):
         else:
             if (self.config["model_attributes"].get("regress_forces", True)
                 or self.config['model_attributes'].get('use_auxiliary_task', False)):
-                out_energy, out_forces, ut, predicted_ut, x0, x1, predicted_x1, traj, time_first, time_last, time_mpflow = self.model(batch_list, predict_with_mpflow=predict_with_mpflow)
+                out_energy, out_forces, ut, predicted_ut, x0, x1, predicted_x1, time_first, time_last, time_mpflow = self.model(batch_list, predict_with_mpflow=predict_with_mpflow)
             else:
-                out_energy, ut, predicted_ut, x0, x1, predicted_x1, traj, time_first, time_last, time_mpflow = self.model(batch_list, predict_with_mpflow=predict_with_mpflow)
+                out_energy, ut, predicted_ut, x0, x1, predicted_x1, time_first, time_last, time_mpflow = self.model(batch_list, predict_with_mpflow=predict_with_mpflow)
 
         if out_energy.shape[-1] == 1:
             out_energy = out_energy.view(-1)
@@ -523,7 +523,6 @@ class ForcesTrainerV2(BaseTrainerV2):
             out["x0"] = x0
             out["x1"] = x1
             out["predicted_x1"] = predicted_x1
-            out["traj"] = traj
         out["time_first"] = time_first
         out["time_last"] = time_last
         out["time_mpflow"] = time_mpflow
@@ -1153,7 +1152,7 @@ class ForcesTrainerV2(BaseTrainerV2):
         loader = self.val_loader if split == "val" else self.test_loader
 
         # Data collection for visualization (only on master)
-        viz_data = {"traj": [], "predicted_x1": []}
+        viz_data = {"x0": [], "x1": [], "predicted_x1": []}
         samples_collected = 0
 
         for i, batch in tqdm(
@@ -1174,13 +1173,14 @@ class ForcesTrainerV2(BaseTrainerV2):
                 needed = self.viz_num_samples - samples_collected
                 
                 # Ensure tensors are on CPU for storage
-                traj_batch = out["traj"].detach().cpu()[:needed]
+                x0_batch = out["x0"].detach().cpu()[:needed]
+                x1_batch = out["x1"].detach().cpu()[:needed]
                 predicted_x1_batch = out["predicted_x1"].detach().cpu()[:needed]
                 
-                viz_data["traj"].append(traj_batch)
+                viz_data["x0"].append(x0_batch)
+                viz_data["x1"].append(x1_batch)
                 viz_data["predicted_x1"].append(predicted_x1_batch)
-                
-                samples_collected += len(predicted_x1_batch)
+                samples_collected += len(x0_batch)
 
         aggregated_metrics = {}
         for k in metrics:
@@ -1214,10 +1214,11 @@ class ForcesTrainerV2(BaseTrainerV2):
         # Call visualization function on master process if enabled and data collected
         if distutils.is_master() and self.visualize_mpflow and samples_collected > 0:
             # Concatenate collected batches
-            viz_traj = torch.cat(viz_data["traj"], dim=0)
+            viz_x0 = torch.cat(viz_data["x0"], dim=0)
+            viz_x1 = torch.cat(viz_data["x1"], dim=0)
             viz_predicted_x1 = torch.cat(viz_data["predicted_x1"], dim=0)
             
-            self.visualize_predictions(viz_traj, viz_predicted_x1)
+            self.visualize_predictions(viz_x0, viz_x1, viz_predicted_x1)
 
         if self.ema and use_ema:
             self.ema.restore()
@@ -1528,42 +1529,30 @@ class ForcesTrainerV2(BaseTrainerV2):
         return metrics
 
 
-    def visualize_predictions(self, traj: torch.Tensor, predicted_x1: torch.Tensor):
+    def visualize_predictions(self, x0: torch.Tensor, x1_true: torch.Tensor, x1_pred: torch.Tensor):
         """
         Visualizes the predicted MPFlow states (x1_pred) compared to the ground 
-        truth (x1_true), starting from x0, using PCA. Includes intermediate trajectory points.
+        truth (x1_true), starting from x0, using PCA.
 
         Args:
-            traj (torch.Tensor): True trajectory tensor [batch, num_layers + 1, N*D]. Assumed on CPU.
-                                 traj[:, 0] is x0, traj[:, -1] is x1_true.
-            predicted_x1 (torch.Tensor): Predicted end points tensor [batch, N*D]. Assumed on CPU.
+            x0 (torch.Tensor): Start points tensor [batch, N, D]. Assumed on CPU.
+            x1_true (torch.Tensor): Ground truth end points tensor [batch, N, D]. Assumed on CPU.
+            x1_pred (torch.Tensor): Predicted end points tensor [batch, N, D]. Assumed on CPU.
         """
-        true_trajectory = traj # Rename for clarity
-        x1_pred = predicted_x1
-        
-        n_samples = true_trajectory.shape[0]
+        n_samples = x0.shape[0]
         if n_samples == 0:
             self.file_logger.warning("No samples provided for MPFlow visualization.")
             return
-            
-        num_layers = true_trajectory.shape[1] - 1 # Number of transformation steps
-        embedding_dim = true_trajectory.shape[2] # N * D
 
-        self.file_logger.info(f"Generating MPFlow prediction visualizations for {n_samples} samples (including intermediate steps)...")
+        self.file_logger.info(f"Generating MPFlow prediction visualizations for {n_samples} samples...")
 
-        # Extract points from true trajectory
-        x0 = true_trajectory[:, 0, :]          # [batch, N*D]
-        x1_true = true_trajectory[:, -1, :]    # [batch, N*D]
-        intermediate_traj = true_trajectory[:, 1:-1, :] # [batch, num_layers - 1, N*D]
-
-        # --- Define PCA plotting helper nested within visualize_predictions ---
+        # --- Define PCA plotting helper nested within visualize_predictions --- 
         # This keeps the PCA logic contained and avoids polluting the class namespace
         def _create_pca_plot(
             n_components: int,
             x0_pca_in: np.ndarray,
             x1_true_pca_in: np.ndarray,
             x1_pred_pca_in: np.ndarray,
-            intermediate_pca_in: np.ndarray, # Shape [batch, num_layers - 1, n_components]
             pca_instance: PCA, # Pass the fitted PCA instance
             output_dir: str,
             plot_suffix: str = ""
@@ -1578,70 +1567,41 @@ class ForcesTrainerV2(BaseTrainerV2):
                 start_coords = x0_pca_in[i]
                 true_end_coords = x1_true_pca_in[i]
                 pred_end_coords = x1_pred_pca_in[i]
-                intermediate_coords = intermediate_pca_in[i] # Shape [num_layers - 1, n_components]
-
-                # Combine true path for plotting lines
-                # Shape: [num_layers + 1, n_components] (x0, intermediates..., x1_true)
-                if intermediate_coords.shape[0] > 0: # Check if there are intermediate steps
-                    full_true_path_coords = np.vstack((start_coords, intermediate_coords, true_end_coords))
-                else: # Only x0 and x1_true
-                    full_true_path_coords = np.vstack((start_coords, true_end_coords))
-
 
                 if n_components == 2:
                     # Plot lines: start -> true_end (dashed), start -> pred_end (solid)
                     ax.plot([start_coords[0], true_end_coords[0]], [start_coords[1], true_end_coords[1]],
-                            '--', color=colors[i], alpha=0.6, linewidth=1.5, label='True Flow (x0->x1)' if i==0 else "")
+                            '--', color=colors[i], alpha=0.6, linewidth=1.5, label='True Flow' if i==0 else "")
                     ax.plot([start_coords[0], pred_end_coords[0]], [start_coords[1], pred_end_coords[1]],
-                            '-', color=colors[i], alpha=0.8, linewidth=1.5, label='Predicted Flow (x0->x1_pred)' if i==0 else "")
-                    
-                    # Plot true trajectory path (connecting intermediate points)
-                    ax.plot(full_true_path_coords[:, 0], full_true_path_coords[:, 1], 
-                            ':', color=colors[i], alpha=0.5, linewidth=1.0, label='True Path (intermediates)' if i==0 else "")
-                    
+                            '-', color=colors[i], alpha=0.8, linewidth=1.5, label='Predicted Flow' if i==0 else "")
                     # Mark points
-                    ax.scatter(start_coords[0], start_coords[1], color='blue', s=40, marker='o', label='Start (x0)' if i==0 else "", zorder=5)
-                    ax.scatter(true_end_coords[0], true_end_coords[1], color='green', s=50, marker='x', label='True End (x1)' if i==0 else "", zorder=5)
-                    ax.scatter(pred_end_coords[0], pred_end_coords[1], color='red', s=50, marker='+', label='Predicted End (x1_pred)' if i==0 else "", zorder=5)
-                    # Mark intermediate points
-                    if intermediate_coords.shape[0] > 0:
-                       ax.scatter(intermediate_coords[:, 0], intermediate_coords[:, 1], color=colors[i], s=20, marker='.', alpha=0.7, label='Intermediate Steps' if i == 0 else "", zorder=4)
-
+                    ax.scatter(start_coords[0], start_coords[1], color='blue', s=40, marker='o', label='Start (x0)' if i==0 else "")
+                    ax.scatter(true_end_coords[0], true_end_coords[1], color='green', s=50, marker='x', label='True End (x1)' if i==0 else "")
+                    ax.scatter(pred_end_coords[0], pred_end_coords[1], color='red', s=50, marker='+', label='Predicted End' if i==0 else "")
                 elif MPL_3D_AVAILABLE: # Only plot 3D if available
-                     # Plot lines: start -> true_end (dashed), start -> pred_end (solid)
+                     # Plot lines
                     ax.plot([start_coords[0], true_end_coords[0]], [start_coords[1], true_end_coords[1]], [start_coords[2], true_end_coords[2]],
-                            '--', color=colors[i], alpha=0.6, linewidth=1.5, label='True Flow (x0->x1)' if i==0 else "")
+                            '--', color=colors[i], alpha=0.6, linewidth=1.5, label='True Flow' if i==0 else "")
                     ax.plot([start_coords[0], pred_end_coords[0]], [start_coords[1], pred_end_coords[1]], [start_coords[2], pred_end_coords[2]],
-                            '-', color=colors[i], alpha=0.8, linewidth=1.5, label='Predicted Flow (x0->x1_pred)' if i==0 else "")
-                     
-                     # Plot true trajectory path (connecting intermediate points)
-                    ax.plot(full_true_path_coords[:, 0], full_true_path_coords[:, 1], full_true_path_coords[:, 2], 
-                            ':', color=colors[i], alpha=0.5, linewidth=1.0, label='True Path (intermediates)' if i==0 else "")
-
+                            '-', color=colors[i], alpha=0.8, linewidth=1.5, label='Predicted Flow' if i==0 else "")
                      # Mark points
-                    ax.scatter(start_coords[0], start_coords[1], start_coords[2], color='blue', s=40, marker='o', label='Start (x0)' if i==0 else "", zorder=5)
-                    ax.scatter(true_end_coords[0], true_end_coords[1], true_end_coords[2], color='green', s=50, marker='x', label='True End (x1)' if i==0 else "", zorder=5)
-                    ax.scatter(pred_end_coords[0], pred_end_coords[1], pred_end_coords[2], color='red', s=50, marker='+', label='Predicted End (x1_pred)' if i==0 else "", zorder=5)
-                     # Mark intermediate points
-                    if intermediate_coords.shape[0] > 0:
-                       ax.scatter(intermediate_coords[:, 0], intermediate_coords[:, 1], intermediate_coords[:, 2], color=colors[i], s=20, marker='.', alpha=0.7, label='Intermediate Steps' if i == 0 else "", zorder=4)
-
+                    ax.scatter(start_coords[0], start_coords[1], start_coords[2], color='blue', s=40, marker='o', label='Start (x0)' if i==0 else "")
+                    ax.scatter(true_end_coords[0], true_end_coords[1], true_end_coords[2], color='green', s=50, marker='x', label='True End (x1)' if i==0 else "")
+                    ax.scatter(pred_end_coords[0], pred_end_coords[1], pred_end_coords[2], color='red', s=50, marker='+', label='Predicted End' if i==0 else "")
 
             # Titles and labels
             variance_ratios = pca_instance.explained_variance_ratio_
             variance_str = ", ".join([f"PC{j+1}={var:.1%}" for j, var in enumerate(variance_ratios)])
             epoch_step_info = f"Epoch_{self.epoch:.2f}_Step_{self.step}"
-            title = f'MPFlow Prediction vs Truth - {n_components}D PCA ({epoch_step_info})\nExplained Variance: {variance_str}'
+            title = f'MPFlow Prediction vs Truth - {n_components}D PCA ({epoch_step_info}) Explained Variance: {variance_str}'
             
-            ax.set_title(title, pad=20) # Add padding for 3D title
+            ax.set_title(title)
             ax.set_xlabel('First Principal Component')
             ax.set_ylabel('Second Principal Component')
             if n_components == 3 and MPL_3D_AVAILABLE:
                 ax.set_zlabel('Third Principal Component')
             ax.grid(True, alpha=0.3)
-            # Adjust legend position slightly
-            ax.legend(loc='best', bbox_to_anchor=(1.1, 1) if n_components == 3 else (1.05, 1)) 
-
+            ax.legend(loc='best')
 
             # Save plot
             plot_filename = f"mpflow_pca_{n_components}d_{epoch_step_info}{plot_suffix}.png"
@@ -1656,74 +1616,47 @@ class ForcesTrainerV2(BaseTrainerV2):
         # --- End of nested helper function --- 
         
         # --- Main visualization logic --- 
+        embedding_dim = x0.shape[1] * x0.shape[2] # N * D
         
-        # Flatten embedding dimensions: [batch, N*D] for PCA input
+        # Flatten embedding dimensions: [batch, N*D]
         # Tensors should already be on CPU from mpflow_validate
         try:
-            x0_flat = x0.numpy()
-            x1_true_flat = x1_true.numpy()
-            x1_pred_flat = x1_pred.numpy()
-            # Flatten intermediate steps: [batch * (num_layers - 1), N*D]
-            num_intermediate_steps = intermediate_traj.shape[1]
-            if num_intermediate_steps > 0:
-                intermediate_flat = intermediate_traj.numpy().reshape(n_samples * num_intermediate_steps, embedding_dim)
-            else:
-                intermediate_flat = np.empty((0, embedding_dim)) # Handle case with no intermediate layers
-
+            x0_flat = x0.numpy().reshape(n_samples, embedding_dim)
+            x1_true_flat = x1_true.numpy().reshape(n_samples, embedding_dim)
+            x1_pred_flat = x1_pred.numpy().reshape(n_samples, embedding_dim)
         except Exception as e:
             self.file_logger.error(f"Error converting tensors to NumPy for PCA: {e}")
             return
 
-        # Combine all points for PCA fitting:
-        # Stack order: x0, x1_true, x1_pred, intermediates
-        all_points_flat = np.vstack((x0_flat, x1_true_flat, x1_pred_flat, intermediate_flat))
+        # Combine all points for PCA fitting: [3 * batch, N*D]
+        all_points_flat = np.vstack((x0_flat, x1_true_flat, x1_pred_flat))
 
         # --- Perform PCA and Plotting --- 
         if "2d" in self.viz_plots:
             try:
                 pca_2d = PCA(n_components=2)
                 all_points_transformed_2d = pca_2d.fit_transform(all_points_flat)
-                
-                # Separate the transformed points based on stacking order
-                offset = 0
-                x0_pca_2d = all_points_transformed_2d[offset : offset + n_samples]; offset += n_samples
-                x1_true_pca_2d = all_points_transformed_2d[offset : offset + n_samples]; offset += n_samples
-                x1_pred_pca_2d = all_points_transformed_2d[offset : offset + n_samples]; offset += n_samples
-                
-                if num_intermediate_steps > 0:
-                    intermediate_pca_flat_2d = all_points_transformed_2d[offset:]
-                    # Reshape intermediates back: [batch, num_layers - 1, n_components]
-                    intermediate_pca_2d = intermediate_pca_flat_2d.reshape(n_samples, num_intermediate_steps, 2)
-                else:
-                    intermediate_pca_2d = np.empty((n_samples, 0, 2))
-
+                # Separate the transformed points
+                x0_pca_2d = all_points_transformed_2d[0*n_samples : 1*n_samples]
+                x1_true_pca_2d = all_points_transformed_2d[1*n_samples : 2*n_samples]
+                x1_pred_pca_2d = all_points_transformed_2d[2*n_samples : 3*n_samples]
                 # Create plot using the helper
-                _create_pca_plot(2, x0_pca_2d, x1_true_pca_2d, x1_pred_pca_2d, intermediate_pca_2d, pca_2d, self.viz_output_dir)
+                _create_pca_plot(2, x0_pca_2d, x1_true_pca_2d, x1_pred_pca_2d, pca_2d, self.viz_output_dir)
             except Exception as e:
-                self.file_logger.error(f"PCA or 2D plotting failed: {e}", exc_info=True) # Log traceback
+                self.file_logger.error(f"PCA or 2D plotting failed: {e}", exc_info=False)
 
         if "3d" in self.viz_plots:
             if MPL_3D_AVAILABLE:
                 try:
                     pca_3d = PCA(n_components=3)
                     all_points_transformed_3d = pca_3d.fit_transform(all_points_flat)
-                    
-                    # Separate the transformed points based on stacking order
-                    offset = 0
-                    x0_pca_3d = all_points_transformed_3d[offset : offset + n_samples]; offset += n_samples
-                    x1_true_pca_3d = all_points_transformed_3d[offset : offset + n_samples]; offset += n_samples
-                    x1_pred_pca_3d = all_points_transformed_3d[offset : offset + n_samples]; offset += n_samples
-
-                    if num_intermediate_steps > 0:
-                        intermediate_pca_flat_3d = all_points_transformed_3d[offset:]
-                        # Reshape intermediates back: [batch, num_layers - 1, n_components]
-                        intermediate_pca_3d = intermediate_pca_flat_3d.reshape(n_samples, num_intermediate_steps, 3)
-                    else:
-                         intermediate_pca_3d = np.empty((n_samples, 0, 3))
-
+                    # Separate the transformed points
+                    x0_pca_3d = all_points_transformed_3d[0*n_samples : 1*n_samples]
+                    x1_true_pca_3d = all_points_transformed_3d[1*n_samples : 2*n_samples]
+                    x1_pred_pca_3d = all_points_transformed_3d[2*n_samples : 3*n_samples]
                     # Create plot using the helper
-                    _create_pca_plot(3, x0_pca_3d, x1_true_pca_3d, x1_pred_pca_3d, intermediate_pca_3d, pca_3d, self.viz_output_dir)
+                    _create_pca_plot(3, x0_pca_3d, x1_true_pca_3d, x1_pred_pca_3d, pca_3d, self.viz_output_dir)
                 except Exception as e:
-                    self.file_logger.error(f"PCA or 3D plotting failed: {e}", exc_info=True) # Log traceback
+                    self.file_logger.error(f"PCA or 3D plotting failed: {e}", exc_info=False)
             else:
                 self.file_logger.warning("Skipping 3D PCA plot because mpl_toolkits.mplot3d is not available.")

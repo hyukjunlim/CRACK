@@ -486,8 +486,6 @@ class EquiformerV2_OC20(BaseModel):
         time_first = torch.full((data.batch.max() + 1,), end_time_1 - start_time, device=x.embedding.device, dtype=x.embedding.dtype)
 
         x0 = x.clone()
-        traj = torch.zeros((self.num_layers + 1, x0.embedding.shape[0], x0.embedding.shape[1] * x0.embedding.shape[2]), device=x0.embedding.device, dtype=x0.embedding.dtype)
-        traj[0] = x0.embedding.reshape(x0.embedding.shape[0], -1)
         for i in range(self.num_layers):
             x = self.blocks[i](
                 x,                  # SO3_Embedding
@@ -496,10 +494,10 @@ class EquiformerV2_OC20(BaseModel):
                 edge_index,
                 batch=data.batch    # for GraphDropPath
             )
-            traj[i+1] = x.embedding.reshape(x.embedding.shape[0], -1)
         # Final layer norm
         x.embedding = self.norm(x.embedding)
         x1 = x.clone()
+                
         
         end_time_2 = time.time()
         time_last = torch.full((data.batch.max() + 1,), end_time_2 - end_time_1, device=x.embedding.device, dtype=x.embedding.dtype)
@@ -557,9 +555,9 @@ class EquiformerV2_OC20(BaseModel):
                 return energy, forces, ut, predicted_ut, time_first, time_last, time_mpflow
         else:
             if not self.regress_forces:
-                return energy, ut, predicted_ut, x0.embedding, x1.embedding, predicted_x1.embedding, traj, time_first, time_last, time_mpflow
+                return energy, ut, predicted_ut, x0.embedding, x1.embedding, predicted_x1.embedding, time_first, time_last, time_mpflow
             else:
-                return energy, forces, ut, predicted_ut, x0.embedding, x1.embedding, predicted_x1.embedding, traj, time_first, time_last, time_mpflow
+                return energy, forces, ut, predicted_ut, x0.embedding, x1.embedding, predicted_x1.embedding, time_first, time_last, time_mpflow
 
 
     def sample_trajectory(self, x0, device, method="dopri5", rtol=1e-5, atol=1e-5, options=None):

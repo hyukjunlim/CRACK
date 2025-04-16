@@ -102,7 +102,7 @@ optim:
   loss_energy: mae
   loss_force: l2mae
 
-  eval_every: 200
+  eval_every: 5000
 
 
 #slurm:
