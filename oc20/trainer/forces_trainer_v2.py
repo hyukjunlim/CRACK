@@ -24,6 +24,7 @@ from tqdm import tqdm
 # Visualization Imports
 import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
 try:
     from mpl_toolkits.mplot3d import Axes3D
     MPL_3D_AVAILABLE = True
@@ -129,7 +130,11 @@ class ForcesTrainerV2(BaseTrainerV2):
         self.viz_output_dir = self.config.get("visualization_output_dir", os.path.join(self.run_dir, "mpflow_visualizations")) # Default to run_dir subdir
         self.viz_num_samples = self.config.get("visualization_num_samples", 10) # Max samples to plot
         self.viz_plots = self.config.get("visualization_plots", ["2d", "3d"]) # Plots to generate ('2d', '3d')
-        self.viz_pca_dpi = self.config.get("visualization_pca_dpi", 300)
+        self.viz_dpi = self.config.get("visualization_dpi", 300)
+        # t-SNE specific parameters
+        self.viz_tsne_perplexity = self.config.get("visualization_tsne_perplexity", 30.0)
+        self.viz_tsne_learning_rate = self.config.get("visualization_tsne_learning_rate", 200.0)
+        self.viz_tsne_n_iter = self.config.get("visualization_tsne_n_iter", 1000)
 
         if self.visualize_mpflow and distutils.is_master():
             os.makedirs(self.viz_output_dir, exist_ok=True)
@@ -1532,7 +1537,7 @@ class ForcesTrainerV2(BaseTrainerV2):
     def visualize_predictions(self, x0: torch.Tensor, x1_true: torch.Tensor, x1_pred: torch.Tensor):
         """
         Visualizes the predicted MPFlow states (x1_pred) compared to the ground 
-        truth (x1_true), starting from x0, using PCA.
+        truth (x1_true), starting from x0, using t-SNE.
 
         Args:
             x0 (torch.Tensor): Start points tensor [batch, N, D]. Assumed on CPU.
@@ -1546,14 +1551,12 @@ class ForcesTrainerV2(BaseTrainerV2):
 
         self.file_logger.info(f"Generating MPFlow prediction visualizations for {n_samples} samples...")
 
-        # --- Define PCA plotting helper nested within visualize_predictions --- 
-        # This keeps the PCA logic contained and avoids polluting the class namespace
-        def _create_pca_plot(
+        # --- Define t-SNE plotting helper nested within visualize_predictions ---
+        def _create_tsne_plot(
             n_components: int,
-            x0_pca_in: np.ndarray,
-            x1_true_pca_in: np.ndarray,
-            x1_pred_pca_in: np.ndarray,
-            pca_instance: PCA, # Pass the fitted PCA instance
+            x0_tsne_in: np.ndarray,
+            x1_true_tsne_in: np.ndarray,
+            x1_pred_tsne_in: np.ndarray,
             output_dir: str,
             plot_suffix: str = ""
         ):
@@ -1563,10 +1566,10 @@ class ForcesTrainerV2(BaseTrainerV2):
             colors = plt.cm.viridis(np.linspace(0, 1, n_samples))
 
             for i in range(n_samples):
-                # Get PCA coordinates for sample i
-                start_coords = x0_pca_in[i]
-                true_end_coords = x1_true_pca_in[i]
-                pred_end_coords = x1_pred_pca_in[i]
+                # Get t-SNE coordinates for sample i
+                start_coords = x0_tsne_in[i]
+                true_end_coords = x1_true_tsne_in[i]
+                pred_end_coords = x1_pred_tsne_in[i]
 
                 if n_components == 2:
                     # Plot lines: start -> true_end (dashed), start -> pred_end (solid)
@@ -1590,34 +1593,33 @@ class ForcesTrainerV2(BaseTrainerV2):
                     ax.scatter(pred_end_coords[0], pred_end_coords[1], pred_end_coords[2], color='red', s=50, marker='+', label='Predicted End' if i==0 else "")
 
             # Titles and labels
-            variance_ratios = pca_instance.explained_variance_ratio_
-            variance_str = ", ".join([f"PC{j+1}={var:.1%}" for j, var in enumerate(variance_ratios)])
             epoch_step_info = f"Epoch_{self.epoch:.2f}_Step_{self.step}"
-            title = f'MPFlow Prediction vs Truth - {n_components}D PCA ({epoch_step_info}) Explained Variance: {variance_str}'
+            # t-SNE doesn't have explained variance like PCA
+            title = f'MPFlow Prediction vs Truth - {n_components}D t-SNE ({epoch_step_info})'
             
             ax.set_title(title)
-            ax.set_xlabel('First Principal Component')
-            ax.set_ylabel('Second Principal Component')
+            ax.set_xlabel('t-SNE Dimension 1')
+            ax.set_ylabel('t-SNE Dimension 2')
             if n_components == 3 and MPL_3D_AVAILABLE:
-                ax.set_zlabel('Third Principal Component')
+                ax.set_zlabel('t-SNE Dimension 3')
             ax.grid(True, alpha=0.3)
             ax.legend(loc='best')
 
             # Save plot
-            plot_filename = f"mpflow_pca_{n_components}d_{epoch_step_info}{plot_suffix}.png"
+            plot_filename = f"mpflow_tsne_{n_components}d_{epoch_step_info}{plot_suffix}.png"
             plot_path = os.path.join(self.viz_output_dir, plot_filename)
             try:
-                plt.savefig(plot_path, dpi=self.viz_pca_dpi, bbox_inches='tight')
-                self.file_logger.info(f"Saved {n_components}D PCA plot to {plot_path}")
+                plt.savefig(plot_path, dpi=self.viz_dpi, bbox_inches='tight')
+                self.file_logger.info(f"Saved {n_components}D t-SNE plot to {plot_path}")
             except IOError as e:
-                self.file_logger.error(f"Failed to save {n_components}D PCA plot to {plot_path}: {e}")
+                self.file_logger.error(f"Failed to save {n_components}D t-SNE plot to {plot_path}: {e}")
             finally:
                 plt.close(fig) # Ensure figure is closed
         # --- End of nested helper function --- 
-        
+
+
         # --- Main visualization logic --- 
         embedding_dim = x0.shape[1] * x0.shape[2] # N * D
-        
         # Flatten embedding dimensions: [batch, N*D]
         # Tensors should already be on CPU from mpflow_validate
         try:
@@ -1625,38 +1627,50 @@ class ForcesTrainerV2(BaseTrainerV2):
             x1_true_flat = x1_true.numpy().reshape(n_samples, embedding_dim)
             x1_pred_flat = x1_pred.numpy().reshape(n_samples, embedding_dim)
         except Exception as e:
-            self.file_logger.error(f"Error converting tensors to NumPy for PCA: {e}")
+            self.file_logger.error(f"Error converting tensors to NumPy for t-SNE: {e}")
             return
 
         # Combine all points for PCA fitting: [3 * batch, N*D]
         all_points_flat = np.vstack((x0_flat, x1_true_flat, x1_pred_flat))
 
-        # --- Perform PCA and Plotting --- 
+        # --- Perform t-SNE and Plotting --- 
         if "2d" in self.viz_plots:
             try:
-                pca_2d = PCA(n_components=2)
-                all_points_transformed_2d = pca_2d.fit_transform(all_points_flat)
+                self.file_logger.info("Running t-SNE for 2D visualization...")
+                tsne_2d = TSNE(n_components=2,
+                               perplexity=min(self.viz_tsne_perplexity, all_points_flat.shape[0] - 1), # Perplexity must be less than n_samples
+                               learning_rate=self.viz_tsne_learning_rate,
+                               n_iter=self.viz_tsne_n_iter,
+                               init='pca', # Use PCA init for stability
+                               random_state=self.seed)
+                all_points_transformed_2d = tsne_2d.fit_transform(all_points_flat)
                 # Separate the transformed points
                 x0_pca_2d = all_points_transformed_2d[0*n_samples : 1*n_samples]
                 x1_true_pca_2d = all_points_transformed_2d[1*n_samples : 2*n_samples]
                 x1_pred_pca_2d = all_points_transformed_2d[2*n_samples : 3*n_samples]
                 # Create plot using the helper
-                _create_pca_plot(2, x0_pca_2d, x1_true_pca_2d, x1_pred_pca_2d, pca_2d, self.viz_output_dir)
+                _create_tsne_plot(2, x0_pca_2d, x1_true_pca_2d, x1_pred_pca_2d, self.viz_output_dir)
             except Exception as e:
-                self.file_logger.error(f"PCA or 2D plotting failed: {e}", exc_info=False)
+                self.file_logger.error(f"t-SNE or 2D plotting failed: {e}", exc_info=False)
 
         if "3d" in self.viz_plots:
             if MPL_3D_AVAILABLE:
                 try:
-                    pca_3d = PCA(n_components=3)
-                    all_points_transformed_3d = pca_3d.fit_transform(all_points_flat)
+                    self.file_logger.info("Running t-SNE for 3D visualization...")
+                    tsne_3d = TSNE(n_components=3,
+                                   perplexity=min(self.viz_tsne_perplexity, all_points_flat.shape[0] - 1),
+                                   learning_rate=self.viz_tsne_learning_rate,
+                                   n_iter=self.viz_tsne_n_iter,
+                                   init='pca',
+                                   random_state=self.seed)
+                    all_points_transformed_3d = tsne_3d.fit_transform(all_points_flat)
                     # Separate the transformed points
                     x0_pca_3d = all_points_transformed_3d[0*n_samples : 1*n_samples]
                     x1_true_pca_3d = all_points_transformed_3d[1*n_samples : 2*n_samples]
                     x1_pred_pca_3d = all_points_transformed_3d[2*n_samples : 3*n_samples]
                     # Create plot using the helper
-                    _create_pca_plot(3, x0_pca_3d, x1_true_pca_3d, x1_pred_pca_3d, pca_3d, self.viz_output_dir)
+                    _create_tsne_plot(3, x0_pca_3d, x1_true_pca_3d, x1_pred_pca_3d, self.viz_output_dir)
                 except Exception as e:
-                    self.file_logger.error(f"PCA or 3D plotting failed: {e}", exc_info=False)
+                    self.file_logger.error(f"t-SNE or 3D plotting failed: {e}", exc_info=False)
             else:
-                self.file_logger.warning("Skipping 3D PCA plot because mpl_toolkits.mplot3d is not available.")
+                self.file_logger.warning("Skipping 3D t-SNE plot because mpl_toolkits.mplot3d is not available.")
