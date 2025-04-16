@@ -123,14 +123,14 @@ class EquivariantMPFlow(nn.Module):
         assert num_layers >= 2
         self.ffn_shortcuts = ModuleList()
         if sphere_channels != hidden_channels:
-            ffn_shortcut = SO3_LinearV2(sphere_channels, hidden_channels, lmax=max_lmax)
+            ffn_shortcut = SO3_LinearV2(sphere_channels, hidden_channels, lmax=max(lmax_list))
             self.ffn_shortcuts.append(ffn_shortcut)
         else:
             self.ffn_shortcuts.append(None)
         for _ in range(num_layers - 2):
             self.ffn_shortcuts.append(None)
         if hidden_channels != output_channels:
-            ffn_shortcut = SO3_LinearV2(hidden_channels, output_channels, lmax=max_lmax)
+            ffn_shortcut = SO3_LinearV2(hidden_channels, output_channels, lmax=max(lmax_list))
             self.ffn_shortcuts.append(ffn_shortcut)
         else:
             self.ffn_shortcuts.append(None)
