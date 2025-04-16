@@ -357,7 +357,7 @@ class EquiformerV2_OC20(BaseModel):
         if self.share_atom_edge_embedding and self.use_atom_edge_embedding:
             mpflow_edge_channels_list[0] = mpflow_edge_channels_list[0] + 2 * mpflow_edge_channels_list[-1]
 
-        self.mpflow = FeedForwardNetwork(
+        self.mpflow = EquivariantMPFlow(
             self.sphere_channels,
             self.ffn_hidden_channels, 
             self.sphere_channels,
@@ -368,6 +368,7 @@ class EquiformerV2_OC20(BaseModel):
             self.use_gate_act,
             self.use_grid_mlp,
             self.use_sep_s2_act,
+            self.norm_type,
             num_layers=2
         )
         
@@ -504,9 +505,9 @@ class EquiformerV2_OC20(BaseModel):
         ###############################################################
         # MPFlow
         ###############################################################
-        ut, predicted_ut = self.calculate_predicted_ut(x0, x1, self.device)
+        ut, predicted_ut = self.calculate_predicted_ut(x0, x1, data.batch, self.device)
         if predict_with_mpflow:
-            predicted_x1 = self.sample_trajectory(x0, self.device)
+            predicted_x1 = self.sample_trajectory(x0, data.batch, self.device)
             x = predicted_x1
         
         end_time_3 = time.time()
@@ -559,12 +560,13 @@ class EquiformerV2_OC20(BaseModel):
                 return energy, forces, ut, predicted_ut, x0.embedding, x1.embedding, predicted_x1.embedding, time_first, time_last, time_mpflow
 
 
-    def sample_trajectory(self, x0, device, method="dopri5", rtol=1e-5, atol=1e-5, options=None):
+    def sample_trajectory(self, x0, batch, device, method="dopri5", rtol=1e-5, atol=1e-5, options=None):
         """
         Samples a trajectory using torchdiffeq.odeint.
         
         Args:
             x0: Starting point (SO3_Embedding object)
+            batch: Batch tensor of shape [num_nodes]
             device: The device tensors are on.
             method: Solver method for odeint (e.g., "dopri5", "rk4", "euler").
             rtol: Relative tolerance for the solver.
@@ -583,7 +585,7 @@ class EquiformerV2_OC20(BaseModel):
         y0 = x.embedding
         
         # Create the ODE function wrapper
-        ode_func = MpflowWrapper(self.mpflow, x)
+        ode_func = MpflowWrapper(self.mpflow, x, batch)
 
         # Solve the ODE
         solution = odeint(
@@ -602,7 +604,7 @@ class EquiformerV2_OC20(BaseModel):
         return x
 
 
-    def calculate_predicted_ut(self, x0, x1, device):
+    def calculate_predicted_ut(self, x0, x1, batch, device):
         num_nodes = x0.embedding.shape[0]
         xt = x0.clone()
         eps = 1e-6
@@ -613,7 +615,7 @@ class EquiformerV2_OC20(BaseModel):
         
         ut = x1.embedding - x0.embedding
         xt.embedding = x0.embedding + t_expanded * ut
-        predicted_ut = self.mpflow(xt, t)
+        predicted_ut = self.mpflow(xt, t, batch)
         
         return ut, predicted_ut.embedding
 
@@ -708,7 +710,7 @@ class EquiformerV2_OC20(BaseModel):
 
 
 class MpflowWrapper(nn.Module):
-    def __init__(self, mpflow, x_template):
+    def __init__(self, mpflow, x_template, batch):
         super().__init__()
         self.mpflow = mpflow
         self.num_nodes = x_template.embedding.shape[0]
@@ -716,6 +718,7 @@ class MpflowWrapper(nn.Module):
         self.num_channels = x_template.num_channels
         self.device = x_template.device
         self.dtype = x_template.dtype
+        self.batch = batch
 
     def forward(self, t, y):
         # y is the state tensor (x.embedding) of shape [num_nodes, num_features, num_channels]
@@ -737,7 +740,7 @@ class MpflowWrapper(nn.Module):
         # maybe t_reshaped = t.expand(self.num_nodes, -1) or similar if odeint passes non-scalar t
 
         # Call mpflow
-        velocity = self.mpflow(x_t, t_reshaped)
+        velocity = self.mpflow(x_t, t_reshaped, self.batch)
         
         # Return the derivative dy/dt (velocity.embedding)
         return velocity.embedding
