@@ -82,7 +82,7 @@ optim:
   grad_accumulation_steps:      1         # gradient accumulation: effective batch size = `grad_accumulation_steps` * `batch_size` * (num of GPUs)
   load_balancing: atoms
   num_workers: 8
-  lr_initial:                   0.0001    # [0.0002, 0.0004], eSCN uses 0.0008 for batch size 96
+  lr_initial:                   0.0002    # [0.0002, 0.0004], eSCN uses 0.0008 for batch size 96
   
   optimizer: AdamW
   optimizer_params:
@@ -97,6 +97,7 @@ optim:
   max_epochs: 1
   force_coefficient: 10
   energy_coefficient: 10
+  mpflow_coeeficient: 100
   clip_grad_norm: 100
   ema_decay: 0.999
   loss_energy: mae
