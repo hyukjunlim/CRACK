@@ -58,7 +58,7 @@ class EquivariantMPFlow(nn.Module):
         self,
         ### FeedForwardNetwork ###
         sphere_channels,
-        hidden_channels, 
+        hidden_channels_list, 
         output_channels,
         lmax_list,
         mmax_list,
@@ -73,13 +73,12 @@ class EquivariantMPFlow(nn.Module):
 
         ### MPFlow ###
         time_embed_dim=128,
-        num_layers=2
     ):
-        
         super().__init__()
         self.sphere_channels = sphere_channels
         self.total_coefficients = sum([(l+1)**2 for l in lmax_list]) # Recalculate based on actual list
         self.time_embed_dim = time_embed_dim
+        self.num_layers = len(hidden_channels_list) + 1
         
         # Time embedding network
         self.sinusoidal_time_embedding = SinusoidalTimeEmbedding(time_embed_dim)
@@ -97,39 +96,26 @@ class EquivariantMPFlow(nn.Module):
         )
 
         # Stack of TransBlockV2 blocks
-        assert num_layers >= 2
         self.blocks = ModuleList()
         self.norms = ModuleList()
         self.ffn_shortcuts = ModuleList()
         
-        # First block
-        block = FeedForwardNetwork(
-            sphere_channels,
-            hidden_channels, 
-            hidden_channels,
-            lmax_list,
-            mmax_list,
-            SO3_grid,  
-            activation,
-            use_gate_act,
-            use_grid_mlp,
-            use_sep_s2_act
-        )
-        self.blocks.append(block)
-        if sphere_channels != hidden_channels:
-            ffn_shortcut = SO3_LinearV2(sphere_channels, hidden_channels, lmax=max(lmax_list))
-            self.ffn_shortcuts.append(ffn_shortcut)
-        else:
-            self.ffn_shortcuts.append(None)
-        norm = get_normalization_layer(norm_type, lmax=max(lmax_list), num_channels=sphere_channels)
+        # Define the sequence of channel dimensions
+        all_channels = [sphere_channels] + hidden_channels_list + [output_channels]
+        
+        # Initial normalization layer
+        norm = get_normalization_layer(norm_type, lmax=max(lmax_list), num_channels=all_channels[0])
         self.norms.append(norm)
         
-        # Middle blocks
-        for _ in range(num_layers - 2):
+        # Create blocks, shortcuts, and norms in a loop
+        # num_layers + 1 blocks in total (input -> h1 -> ... -> hn -> output)
+        for idx in range(self.num_layers):
+            in_channels, out_channels = all_channels[idx], all_channels[idx+1]
+            
             block = FeedForwardNetwork(
-                hidden_channels,
-                hidden_channels, 
-                hidden_channels,
+                in_channels,
+                out_channels, 
+                out_channels,
                 lmax_list,
                 mmax_list,
                 SO3_grid,  
@@ -139,33 +125,15 @@ class EquivariantMPFlow(nn.Module):
                 use_sep_s2_act
             )
             self.blocks.append(block)
-            norm = get_normalization_layer(norm_type, lmax=max(lmax_list), num_channels=hidden_channels)
-            self.ffn_shortcuts.append(None)
-            self.norms.append(norm)
             
-        # Last block
-        block = FeedForwardNetwork(
-            hidden_channels,
-            hidden_channels, 
-            output_channels,
-            lmax_list,
-            mmax_list,
-            SO3_grid,  
-            activation,
-            use_gate_act,
-            use_grid_mlp,
-            use_sep_s2_act
-        )
-        self.blocks.append(block)
-        if hidden_channels != output_channels:
-            ffn_shortcut = SO3_LinearV2(hidden_channels, output_channels, lmax=max(lmax_list))
-            self.ffn_shortcuts.append(ffn_shortcut)
-        else:
-            self.ffn_shortcuts.append(None)
-        norm = get_normalization_layer(norm_type, lmax=max(lmax_list), num_channels=hidden_channels)
-        self.norms.append(norm)
-        norm = get_normalization_layer(norm_type, lmax=max(lmax_list), num_channels=output_channels)
-        self.norms.append(norm)
+            if in_channels != out_channels:
+                ffn_shortcut = SO3_LinearV2(in_channels, out_channels, lmax=max(lmax_list))
+                self.ffn_shortcuts.append(ffn_shortcut)
+            else:
+                self.ffn_shortcuts.append(None)
+            
+            norm = get_normalization_layer(norm_type, lmax=max(lmax_list), num_channels=out_channels)
+            self.norms.append(norm)
 
     def forward(self, x, t):
         """

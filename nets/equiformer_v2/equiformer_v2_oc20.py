@@ -351,15 +351,11 @@ class EquiformerV2_OC20(BaseModel):
                 self.use_sep_s2_act,
                 alpha_drop=0.0
             )
-            
-        # Equivariant MPFlow
-        mpflow_edge_channels_list = [int(self.distance_expansion.num_output)] + [self.edge_channels] * 2
-        if self.share_atom_edge_embedding and self.use_atom_edge_embedding:
-            mpflow_edge_channels_list[0] = mpflow_edge_channels_list[0] + 2 * mpflow_edge_channels_list[-1]
-
+        
+        dim = self.ffn_hidden_channels
         self.mpflow = EquivariantMPFlow(
             self.sphere_channels,
-            self.ffn_hidden_channels * 2, 
+            [dim * 2, dim * 4, dim * 2], 
             self.sphere_channels,
             self.lmax_list,
             self.mmax_list,
@@ -368,8 +364,7 @@ class EquiformerV2_OC20(BaseModel):
             self.use_gate_act,
             self.use_grid_mlp,
             self.use_sep_s2_act,
-            self.norm_type,
-            num_layers=5
+            self.norm_type
         )
         
         self.apply(self._init_weights)
