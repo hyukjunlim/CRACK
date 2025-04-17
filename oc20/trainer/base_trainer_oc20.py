@@ -423,8 +423,8 @@ class BaseTrainer(ABC):
         else:
             self.model.load_state_dict(checkpoint["state_dict"], strict=False)
 
-        if "optimizer" in checkpoint:
-            self.optimizer.load_state_dict(checkpoint["optimizer"])
+        # if "optimizer" in checkpoint:
+        #    self.optimizer.load_state_dict(checkpoint["optimizer"])
         if "scheduler" in checkpoint and checkpoint["scheduler"] is not None:
             self.scheduler.scheduler.load_state_dict(checkpoint["scheduler"])
         if "ema" in checkpoint and checkpoint["ema"] is not None:

@@ -1354,7 +1354,7 @@ class ForcesTrainerV2(BaseTrainerV2):
         loss = []
 
         # MPFlow loss.
-        mpflow_mult = self.config["optim"].get("mpflow_coefficient", 10)
+        mpflow_mult = self.config["optim"].get("mpflow_coefficient", 100)
         loss.append(
             mpflow_mult * self.loss_fn["mpflow"](out["predicted_ut"], out["ut"])
         )

@@ -1020,7 +1020,12 @@ class ForcesTrainerV2(BaseTrainerV2):
 
                 # Forward, loss, backward.
                 with torch.cuda.amp.autocast(enabled=self.scaler is not None):
+                    ### Turn on at step 1 ###
+                    # out = self._forward(batch, predict_with_mpflow=False)
+                    
+                    ### Turn on at step 2 ###
                     out = self._forward(batch, predict_with_mpflow=True)
+                    
                     loss = self._mpflow_compute_loss(out, batch)
                     
                 loss = self.scaler.scale(loss) if self.scaler else loss
@@ -1030,6 +1035,16 @@ class ForcesTrainerV2(BaseTrainerV2):
                 scale = self.scaler.get_scale() if self.scaler else 1.0
 
                 # Compute metrics including mpflow loss
+                ### Turn on at step 1 ###
+                # self.metrics = self._mpflow_compute_metrics(
+                #     out,
+                #     batch,
+                #     self.evaluator,
+                #     self.metrics,
+                #     predict_with_mpflow=False
+                # )
+                
+                ### Turn on at step 2 ###
                 self.metrics = self._mpflow_compute_metrics(
                     out,
                     batch,
@@ -1037,6 +1052,7 @@ class ForcesTrainerV2(BaseTrainerV2):
                     self.metrics,
                     predict_with_mpflow=True
                 )
+                
                 self.metrics = self.evaluator.update(
                     "loss", loss.item() / scale * self.grad_accumulation_steps, self.metrics
                 )
@@ -1353,17 +1369,14 @@ class ForcesTrainerV2(BaseTrainerV2):
     def _mpflow_compute_loss(self, out, batch_list):
         loss = []
 
+        ### Turn on at step 1 ###
         # # MPFlow loss.
         # mpflow_mult = self.config["optim"].get("mpflow_coefficient", 10)
         # loss.append(
         #     mpflow_mult * self.loss_fn["mpflow"](out["predicted_ut"], out["ut"])
         # )
-        
-        mpflow_delta_mult = self.config["optim"].get("mpflow_delta_coefficient", 10)
-        loss.append(
-            mpflow_delta_mult * self.loss_fn["mpflow"](out["predicted_x1"], out["x1"])
-        )
-        
+            
+        ### Turn on at step 2 ###
         # Energy loss.
         energy_target = torch.cat(
             [batch.y.to(self.device) for batch in batch_list], dim=0
