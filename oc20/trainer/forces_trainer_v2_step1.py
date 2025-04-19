@@ -1596,8 +1596,8 @@ class ForcesTrainerV2(BaseTrainerV2):
                             '-', color=color, alpha=0.7, linewidth=1.5, label='Predicted Flow' if i==0 else "") # Solid line
                     # Mark points with edges and adjusted sizes/alpha
                     ax.scatter(start_coords[0], start_coords[1], color='blue', s=45, marker='o', alpha=0.8, edgecolors='k', linewidths=0.5, label='Start (x0)' if i==0 else "")
-                    ax.scatter(true_end_coords[0], true_end_coords[1], color='green', s=60, marker='x', alpha=0.9, edgecolors='k', linewidths=0.5, label='True End (x1)' if i==0 else "")
-                    ax.scatter(pred_end_coords[0], pred_end_coords[1], color='red', s=60, marker='+', alpha=0.9, edgecolors='k', linewidths=0.5, label='Predicted End' if i==0 else "")
+                    ax.scatter(true_end_coords[0], true_end_coords[1], color='green', s=60, marker='x', alpha=0.9, linewidths=0.5, label='True End (x1)' if i==0 else "")
+                    ax.scatter(pred_end_coords[0], pred_end_coords[1], color='red', s=60, marker='+', alpha=0.9, linewidths=0.5, label='Predicted End' if i==0 else "")
                 elif MPL_3D_AVAILABLE: # Only plot 3D if available
                      # Plot lines
                     ax.plot([start_coords[0], true_end_coords[0]], [start_coords[1], true_end_coords[1]], [start_coords[2], true_end_coords[2]],
@@ -1606,8 +1606,8 @@ class ForcesTrainerV2(BaseTrainerV2):
                             '-', color=color, alpha=0.7, linewidth=1.5, label='Predicted Flow' if i==0 else "")
                      # Mark points with edges and adjusted sizes/alpha
                     ax.scatter(start_coords[0], start_coords[1], start_coords[2], color='blue', s=45, marker='o', alpha=0.8, edgecolors='k', linewidths=0.5, label='Start (x0)' if i==0 else "")
-                    ax.scatter(true_end_coords[0], true_end_coords[1], true_end_coords[2], color='green', s=60, marker='x', alpha=0.9, edgecolors='k', linewidths=0.5, label='True End (x1)' if i==0 else "")
-                    ax.scatter(pred_end_coords[0], pred_end_coords[1], pred_end_coords[2], color='red', s=60, marker='+', alpha=0.9, edgecolors='k', linewidths=0.5, label='Predicted End' if i==0 else "")
+                    ax.scatter(true_end_coords[0], true_end_coords[1], true_end_coords[2], color='green', s=60, marker='x', alpha=0.9, linewidths=0.5, label='True End (x1)' if i==0 else "")
+                    ax.scatter(pred_end_coords[0], pred_end_coords[1], pred_end_coords[2], color='red', s=60, marker='+', alpha=0.9, linewidths=0.5, label='Predicted End' if i==0 else "")
 
             # Titles and labels
             epoch_step_info = f"Epoch_{self.epoch:.2f}_Step_{self.step}"

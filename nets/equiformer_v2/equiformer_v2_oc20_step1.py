@@ -352,6 +352,7 @@ class EquiformerV2_OC20(BaseModel):
                 alpha_drop=0.0
             )
         
+        # Equivariant MPFlow
         dim = self.ffn_hidden_channels
         self.mpflow = EquivariantMPFlow(
             self.sphere_channels,
@@ -379,7 +380,7 @@ class EquiformerV2_OC20(BaseModel):
         for param in self.parameters():
             param.requires_grad = False
         
-        ### Turn on at step 2 ###
+        # ### Turn on at step 2 ###
         # for param in self.energy_block.parameters():
         #     param.requires_grad = True
         
@@ -389,7 +390,6 @@ class EquiformerV2_OC20(BaseModel):
         #########################
         
         ### Turn on at step 1 ###
-        # Unfreeze mpflow
         for param in self.mpflow.parameters():
             param.requires_grad = True
         #########################
@@ -555,7 +555,7 @@ class EquiformerV2_OC20(BaseModel):
                 return energy, forces, ut, predicted_ut, x0.embedding, x1.embedding, predicted_x1.embedding, time_first, time_last, time_mpflow
 
 
-    def sample_trajectory(self, x0, device, method="dopri5", rtol=1e-5, atol=1e-5, options=None):
+    def sample_trajectory(self, x0, device, method="euler", rtol=1e-5, atol=1e-5, options=None):
         """
         Samples a trajectory using torchdiffeq.odeint.
         
@@ -586,7 +586,7 @@ class EquiformerV2_OC20(BaseModel):
             ode_func,
             y0,
             t_span,
-            method='euler',
+            method=method,
             rtol=rtol,
             atol=atol,
             options=options

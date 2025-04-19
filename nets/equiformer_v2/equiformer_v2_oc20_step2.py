@@ -351,15 +351,12 @@ class EquiformerV2_OC20(BaseModel):
                 self.use_sep_s2_act,
                 alpha_drop=0.0
             )
-            
+        
         # Equivariant MPFlow
-        mpflow_edge_channels_list = [int(self.distance_expansion.num_output)] + [self.edge_channels] * 2
-        if self.share_atom_edge_embedding and self.use_atom_edge_embedding:
-            mpflow_edge_channels_list[0] = mpflow_edge_channels_list[0] + 2 * mpflow_edge_channels_list[-1]
-
+        dim = self.ffn_hidden_channels
         self.mpflow = EquivariantMPFlow(
             self.sphere_channels,
-            self.ffn_hidden_channels * 2, 
+            [dim * 2, dim * 4, dim * 2], 
             self.sphere_channels,
             self.lmax_list,
             self.mmax_list,
@@ -368,8 +365,7 @@ class EquiformerV2_OC20(BaseModel):
             self.use_gate_act,
             self.use_grid_mlp,
             self.use_sep_s2_act,
-            self.norm_type,
-            num_layers=5
+            self.norm_type
         )
         
         self.apply(self._init_weights)
@@ -379,7 +375,7 @@ class EquiformerV2_OC20(BaseModel):
         self.freeze_backbone()
         
     def freeze_backbone(self):
-        """Freeze all parameters except energy and force blocks"""
+        """Freeze all parameters except mpflow"""
         # First freeze everything
         for param in self.parameters():
             param.requires_grad = False
@@ -388,14 +384,15 @@ class EquiformerV2_OC20(BaseModel):
         for param in self.energy_block.parameters():
             param.requires_grad = True
         
-        ### Turn on at step 2 ###
         if self.regress_forces:
             for param in self.force_block.parameters():
                 param.requires_grad = True
+        #########################
         
-        ### Turn on at step 1 ###
+        # ### Turn on at step 1 ###
         # for param in self.mpflow.parameters():
         #     param.requires_grad = True
+        #########################
 
 
     @conditional_grad(torch.enable_grad())
@@ -483,19 +480,23 @@ class EquiformerV2_OC20(BaseModel):
         end_time_1 = time.time()
         time_first = torch.full((data.batch.max() + 1,), end_time_1 - start_time, device=x.embedding.device, dtype=x.embedding.dtype)
 
+        # ### Turn on at step 1 ###
+        # x0 = x.clone()
+        # for i in range(self.num_layers):
+        #     x = self.blocks[i](
+        #         x,                  # SO3_Embedding
+        #         atomic_numbers,
+        #         edge_distance,
+        #         edge_index,
+        #         batch=data.batch    # for GraphDropPath
+        #     )
+        # # Final layer norm
+        # x.embedding = self.norm(x.embedding)
+        # x1 = x.clone()
+        
+        ### Turn on at step 2 ###
         x0 = x.clone()
-        for i in range(self.num_layers):
-            x = self.blocks[i](
-                x,                  # SO3_Embedding
-                atomic_numbers,
-                edge_distance,
-                edge_index,
-                batch=data.batch    # for GraphDropPath
-            )
-        # Final layer norm
-        x.embedding = self.norm(x.embedding)
         x1 = x.clone()
-                
         
         end_time_2 = time.time()
         time_last = torch.full((data.batch.max() + 1,), end_time_2 - end_time_1, device=x.embedding.device, dtype=x.embedding.dtype)
@@ -558,7 +559,7 @@ class EquiformerV2_OC20(BaseModel):
                 return energy, forces, ut, predicted_ut, x0.embedding, x1.embedding, predicted_x1.embedding, time_first, time_last, time_mpflow
 
 
-    def sample_trajectory(self, x0, device, method="dopri5", rtol=1e-5, atol=1e-5, options=None):
+    def sample_trajectory(self, x0, device, method="euler", rtol=1e-5, atol=1e-5, options=None):
         """
         Samples a trajectory using torchdiffeq.odeint.
         
@@ -589,7 +590,7 @@ class EquiformerV2_OC20(BaseModel):
             ode_func,
             y0,
             t_span,
-            method='euler',
+            method=method,
             rtol=rtol,
             atol=atol,
             options=options
@@ -604,7 +605,6 @@ class EquiformerV2_OC20(BaseModel):
     def calculate_predicted_ut(self, x0, x1, device):
         num_nodes = x0.embedding.shape[0]
         xt = x0.clone()
-        eps = 1e-6
         
         t = torch.rand(1, device=device) # [1]
         t = t.expand(num_nodes, 1)  # [B, 1]
