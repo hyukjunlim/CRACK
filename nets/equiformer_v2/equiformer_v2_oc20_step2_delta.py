@@ -651,31 +651,26 @@ class EquiformerV2_OC20(BaseModel):
         # Check if mpflow is initialized before accessing parameters
         if hasattr(self, 'mpflow') and self.mpflow is not None:
             mpflow_params = sum(p.numel() for p in self.mpflow.parameters())
-            mpflow_delta_params = sum(p.numel() for p in self.mpflow_delta.parameters())
         else:
             mpflow_params = 0 # Or handle as an error if mpflow should always exist
-            mpflow_delta_params = 0
-        
+
         # Calculate backbone params (total - mpflow)
-        backbone_params = all_params - mpflow_params - mpflow_delta_params
+        backbone_params = all_params - mpflow_params
 
         # Calculate trainable backbone params
         trainable_backbone_params = 0
         trainable_mpflow_params = 0
-        trainable_mpflow_delta_params = 0
         for name, param in self.named_parameters():
             if param.requires_grad:
-                if name.startswith('mpflow'):
+                if name.startswith('mpflow.'):
                     trainable_mpflow_params += param.numel()
-                elif name.startswith('mpflow_delta'):
-                    trainable_mpflow_delta_params += param.numel()
                 else:
                     trainable_backbone_params += param.numel()
 
         # Verify calculation (optional)
         # assert trainable_params == trainable_backbone_params + trainable_mpflow_params, "Trainable parameter mismatch"
 
-        return f"Backbone: {backbone_params} (Trainable: {trainable_backbone_params}), MPFlow: {mpflow_params} (Trainable: {trainable_mpflow_params}), MPFlowDelta: {mpflow_delta_params} (Trainable: {trainable_mpflow_delta_params})"
+        return f"Backbone: {backbone_params} (Trainable: {trainable_backbone_params}), MPFlow: {mpflow_params} (Trainable: {trainable_mpflow_params})"
 
 
     def _init_weights(self, m):
