@@ -355,7 +355,7 @@ class EquiformerV2_OC20(BaseModel):
         dim = self.ffn_hidden_channels
         self.mpflow = EquivariantMPFlow(
             self.sphere_channels,
-            [dim * 2, dim * 4, dim * 2], 
+            [dim * 2, dim * 3, dim * 2], 
             self.sphere_channels,
             self.lmax_list,
             self.mmax_list,
