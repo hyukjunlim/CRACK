@@ -368,19 +368,19 @@ class EquiformerV2_OC20(BaseModel):
             self.norm_type
         )
         
-        # Delta model
-        self.mpflow_delta = FeedForwardNetwork(
-            self.sphere_channels,
-            self.ffn_hidden_channels, 
-            self.sphere_channels,
-            self.lmax_list,
-            self.mmax_list,
-            self.SO3_grid,  
-            self.ffn_activation,
-            self.use_gate_act,
-            self.use_grid_mlp,
-            self.use_sep_s2_act
-        )
+        # # Delta model
+        # self.mpflow_delta = FeedForwardNetwork(
+        #     self.sphere_channels,
+        #     self.ffn_hidden_channels, 
+        #     self.sphere_channels,
+        #     self.lmax_list,
+        #     self.mmax_list,
+        #     self.SO3_grid,  
+        #     self.ffn_activation,
+        #     self.use_gate_act,
+        #     self.use_grid_mlp,
+        #     self.use_sep_s2_act
+        # )
         
         self.apply(self._init_weights)
         self.apply(self._uniform_init_rad_func_linear_weights)
@@ -402,8 +402,8 @@ class EquiformerV2_OC20(BaseModel):
             for param in self.force_block.parameters():
                 param.requires_grad = True
                 
-        for param in self.mpflow_delta.parameters():
-            param.requires_grad = True
+        # for param in self.mpflow_delta.parameters():
+        #     param.requires_grad = True
         #########################
         
         # ### Turn on at step 1 ###
@@ -414,6 +414,7 @@ class EquiformerV2_OC20(BaseModel):
 
     @conditional_grad(torch.enable_grad())
     def forward(self, data, predict_with_mpflow=False):
+        data.pos.requires_grad = True
         self.batch_size = len(data.natoms)
         self.dtype = data.pos.dtype
         self.device = data.pos.device
@@ -529,9 +530,9 @@ class EquiformerV2_OC20(BaseModel):
         end_time_3 = time.time()
         time_mpflow = torch.full((data.batch.max() + 1,), end_time_3 - end_time_2, device=x.embedding.device, dtype=x.embedding.dtype)
         
-        # Delta model
-        delta_x = self.mpflow_delta(x)
-        x.embedding = x.embedding + delta_x.embedding
+        # # Delta model
+        # delta_x = self.mpflow_delta(x)
+        # x.embedding = x.embedding + delta_x.embedding
         
         ###############################################################
         # Energy estimation
@@ -550,22 +551,22 @@ class EquiformerV2_OC20(BaseModel):
         # Force estimation ( + gradient aided)
         ###############################################################
         if self.regress_forces:
-            # dy = torch.autograd.grad(
-            #     energy,  # [n_graphs,]
-            #     data.pos,  # [n_nodes, 3]
-            #     grad_outputs=torch.ones_like(energy),
-            #     create_graph=True,
-            #     retain_graph=True,
-            #     allow_unused=True
-            # )[0]
-            # assert dy is not None
-            # forces = -1 * dy  # [n_nodes, 3]
-            forces = self.force_block(x,
-                atomic_numbers,
-                edge_distance,
-                edge_index)
-            forces = forces.embedding.narrow(1, 1, 3)
-            forces = forces.view(-1, 3)    
+            dy = torch.autograd.grad(
+                _energy,  # [n_graphs,]
+                data.pos,  # [n_nodes, 3]
+                grad_outputs=torch.ones_like(_energy),
+                create_graph=True,
+                retain_graph=True,
+                allow_unused=True
+            )[0]
+            assert dy is not None
+            forces = -1 * dy  # [n_nodes, 3]
+            # forces = self.force_block(x,
+            #     atomic_numbers,
+            #     edge_distance,
+            #     edge_index)
+            # forces = forces.embedding.narrow(1, 1, 3)
+            # forces = forces.view(-1, 3)    
         
         if not predict_with_mpflow:
             if not self.regress_forces:
