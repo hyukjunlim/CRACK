@@ -19,10 +19,11 @@ from ocpmodels.models.scn.smearing import (
 
 try:
     from e3nn import o3
-    from torchdiffeq import odeint
+    from torchdiffeq import odeint_adjoint as odeint
 except ImportError:
     print("torchdiffeq not found. Please install it: pip install torchdiffeq")
     # Fallback or raise error if torchdiffeq is essential
+    # from torchdiffeq import odeint # If adjoint is not needed or causing issues
     odeint = None
 
 from .gaussian_rbf import GaussianRadialBasisLayer
@@ -379,18 +380,18 @@ class EquiformerV2_OC20(BaseModel):
         for param in self.parameters():
             param.requires_grad = False
         
-        ### Turn on at step 2 ###
-        for param in self.energy_block.parameters():
-            param.requires_grad = True
+        # ### Turn on at step 2 ###
+        # for param in self.energy_block.parameters():
+        #     param.requires_grad = True
         
-        if self.regress_forces:
-            for param in self.force_block.parameters():
-                param.requires_grad = True
+        # if self.regress_forces:
+        #     for param in self.force_block.parameters():
+        #         param.requires_grad = True
         #########################
         
-        # ### Turn on at step 1 ###
-        # for param in self.mpflow.parameters():
-        #     param.requires_grad = True
+        ### Turn on at step 1 ###
+        for param in self.mpflow.parameters():
+            param.requires_grad = True
         #########################
 
 
@@ -479,23 +480,19 @@ class EquiformerV2_OC20(BaseModel):
         end_time_1 = time.time()
         time_first = torch.full((data.batch.max() + 1,), end_time_1 - start_time, device=x.embedding.device, dtype=x.embedding.dtype)
 
-        # ### Turn on at step 1 ###
-        # x0 = x.clone()
-        # for i in range(self.num_layers):
-        #     x = self.blocks[i](
-        #         x,                  # SO3_Embedding
-        #         atomic_numbers,
-        #         edge_distance,
-        #         edge_index,
-        #         batch=data.batch    # for GraphDropPath
-        #     )
-        # # Final layer norm
-        # x.embedding = self.norm(x.embedding)
-        # x1 = x.clone()
-        
-        ### Turn on at step 2 ###
         x0 = x.clone()
+        for i in range(self.num_layers):
+            x = self.blocks[i](
+                x,                  # SO3_Embedding
+                atomic_numbers,
+                edge_distance,
+                edge_index,
+                batch=data.batch    # for GraphDropPath
+            )
+        # Final layer norm
+        x.embedding = self.norm(x.embedding)
         x1 = x.clone()
+                
         
         end_time_2 = time.time()
         time_last = torch.full((data.batch.max() + 1,), end_time_2 - end_time_1, device=x.embedding.device, dtype=x.embedding.dtype)
@@ -506,7 +503,7 @@ class EquiformerV2_OC20(BaseModel):
         ut, predicted_ut = self.calculate_predicted_ut(x0, x1, self.device)
         if predict_with_mpflow:
             predicted_x1 = self.sample_trajectory(x0, self.device)
-            x = predicted_x1.clone()
+            x = predicted_x1
         
         end_time_3 = time.time()
         time_mpflow = torch.full((data.batch.max() + 1,), end_time_3 - end_time_2, device=x.embedding.device, dtype=x.embedding.dtype)
@@ -604,6 +601,7 @@ class EquiformerV2_OC20(BaseModel):
     def calculate_predicted_ut(self, x0, x1, device):
         num_nodes = x0.embedding.shape[0]
         xt = x0.clone()
+        eps = 1e-6
         
         t = torch.rand(1, device=device) # [1]
         t = t.expand(num_nodes, 1)  # [B, 1]
