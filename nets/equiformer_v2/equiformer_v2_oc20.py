@@ -532,9 +532,9 @@ class EquiformerV2_OC20(BaseModel):
         ###############################################################
         if self.regress_forces:
             dy = torch.autograd.grad(
-                energy,  # [n_graphs,]
+                _energy,  # [n_graphs,]
                 data.pos,  # [n_nodes, 3]
-                grad_outputs=torch.ones_like(energy),
+                grad_outputs=torch.ones_like(_energy),
                 create_graph=True,
                 retain_graph=True,
                 allow_unused=True
