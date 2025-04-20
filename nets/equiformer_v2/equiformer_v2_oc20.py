@@ -327,30 +327,30 @@ class EquiformerV2_OC20(BaseModel):
             self.use_grid_mlp,
             self.use_sep_s2_act
         )
-        if self.regress_forces:
-            self.force_block = SO2EquivariantGraphAttention(
-                self.sphere_channels,
-                self.attn_hidden_channels,
-                self.num_heads, 
-                self.attn_alpha_channels,
-                self.attn_value_channels, 
-                1,
-                self.lmax_list,
-                self.mmax_list,
-                self.SO3_rotation, 
-                self.mappingReduced, 
-                self.SO3_grid, 
-                self.max_num_elements,
-                self.edge_channels_list,
-                self.block_use_atom_edge_embedding, 
-                self.use_m_share_rad,
-                self.attn_activation, 
-                self.use_s2_act_attn, 
-                self.use_attn_renorm,
-                self.use_gate_act,
-                self.use_sep_s2_act,
-                alpha_drop=0.0
-            )
+        # if self.regress_forces:
+        #     self.force_block = SO2EquivariantGraphAttention(
+        #         self.sphere_channels,
+        #         self.attn_hidden_channels,
+        #         self.num_heads, 
+        #         self.attn_alpha_channels,
+        #         self.attn_value_channels, 
+        #         1,
+        #         self.lmax_list,
+        #         self.mmax_list,
+        #         self.SO3_rotation, 
+        #         self.mappingReduced, 
+        #         self.SO3_grid, 
+        #         self.max_num_elements,
+        #         self.edge_channels_list,
+        #         self.block_use_atom_edge_embedding, 
+        #         self.use_m_share_rad,
+        #         self.attn_activation, 
+        #         self.use_s2_act_attn, 
+        #         self.use_attn_renorm,
+        #         self.use_gate_act,
+        #         self.use_sep_s2_act,
+        #         alpha_drop=0.0
+        #     )
         
         # Equivariant MPFlow
         dim = self.ffn_hidden_channels
@@ -367,20 +367,6 @@ class EquiformerV2_OC20(BaseModel):
             self.use_sep_s2_act,
             self.norm_type
         )
-        
-        # # Delta model
-        # self.mpflow_delta = FeedForwardNetwork(
-        #     self.sphere_channels,
-        #     self.ffn_hidden_channels, 
-        #     self.sphere_channels,
-        #     self.lmax_list,
-        #     self.mmax_list,
-        #     self.SO3_grid,  
-        #     self.ffn_activation,
-        #     self.use_gate_act,
-        #     self.use_grid_mlp,
-        #     self.use_sep_s2_act
-        # )
         
         self.apply(self._init_weights)
         self.apply(self._uniform_init_rad_func_linear_weights)
@@ -401,9 +387,6 @@ class EquiformerV2_OC20(BaseModel):
         if self.regress_forces:
             for param in self.force_block.parameters():
                 param.requires_grad = True
-                
-        # for param in self.mpflow_delta.parameters():
-        #     param.requires_grad = True
         #########################
         
         # ### Turn on at step 1 ###
@@ -530,9 +513,6 @@ class EquiformerV2_OC20(BaseModel):
         end_time_3 = time.time()
         time_mpflow = torch.full((data.batch.max() + 1,), end_time_3 - end_time_2, device=x.embedding.device, dtype=x.embedding.dtype)
         
-        # # Delta model
-        # delta_x = self.mpflow_delta(x)
-        # x.embedding = x.embedding + delta_x.embedding
         
         ###############################################################
         # Energy estimation
@@ -552,9 +532,9 @@ class EquiformerV2_OC20(BaseModel):
         ###############################################################
         if self.regress_forces:
             dy = torch.autograd.grad(
-                _energy,  # [n_graphs,]
+                energy,  # [n_graphs,]
                 data.pos,  # [n_nodes, 3]
-                grad_outputs=torch.ones_like(_energy),
+                grad_outputs=torch.ones_like(energy),
                 create_graph=True,
                 retain_graph=True,
                 allow_unused=True
@@ -652,31 +632,26 @@ class EquiformerV2_OC20(BaseModel):
         # Check if mpflow is initialized before accessing parameters
         if hasattr(self, 'mpflow') and self.mpflow is not None:
             mpflow_params = sum(p.numel() for p in self.mpflow.parameters())
-            mpflow_delta_params = sum(p.numel() for p in self.mpflow_delta.parameters())
         else:
             mpflow_params = 0 # Or handle as an error if mpflow should always exist
-            mpflow_delta_params = 0
-        
+
         # Calculate backbone params (total - mpflow)
-        backbone_params = all_params - mpflow_params - mpflow_delta_params
+        backbone_params = all_params - mpflow_params
 
         # Calculate trainable backbone params
         trainable_backbone_params = 0
         trainable_mpflow_params = 0
-        trainable_mpflow_delta_params = 0
         for name, param in self.named_parameters():
             if param.requires_grad:
-                if name.startswith('mpflow'):
+                if name.startswith('mpflow.'):
                     trainable_mpflow_params += param.numel()
-                elif name.startswith('mpflow_delta'):
-                    trainable_mpflow_delta_params += param.numel()
                 else:
                     trainable_backbone_params += param.numel()
 
         # Verify calculation (optional)
         # assert trainable_params == trainable_backbone_params + trainable_mpflow_params, "Trainable parameter mismatch"
 
-        return f"Backbone: {backbone_params} (Trainable: {trainable_backbone_params}), MPFlow: {mpflow_params} (Trainable: {trainable_mpflow_params}), MPFlowDelta: {mpflow_delta_params} (Trainable: {trainable_mpflow_delta_params})"
+        return f"Backbone: {backbone_params} (Trainable: {trainable_backbone_params}), MPFlow: {mpflow_params} (Trainable: {trainable_mpflow_params})"
 
 
     def _init_weights(self, m):
