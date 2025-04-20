@@ -315,7 +315,7 @@ class EquiformerV2_OC20(BaseModel):
         
         # Output blocks for energy and forces
         self.norm = get_normalization_layer(self.norm_type, lmax=max(self.lmax_list), num_channels=self.sphere_channels)
-        self.energy_block = FeedForwardNetwork(
+        self.energy_block_v2 = FeedForwardNetwork(
             self.sphere_channels,
             self.ffn_hidden_channels, 
             1,
@@ -381,7 +381,7 @@ class EquiformerV2_OC20(BaseModel):
             param.requires_grad = False
         
         ### Turn on at step 2 ###
-        for param in self.energy_block.parameters():
+        for param in self.energy_block_v2.parameters():
             param.requires_grad = True
         
         # if self.regress_forces:
@@ -517,7 +517,7 @@ class EquiformerV2_OC20(BaseModel):
         ###############################################################
         # Energy estimation
         ###############################################################
-        node_energy = self.energy_block(x) 
+        node_energy = self.energy_block_v2(x) 
         node_energy = node_energy.embedding.narrow(1, 0, 1)
         _energy = torch.scatter_add(
             torch.zeros(data.batch.max() + 1, device=node_energy.device, dtype=node_energy.dtype),
@@ -532,9 +532,9 @@ class EquiformerV2_OC20(BaseModel):
         ###############################################################
         if self.regress_forces:
             dy = torch.autograd.grad(
-                _energy,  # [n_graphs,]
+                energy,  # [n_graphs,]
                 data.pos,  # [n_nodes, 3]
-                grad_outputs=torch.ones_like(_energy),
+                grad_outputs=torch.ones_like(energy),
                 create_graph=True,
                 retain_graph=True,
                 allow_unused=True
