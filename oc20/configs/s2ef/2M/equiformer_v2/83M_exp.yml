@@ -96,8 +96,8 @@ optim:
     lr_min_factor: 0.01         
 
   max_epochs: 1
-  force_coefficient: 10
-  energy_coefficient: 10
+  force_coefficient: 100
+  energy_coefficient: 4
   mpflow_coeeficient: 100
   clip_grad_norm: 100
   ema_decay: 0.999
