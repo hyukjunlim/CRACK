@@ -384,9 +384,9 @@ class EquiformerV2_OC20(BaseModel):
         for param in self.energy_block.parameters():
             param.requires_grad = True
         
-        if self.regress_forces:
-            for param in self.force_block.parameters():
-                param.requires_grad = True
+        # if self.regress_forces:
+        #     for param in self.force_block.parameters():
+        #         param.requires_grad = True
         #########################
         
         # ### Turn on at step 1 ###
