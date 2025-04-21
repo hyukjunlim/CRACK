@@ -97,7 +97,7 @@ optim:
 
   max_epochs: 1
   force_coefficient: 100
-  energy_coefficient: 4
+  energy_coefficient: 2
   mpflow_coeeficient: 100
   clip_grad_norm: 100
   ema_decay: 0.999
