@@ -480,106 +480,30 @@ class EquiformerV2_OC20(BaseModel):
         end_time_1 = time.time()
         time_first = torch.full((data.batch.max() + 1,), end_time_1 - start_time, device=x.embedding.device, dtype=x.embedding.dtype)
 
-        num_nodes = x.embedding.shape[0]
-        eps = 1e-6 # Small epsilon to prevent t=1.0 issues with indexing
-        # Sample t and determine target layer index *before* the loop
-        t = torch.rand(num_nodes, 1, device=self.device, dtype=self.dtype) * (1 - eps)
-        layer_float = t * self.num_layers
-        layer_idx = torch.floor(layer_float).long() # Shape: [N, 1]. Index of the layer *after* which interpolation happens.
-        t_local = layer_float - layer_idx # Shape: [N, 1]. Interpolation factor within the layer interval.
-
-        # Placeholders for the embeddings surrounding the target layer for each node
-        x_before_emb = torch.zeros_like(x.embedding)
-        x_after_emb = torch.zeros_like(x.embedding)
-
-        x_current = x # Holds the embedding state as we iterate through layers
-        x0_embedding = x.embedding.clone() # Store the initial embedding (needed if predict_with_mpflow)
-
-        # Store initial embedding if it's the 'before' embedding for any node
-        initial_mask = (layer_idx == 0).squeeze(-1) # Nodes where the first interval (0-1) is chosen
-        if initial_mask.any():
-            x_before_emb[initial_mask] = x_current.embedding[initial_mask]
-
-        # Loop through layers, storing only necessary embeddings
+        x0 = x.clone()
         for i in range(self.num_layers):
-            x_input_this_layer = x_current # Input to block i
-            
-            # Compute output of block i
-            x_output_this_layer = self.blocks[i](
-                x_input_this_layer, # SO3_Embedding
+            x = self.blocks[i](
+                x,                  # SO3_Embedding
                 atomic_numbers,
                 edge_distance,
                 edge_index,
                 batch=data.batch    # for GraphDropPath
             )
-
-            # Check if the input to this layer (x_input_this_layer) is needed
-            # This happens if layer_idx == i
-            before_mask = (layer_idx == i).squeeze(-1)
-            if before_mask.any():
-                # We already stored for i=0 before the loop
-                if i > 0: 
-                     x_before_emb[before_mask] = x_input_this_layer.embedding[before_mask]
-            
-            # Check if the output of this layer (x_output_this_layer) is needed
-            # This happens if layer_idx == i
-            after_mask = (layer_idx == i).squeeze(-1)
-            if after_mask.any():
-                x_after_emb[after_mask] = x_output_this_layer.embedding[after_mask]
-
-            x_current = x_output_this_layer # Update current state for next iteration
-
-        # Final layer norm applied to the final embedding
-        x_final_norm = self.norm(x_current.embedding)
-        
-        # Handle cases where layer_idx points to the final layer (i.e., t is close to 1)
-        final_layer_mask = (layer_idx == self.num_layers).squeeze(-1)
-        if final_layer_mask.any():
-             # The 'before' embedding is the output of the last block (before norm)
-             x_before_emb[final_layer_mask] = x_current.embedding[final_layer_mask]
-             # The 'after' embedding is the final normalized embedding
-             x_after_emb[final_layer_mask] = x_final_norm[final_layer_mask]
-             
-        # Final state after all blocks and norm
-        x = x_current # Keep the SO3_Embedding structure
-        x.embedding = x_final_norm
-        x1_embedding_final = x.embedding.clone() # Store final embedding after norm
+        # Final layer norm
+        x.embedding = self.norm(x.embedding)
+        x1 = x.clone()
                 
         
         end_time_2 = time.time()
         time_last = torch.full((data.batch.max() + 1,), end_time_2 - end_time_1, device=x.embedding.device, dtype=x.embedding.dtype)
         
         ###############################################################
-        # MPFlow Calculation (Interpolating between adjacent layers)
+        # MPFlow
         ###############################################################
-        
-        # Calculate the ground truth velocity for the step
-        # Note: x_before_emb and x_after_emb now hold the correct values gathered during the loop
-        ut = x_after_emb - x_before_emb # Shape: [N, F, C]
-
-        # Interpolate to get xt
-        xt = x.clone() # Create a template SO3_Embedding using the final x structure
-        xt.embedding = x_before_emb + t_local.unsqueeze(1) * ut # Shape: [N, F, C]
-
-        # Predict the velocity using MPFlow
-        # mpflow expects t in shape [N, 1]
-        predicted_ut = self.mpflow(xt, t) # Pass the original sampled t
-        
-        # --- End of MPFlow Calculation Modification ---
-        
-        # If predicting the final state using the learned flow (inference/sampling)
+        ut, predicted_ut = self.calculate_predicted_ut(x0, x1, self.device)
         if predict_with_mpflow:
-            # Sampling needs the initial state x0 embedding
-            x0_initial = SO3_Embedding( # Reconstruct x0 SO3_Embedding object for sample_trajectory
-                num_nodes, 
-                self.lmax_list, 
-                self.sphere_channels, 
-                self.device, 
-                self.dtype
-            )
-            x0_initial.embedding = x0_embedding 
-            predicted_x1 = self.sample_trajectory(x0_initial, self.device)
-            x = predicted_x1 # Overwrite x with the predicted final state for energy/force calc
+            predicted_x1 = self.sample_trajectory(x0, self.device)
+            x = predicted_x1
         
         end_time_3 = time.time()
         time_mpflow = torch.full((data.batch.max() + 1,), end_time_3 - end_time_2, device=x.embedding.device, dtype=x.embedding.dtype)
@@ -588,7 +512,7 @@ class EquiformerV2_OC20(BaseModel):
         ###############################################################
         # Energy estimation
         ###############################################################
-        node_energy = self.energy_block(x) # Use the final x (either from blocks or MPFlow prediction)
+        node_energy = self.energy_block(x) 
         node_energy = node_energy.embedding.narrow(1, 0, 1)
         _energy = torch.scatter_add(
             torch.zeros(data.batch.max() + 1, device=node_energy.device, dtype=node_energy.dtype),
@@ -621,15 +545,14 @@ class EquiformerV2_OC20(BaseModel):
         
         if not predict_with_mpflow:
             if not self.regress_forces:
-                return energy, ut, predicted_ut.embedding, time_first, time_last, time_mpflow
+                return energy, ut, predicted_ut, time_first, time_last, time_mpflow
             else:
-                return energy, forces, ut, predicted_ut.embedding, time_first, time_last, time_mpflow
+                return energy, forces, ut, predicted_ut, time_first, time_last, time_mpflow
         else:
-            # Return original x0 and final x1 (after norm) embeddings along with predicted x1 embedding
             if not self.regress_forces:
-                return energy, ut, predicted_ut.embedding, x0_embedding, x1_embedding_final, x.embedding, time_first, time_last, time_mpflow
+                return energy, ut, predicted_ut, x0.embedding, x1.embedding, predicted_x1.embedding, time_first, time_last, time_mpflow
             else:
-                return energy, forces, ut, predicted_ut.embedding, x0_embedding, x1_embedding_final, x.embedding, time_first, time_last, time_mpflow
+                return energy, forces, ut, predicted_ut, x0.embedding, x1.embedding, predicted_x1.embedding, time_first, time_last, time_mpflow
 
 
     def sample_trajectory(self, x0, device, method="euler", rtol=1e-5, atol=1e-5, options=None):
@@ -676,9 +599,6 @@ class EquiformerV2_OC20(BaseModel):
 
 
     def calculate_predicted_ut(self, x0, x1, device):
-        # This function is no longer used with the new interpolation logic
-        # Keep it for potential future use or remove it if confirmed obsolete.
-        raise DeprecationWarning("calculate_predicted_ut is deprecated; logic moved into forward pass.")
         num_nodes = x0.embedding.shape[0]
         xt = x0.clone()
         eps = 1e-6
