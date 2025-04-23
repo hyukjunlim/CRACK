@@ -53,7 +53,7 @@ class Evaluator:
     }
 
     task_attributes = {
-        "s2ef": ["energy", "forces", "natoms", "ut", "predicted_ut"],
+        "s2ef": ["energy", "forces", "natoms"],
         "is2rs": ["positions", "cell", "pbc", "natoms"],
         "is2re": ["energy"],
     }

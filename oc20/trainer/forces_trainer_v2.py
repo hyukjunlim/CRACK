@@ -21,18 +21,6 @@ import torch
 import torch_geometric
 from tqdm import tqdm
 
-# Visualization Imports
-import matplotlib.pyplot as plt
-from sklearn.decomposition import PCA
-from sklearn.manifold import TSNE # Import TSNE
-try:
-    from mpl_toolkits.mplot3d import Axes3D
-    MPL_3D_AVAILABLE = True
-except ImportError:
-    Axes3D = None # Define Axes3D as None if import fails
-    MPL_3D_AVAILABLE = False
-    logging.warning("mpl_toolkits.mplot3d not found. 3D PCA plot will be disabled.")
-
 from ocpmodels.common import distutils
 from ocpmodels.common.registry import registry
 from ocpmodels.common.relaxation.ml_relaxation import ml_relax
@@ -125,18 +113,6 @@ class ForcesTrainerV2(BaseTrainerV2):
             noddp=noddp,
         )
 
-        # --- MPFlow Visualization Configuration ---
-        self.visualize_mpflow = self.config.get("visualize_mpflow", True) # Enable/disable visualization
-        self.viz_output_dir = self.config.get("visualization_output_dir", os.path.join(self.run_dir, "mpflow_visualizations")) # Default to run_dir subdir
-        self.viz_num_samples = self.config.get("visualization_num_samples", 100) # Max samples to plot
-        self.viz_plots = self.config.get("visualization_plots", ["2d", "3d"]) # Plots to generate ('2d', '3d')
-        self.viz_pca_dpi = self.config.get("visualization_pca_dpi", 300)
-
-        if self.visualize_mpflow and distutils.is_master():
-            os.makedirs(self.viz_output_dir, exist_ok=True)
-            print(f"MPFlow visualizations will be saved to: {self.viz_output_dir}")
-
-
     def load_task(self):
         self.file_logger.info(f"Loading dataset: {self.config['task']['dataset']}")
 
@@ -211,11 +187,7 @@ class ForcesTrainerV2(BaseTrainerV2):
             self.normalizers["target"].to(self.device)
             self.normalizers["grad_target"].to(self.device)
 
-        use_all_layers = False
-        if use_all_layers:
-            predictions = {"id": [], "energy": [], "forces": [], "chunk_idx": [], "latents": [], "time_first": [], "time_last": []}
-        else:
-            predictions = {"id": [], "energy": [], "latents": []}
+        predictions = {"id": [], "energy": [], "forces": [], "chunk_idx": []}
 
         for i, batch_list in tqdm(
             enumerate(data_loader),
@@ -227,11 +199,10 @@ class ForcesTrainerV2(BaseTrainerV2):
             with torch.cuda.amp.autocast(enabled=self.scaler is not None):
                 out = self._forward(batch_list)
 
-            if use_all_layers:
-                if self.normalizers is not None and "target" in self.normalizers:
-                    out["energy"] = self.normalizers["target"].denorm(
-                        out["energy"]
-                    )
+            if self.normalizers is not None and "target" in self.normalizers:
+                out["energy"] = self.normalizers["target"].denorm(
+                    out["energy"]
+                )
                 out["forces"] = self.normalizers["grad_target"].denorm(
                     out["forces"]
                 )
@@ -246,23 +217,16 @@ class ForcesTrainerV2(BaseTrainerV2):
                 predictions["energy"].extend(
                     out["energy"].to(torch.float16).tolist()
                 )
-                predictions["time_first"].extend(
-                    out["time_first"].to(torch.float16).tolist()
-                )
-                predictions["time_last"].extend(
-                    out["time_last"].to(torch.float16).tolist()
-                )
                 batch_natoms = torch.cat(
                     [batch.natoms for batch in batch_list]
                 )
-                
                 batch_fixed = torch.cat([batch.fixed for batch in batch_list])
                 forces = out["forces"].cpu().detach().to(torch.float16)
                 per_image_forces = torch.split(forces, batch_natoms.tolist())
                 per_image_forces = [
                     force.numpy() for force in per_image_forces
                 ]
-                
+                # evalAI only requires forces on free atoms
                 if results_file is not None:
                     _per_image_fixed = torch.split(
                         batch_fixed, batch_natoms.tolist()
@@ -273,45 +237,34 @@ class ForcesTrainerV2(BaseTrainerV2):
                             per_image_forces, _per_image_fixed
                         )
                     ]
-                _chunk_idx = np.array(
-                    [
-                        free_force.shape[0]
-                        for free_force in _per_image_free_forces
-                    ]
-                )
-                per_image_forces = _per_image_free_forces
-                predictions["chunk_idx"].extend(_chunk_idx)
+                    _chunk_idx = np.array(
+                        [
+                            free_force.shape[0]
+                            for free_force in _per_image_free_forces
+                        ]
+                    )
+                    per_image_forces = _per_image_free_forces
+                    predictions["chunk_idx"].extend(_chunk_idx)
                 predictions["forces"].extend(per_image_forces)
             else:
                 predictions["energy"] = out["energy"].detach()
                 predictions["forces"] = out["forces"].detach()
-                predictions["time_first"] = out["time_first"].detach()
-                predictions["time_last"] = out["time_last"].detach()
                 if self.ema:
                     self.ema.restore()
                 return predictions
 
-        predictions["id"] = np.array(predictions["id"])
-        predictions["energy"] = np.array(predictions["energy"])
         predictions["forces"] = np.array(predictions["forces"])
         predictions["chunk_idx"] = np.array(predictions["chunk_idx"])
-        predictions["time_first"] = np.array(predictions["time_first"])
-        predictions["time_last"] = np.array(predictions["time_last"])
-            
-        if use_all_layers:
-            self.save_results(
-                predictions, results_file, keys=["id", "energy", "forces", "chunk_idx", "latents", "time_first", "time_last"]
-            )
-        else:
-            self.save_results(
-                predictions, results_file, keys=["id", "energy", "latents"]
-            )
+        predictions["energy"] = np.array(predictions["energy"])
+        predictions["id"] = np.array(predictions["id"])
+        self.save_results(
+            predictions, results_file, keys=["energy", "forces", "chunk_idx"]
+        )
 
         if self.ema:
             self.ema.restore()
 
         return predictions
-    
 
     def update_best(
         self,
@@ -338,7 +291,6 @@ class ForcesTrainerV2(BaseTrainerV2):
                     results_file="predictions",
                     disable_tqdm=disable_eval_tqdm,
                 )
-
 
     def train(self, disable_eval_tqdm=False):
         eval_every = self.config["optim"].get(
@@ -492,47 +444,41 @@ class ForcesTrainerV2(BaseTrainerV2):
         if self.config.get("test_dataset", False):
             self.test_dataset.close_db()
 
-    def _forward(self, batch_list, predict_with_mpflow=False):
+    def _forward(self, batch_list):
         # forward pass.
-        if not predict_with_mpflow:
-            if (self.config["model_attributes"].get("regress_forces", True)
-                or self.config['model_attributes'].get('use_auxiliary_task', False)):
-                out_energy, out_forces, ut, predicted_ut, time_first, time_last, time_mpflow = self.model(batch_list, predict_with_mpflow=predict_with_mpflow)
-            else:
-                out_energy, ut, predicted_ut, time_first, time_last, time_mpflow = self.model(batch_list, predict_with_mpflow=predict_with_mpflow)
+        if (self.config["model_attributes"].get("regress_forces", True)
+            or self.config['model_attributes'].get('use_auxiliary_task', False)):
+            out_energy, out_forces, ut, predicted_ut, x0_embedding, x1_embedding, predicted_x1_embedding = self.model(batch_list)
         else:
-            if (self.config["model_attributes"].get("regress_forces", True)
-                or self.config['model_attributes'].get('use_auxiliary_task', False)):
-                out_energy, out_forces, ut, predicted_ut, x0, x1, predicted_x1, time_first, time_last, time_mpflow = self.model(batch_list, predict_with_mpflow=predict_with_mpflow)
-            else:
-                out_energy, ut, predicted_ut, x0, x1, predicted_x1, time_first, time_last, time_mpflow = self.model(batch_list, predict_with_mpflow=predict_with_mpflow)
+            out_energy, ut, predicted_ut, x0_embedding, x1_embedding, predicted_x1_embedding = self.model(batch_list)
 
         if out_energy.shape[-1] == 1:
             out_energy = out_energy.view(-1)
 
         out = {
             "energy": out_energy,
+            "ut": ut,
+            "predicted_ut": predicted_ut,
+            "x0": x0_embedding,
+            "x1": x1_embedding,
+            "predicted_x1": predicted_x1_embedding,
         }
 
         if (self.config["model_attributes"].get("regress_forces", True)
            or self.config['model_attributes'].get('use_auxiliary_task', False)):
             out["forces"] = out_forces
-        
-        out["ut"] = ut
-        out["predicted_ut"] = predicted_ut
-        if predict_with_mpflow:
-            out["x0"] = x0
-            out["x1"] = x1
-            out["predicted_x1"] = predicted_x1
-        out["time_first"] = time_first
-        out["time_last"] = time_last
-        out["time_mpflow"] = time_mpflow
-        
+
         return out
 
     def _compute_loss(self, out, batch_list):
         loss = []
-
+        
+        # MPFlow loss.
+        mpflow_mult = self.config["optim"].get("mpflow_coefficient", 100)
+        loss.append(
+            mpflow_mult * self.loss_fn["mpflow"](out["predicted_ut"], out["ut"])
+        )
+        
         # Energy loss.
         energy_target = torch.cat(
             [batch.y.to(self.device) for batch in batch_list], dim=0
@@ -650,6 +596,10 @@ class ForcesTrainerV2(BaseTrainerV2):
                 [batch.force.to(self.device) for batch in batch_list], dim=0
             ),
             "natoms": natoms,
+            "ut": out["ut"],
+            "predicted_ut": out["predicted_ut"],
+            "x1": out["x1"],
+            "predicted_x1": out["predicted_x1"],
         }
 
         out["natoms"] = natoms
@@ -972,715 +922,3 @@ class ForcesTrainerV2(BaseTrainerV2):
             self.ema.restore()
 
         return metrics
-
-
-##################################################################################################################
-
-    def mpflow_train(self, disable_eval_tqdm=False):
-        """
-        Training loop for MPFlow model with flow matching loss.
-        """
-        eval_every = self.config["optim"].get(
-            "eval_every", len(self.train_loader)
-        )
-        checkpoint_every = self.config["optim"].get(
-            "checkpoint_every", eval_every
-        )
-        primary_metric = self.config["task"].get(
-            "primary_metric", self.evaluator.task_primary_metric[self.name]
-        )
-        if (
-            not hasattr(self, "primary_metric")
-            or self.primary_metric != primary_metric
-        ):
-            self.best_val_metric = 1e9 if "mae" in primary_metric else -1.0
-        else:
-            primary_metric = self.primary_metric
-        self.metrics = {}
-
-        # Calculate start_epoch from step instead of loading the epoch number
-        # to prevent inconsistencies due to different batch size in checkpoint.
-        start_epoch = self.step // len(self.train_loader)
-
-        for epoch_int in range(
-            start_epoch, self.config["optim"]["max_epochs"]
-        ):
-            self.train_sampler.set_epoch(epoch_int)
-            skip_steps = self.step % len(self.train_loader)
-            train_loader_iter = iter(self.train_loader)
-
-            self.metrics = {}
-
-            for i in range(skip_steps, len(self.train_loader)):
-                self.epoch = epoch_int + (i + 1) / len(self.train_loader)
-                self.step = epoch_int * len(self.train_loader) + i + 1
-                self.model.train()
-                
-                # Get a batch.
-                batch = next(train_loader_iter)
-
-                # Forward, loss, backward.
-                with torch.cuda.amp.autocast(enabled=self.scaler is not None):
-                    ### Turn on at step 1 ###
-                    out = self._forward(batch, predict_with_mpflow=False)
-                    
-                    ### Turn on at step 2 ###
-                    # out = self._forward(batch, predict_with_mpflow=True)
-                    
-                    loss = self._mpflow_compute_loss(out, batch)
-                    
-                loss = self.scaler.scale(loss) if self.scaler else loss
-                if self.grad_accumulation_steps != 1:
-                    loss = loss / self.grad_accumulation_steps
-                self._backward(loss)
-                scale = self.scaler.get_scale() if self.scaler else 1.0
-
-                # Compute metrics including mpflow loss
-                ### Turn on at step 1 ###
-                self.metrics = self._mpflow_compute_metrics(
-                    out,
-                    batch,
-                    self.evaluator,
-                    self.metrics,
-                    predict_with_mpflow=False
-                )
-                
-                ### Turn on at step 2 ###
-                # self.metrics = self._mpflow_compute_metrics(
-                #     out,
-                #     batch,
-                #     self.evaluator,
-                #     self.metrics,
-                #     predict_with_mpflow=True
-                # )
-                
-                self.metrics = self.evaluator.update(
-                    "loss", loss.item() / scale * self.grad_accumulation_steps, self.metrics
-                )
-
-                # Log metrics.
-                log_dict = {k: self.metrics[k]["metric"] for k in self.metrics}
-                log_dict.update(
-                    {
-                        "lr": self.scheduler.get_lr(),
-                        "epoch": self.epoch,
-                        "step": self.step,
-                    }
-                )
-                if (
-                    (self.step % self.config["cmd"]["print_every"] == 0
-                        or i == 0
-                        or i == (len(self.train_loader) - 1))
-                    and distutils.is_master()
-                    and not self.is_hpo
-                ):
-                    log_str = [
-                        "{}: {:.2e}".format(k, v) for k, v in log_dict.items()
-                    ]
-                    self.file_logger.info(", ".join(log_str))
-                    # self.metrics = {}
-
-                if self.logger is not None:
-                    self.logger.log(
-                        log_dict,
-                        step=self.step,
-                        split="train",
-                    )
-
-                if (
-                    checkpoint_every != -1
-                    and self.step % checkpoint_every == 0
-                ):
-                    self.save(
-                        checkpoint_file="checkpoint.pt", training_state=True
-                    )
-
-                # Evaluate on val set every `eval_every` iterations.
-                if (self.step % eval_every == 0
-                    or i == (len(self.train_loader) - 1)):
-                    if self.val_loader is not None:
-                        if self.ema:
-                            val_metrics = self.mpflow_validate(split="val",
-                                disable_tqdm=disable_eval_tqdm, use_ema=True)
-                            self.update_best(primary_metric,
-                                val_metrics, disable_eval_tqdm=disable_eval_tqdm)
-                        else:
-                            val_metrics = self.mpflow_validate(split="val",
-                                disable_tqdm=disable_eval_tqdm, use_ema=False)
-                            self.update_best(primary_metric,
-                                val_metrics, disable_eval_tqdm=disable_eval_tqdm)
-
-                        if self.is_hpo:
-                            self.hpo_update(
-                                self.epoch,
-                                self.step,
-                                self.metrics,
-                                val_metrics,
-                            )
-
-                    if self.config["task"].get("eval_relaxations", False):
-                        if "relax_dataset" not in self.config["task"]:
-                            logging.warning(
-                                "Cannot evaluate relaxations, relax_dataset not specified"
-                            )
-                        else:
-                            self.run_relaxations()
-
-                if self.scheduler.scheduler_type == "ReduceLROnPlateau":
-                    if self.step % eval_every == 0:
-                        self.scheduler.step(
-                            metrics=val_metrics[primary_metric]["metric"],
-                        )
-                else:
-                    if self.grad_accumulation_steps != 1:
-                        if self.step % self.grad_accumulation_steps == 0:
-                            self.scheduler.step()
-                    else:
-                        self.scheduler.step()
-
-            torch.cuda.empty_cache()
-
-            if checkpoint_every == -1:
-                self.save(checkpoint_file="checkpoint.pt", training_state=True)
-
-        self.train_dataset.close_db()
-        if self.config.get("val_dataset", False):
-            self.val_dataset.close_db()
-        if self.config.get("test_dataset", False):
-            self.test_dataset.close_db()
-
-
-    @torch.no_grad()
-    def mpflow_validate(self, split="val", disable_tqdm=False, use_ema=False):
-        self.file_logger.info(f"Evaluating on {split}.")
-
-        if self.is_hpo:
-            disable_tqdm = True
-
-        self.model.eval()
-        
-        if self.ema and use_ema:
-            self.ema.store()
-            self.ema.copy_to()
-
-        evaluator, metrics = Evaluator(task=self.name), {}
-        rank = distutils.get_rank()
-
-        loader = self.val_loader if split == "val" else self.test_loader
-
-        # Data collection for visualization (only on master)
-        viz_data = {"x0": [], "x1": [], "predicted_x1": []}
-        samples_collected = 0
-
-        for i, batch in tqdm(
-            enumerate(loader),
-            total=len(loader),
-            position=rank,
-            desc="device {}".format(rank),
-            disable=disable_tqdm,
-        ):
-            with torch.cuda.amp.autocast(enabled=self.scaler is not None):
-                out = self._forward(batch, predict_with_mpflow=True)
-            loss = self._mpflow_compute_loss(out, batch)
-            metrics = self._mpflow_compute_metrics(out, batch, evaluator, metrics, predict_with_mpflow=True)
-            metrics = evaluator.update("loss", loss.item(), metrics)
-
-            # Collect visualization data on master process
-            if distutils.is_master() and self.visualize_mpflow and samples_collected < self.viz_num_samples:
-                needed = self.viz_num_samples - samples_collected
-                
-                # Ensure tensors are on CPU for storage
-                x0_batch = out["x0"].detach().cpu()[:needed]
-                x1_batch = out["x1"].detach().cpu()[:needed]
-                predicted_x1_batch = out["predicted_x1"].detach().cpu()[:needed]
-                
-                viz_data["x0"].append(x0_batch)
-                viz_data["x1"].append(x1_batch)
-                viz_data["predicted_x1"].append(predicted_x1_batch)
-                samples_collected += len(x0_batch)
-
-        aggregated_metrics = {}
-        for k in metrics:
-            aggregated_metrics[k] = {
-                "total": distutils.all_reduce(
-                    metrics[k]["total"], average=False, device=self.device
-                ),
-                "numel": distutils.all_reduce(
-                    metrics[k]["numel"], average=False, device=self.device
-                ),
-            }
-            aggregated_metrics[k]["metric"] = (
-                aggregated_metrics[k]["total"] / aggregated_metrics[k]["numel"]
-            )
-        metrics = aggregated_metrics
-
-        log_dict = {k: metrics[k]["metric"] for k in metrics}
-        log_dict.update({"epoch": self.epoch})
-        log_str = ["{}: {:.4f}".format(k, v) for k, v in log_dict.items()]
-        log_str = ", ".join(log_str)
-        log_str = "[{}] ".format(split) + log_str
-        self.file_logger.info(log_str)
-
-        if self.logger is not None:
-            self.logger.log(
-                log_dict,
-                step=self.step,
-                split=split,
-            )
-
-        # Call visualization function on master process if enabled and data collected
-        if distutils.is_master() and self.visualize_mpflow and samples_collected > 0:
-            # Concatenate collected batches
-            viz_x0 = torch.cat(viz_data["x0"], dim=0)
-            viz_x1 = torch.cat(viz_data["x1"], dim=0)
-            viz_predicted_x1 = torch.cat(viz_data["predicted_x1"], dim=0)
-            
-            self.visualize_predictions(viz_x0, viz_x1, viz_predicted_x1)
-
-        if self.ema and use_ema:
-            self.ema.restore()
-
-        return metrics
-    
-
-    @torch.no_grad()
-    def mpflow_predict(
-        self,
-        data_loader,
-        per_image=True,
-        results_file=None,
-        disable_tqdm=False,
-    ):
-        if per_image:
-            self.file_logger.info("Predicting on test.")
-        assert isinstance(
-            data_loader,
-            (
-                torch.utils.data.dataloader.DataLoader,
-                torch_geometric.data.Batch,
-            ),
-        )
-        rank = distutils.get_rank()
-
-        if isinstance(data_loader, torch_geometric.data.Batch):
-            data_loader = [[data_loader]]
-
-        self.model.eval()
-        
-        if self.ema:
-            self.ema.store()
-            self.ema.copy_to()
-
-        if self.normalizers is not None and "target" in self.normalizers:
-            self.normalizers["target"].to(self.device)
-            self.normalizers["grad_target"].to(self.device)
-
-        predictions = {"id": [], "energy": [], "forces": [], "chunk_idx": [], "time_first": [], "time_last": []}
-
-        for i, batch_list in tqdm(
-            enumerate(data_loader),
-            total=len(data_loader),
-            position=rank,
-            desc="device {}".format(rank),
-            disable=disable_tqdm,
-        ):
-            with torch.cuda.amp.autocast(enabled=self.scaler is not None):
-                out = self._forward(batch_list, predict_with_mpflow=True)
-
-            if self.normalizers is not None and "target" in self.normalizers:
-                out["energy"] = self.normalizers["target"].denorm(
-                    out["energy"]
-                )
-            out["forces"] = self.normalizers["grad_target"].denorm(
-                out["forces"]
-            )
-            if per_image:
-                systemids = [
-                    str(i) + "_" + str(j)
-                    for i, j in zip(
-                        batch_list[0].sid.tolist(), batch_list[0].fid.tolist()
-                    )
-                ]
-                predictions["id"].extend(systemids)
-                predictions["energy"].extend(
-                    out["energy"].to(torch.float16).tolist()
-                )
-                predictions["time_first"].extend(
-                    out["time_first"].to(torch.float16).tolist()
-                )
-                predictions["time_last"].extend(
-                    out["time_last"].to(torch.float16).tolist()
-                )
-                batch_natoms = torch.cat(
-                    [batch.natoms for batch in batch_list]
-                )
-                
-                batch_fixed = torch.cat([batch.fixed for batch in batch_list])
-                forces = out["forces"].cpu().detach().to(torch.float16)
-                per_image_forces = torch.split(forces, batch_natoms.tolist())
-                per_image_forces = [
-                    force.numpy() for force in per_image_forces
-                ]
-                
-                if results_file is not None:
-                    _per_image_fixed = torch.split(
-                        batch_fixed, batch_natoms.tolist()
-                    )
-                    _per_image_free_forces = [
-                        force[(fixed == 0).tolist()]
-                        for force, fixed in zip(
-                            per_image_forces, _per_image_fixed
-                        )
-                    ]
-                _chunk_idx = np.array(
-                    [
-                        free_force.shape[0]
-                        for free_force in _per_image_free_forces
-                    ]
-                )
-                per_image_forces = _per_image_free_forces
-                predictions["chunk_idx"].extend(_chunk_idx)
-                predictions["forces"].extend(per_image_forces)
-            else:
-                predictions["energy"] = out["energy"].detach()
-                predictions["forces"] = out["forces"].detach()
-                predictions["time_first"] = out["time_first"].detach()
-                predictions["time_last"] = out["time_last"].detach()
-                if self.ema:
-                    self.ema.restore()
-                return predictions
-
-        predictions["id"] = np.array(predictions["id"])
-        predictions["energy"] = np.array(predictions["energy"])
-        predictions["forces"] = np.array(predictions["forces"])
-        predictions["chunk_idx"] = np.array(predictions["chunk_idx"])
-        predictions["time_first"] = np.array(predictions["time_first"])
-        predictions["time_last"] = np.array(predictions["time_last"])
-            
-        self.save_results(
-            predictions, results_file, keys=["id", "energy", "forces", "chunk_idx", "time_first", "time_last"]
-        )
-
-        if self.ema:
-            self.ema.restore()
-
-        return predictions
-    
-
-    def _mpflow_compute_loss(self, out, batch_list):
-        loss = []
-
-        ### Turn on at step 1 ###
-        # MPFlow loss.
-        mpflow_mult = self.config["optim"].get("mpflow_coefficient", 100)
-        loss.append(
-            mpflow_mult * self.loss_fn["mpflow"](out["predicted_ut"], out["ut"])
-        )
-            
-        ### Turn on at step 2 ###
-        # # Energy loss.
-        # energy_target = torch.cat(
-        #     [batch.y.to(self.device) for batch in batch_list], dim=0
-        # )
-        # if self.normalizer.get("normalize_labels", False):
-        #     energy_target = self.normalizers["target"].norm(energy_target)
-        # energy_mult = self.config["optim"].get("energy_coefficient", 1)
-        # loss.append(
-        #     energy_mult * self.loss_fn["energy"](out["energy"], energy_target)
-        # )
-
-        # # Force loss.
-        # if (self.config["model_attributes"].get("regress_forces", True)
-        #    or self.config['model_attributes'].get('use_auxiliary_task', False)):
-        #     force_target = torch.cat(
-        #         [batch.force.to(self.device) for batch in batch_list], dim=0
-        #     )
-        #     if self.normalizer.get("normalize_labels", False):
-        #         force_target = self.normalizers["grad_target"].norm(
-        #             force_target
-        #         )
-
-        #     tag_specific_weights = self.config["task"].get(
-        #         "tag_specific_weights", []
-        #     )
-        #     if tag_specific_weights != []:
-        #         # handle tag specific weights as introduced in forcenet
-        #         assert len(tag_specific_weights) == 3
-
-        #         batch_tags = torch.cat(
-        #             [
-        #                 batch.tags.float().to(self.device)
-        #                 for batch in batch_list
-        #             ],
-        #             dim=0,
-        #         )
-        #         weight = torch.zeros_like(batch_tags)
-        #         weight[batch_tags == 0] = tag_specific_weights[0]
-        #         weight[batch_tags == 1] = tag_specific_weights[1]
-        #         weight[batch_tags == 2] = tag_specific_weights[2]
-
-        #         loss_force_list = torch.abs(out["forces"] - force_target)
-        #         train_loss_force_unnormalized = torch.sum(
-        #             loss_force_list * weight.view(-1, 1)
-        #         )
-        #         train_loss_force_normalizer = 3.0 * weight.sum()
-
-        #         # add up normalizer to obtain global normalizer
-        #         distutils.all_reduce(train_loss_force_normalizer)
-
-        #         # perform loss normalization before backprop
-        #         train_loss_force_normalized = train_loss_force_unnormalized * (
-        #             distutils.get_world_size() / train_loss_force_normalizer
-        #         )
-        #         loss.append(train_loss_force_normalized)
-
-        #     else:
-        #         # Force coefficient = 30 has been working well for us.
-        #         force_mult = self.config["optim"].get("force_coefficient", 30)
-        #         if self.config["task"].get("train_on_free_atoms", False):
-        #             fixed = torch.cat(
-        #                 [batch.fixed.to(self.device) for batch in batch_list]
-        #             )
-        #             mask = fixed == 0
-        #             if self.config["optim"]["loss_force"].startswith(
-        #                 "atomwise"
-        #             ):
-        #                 force_mult = self.config["optim"].get(
-        #                     "force_coefficient", 1
-        #                 )
-        #                 natoms = torch.cat(
-        #                     [
-        #                         batch.natoms.to(self.device)
-        #                         for batch in batch_list
-        #                     ]
-        #                 )
-        #                 natoms = torch.repeat_interleave(natoms, natoms)
-        #                 force_loss = force_mult * self.loss_fn["force"](
-        #                     out["forces"][mask],
-        #                     force_target[mask],
-        #                     natoms=natoms[mask],
-        #                     batch_size=batch_list[0].natoms.shape[0],
-        #                 )
-        #                 loss.append(force_loss)
-        #             else:
-        #                 loss.append(
-        #                     force_mult
-        #                     * self.loss_fn["force"](
-        #                         out["forces"][mask], force_target[mask]
-        #                     )
-        #                 )
-        #                 # # Gradient loss.
-        #                 # if not predict_with_mpflow:
-        #                 #     consistencyloss1 = self.config["optim"].get("force_coefficient_consistency1", force_mult * 0.025)
-        #                 #     loss.append(
-        #                 #         consistencyloss1 * self.loss_fn["force"](out["grad_forces"], force_target)
-        #                 #     )
-        #                 #     consistencyloss2 = self.config["optim"].get("force_coefficient_consistency2", force_mult * 0.25)
-        #                 #     loss.append(
-        #                 #         consistencyloss2 * self.loss_fn["force"](out["grad_forces"], out["forces"])
-        #                 #     )
-        #         else:
-        #             loss.append(
-        #                 force_mult
-        #                 * self.loss_fn["force"](out["forces"], force_target)
-        #             )
-
-        # Sanity check to make sure the compute graph is correct.
-        for lc in loss:
-            assert hasattr(lc, "grad_fn")
-        
-        # print([i.item() for i in loss], flush=True)
-        
-        loss = sum(loss)
-        return loss
-    
-    
-    def _mpflow_compute_metrics(self, out, batch_list, evaluator, metrics={}, predict_with_mpflow=False):
-        natoms = torch.cat(
-            [batch.natoms.to(self.device) for batch in batch_list], dim=0
-        )
-
-        target = {
-            "energy": torch.cat(
-                [batch.y.to(self.device) for batch in batch_list], dim=0
-            ),
-            "forces": torch.cat(
-                [batch.force.to(self.device) for batch in batch_list], dim=0
-            ),
-            "natoms": natoms,
-            "ut": out["ut"],
-            "predicted_ut": out["predicted_ut"],
-        }
-        out["natoms"] = natoms
-        if self.config["model_attributes"].get("regress_forces", True):
-            target["grad_forces"] = out["forces"]
-
-        if predict_with_mpflow:
-            target["x1"] = out["x1"]
-            target["predicted_x1"] = out["predicted_x1"]
-
-        if self.config["task"].get("eval_on_free_atoms", True):
-            fixed = torch.cat(
-                [batch.fixed.to(self.device) for batch in batch_list]
-            )
-            mask = fixed == 0
-            out["forces"] = out["forces"][mask]
-            target["forces"] = target["forces"][mask]
-
-            s_idx = 0
-            natoms_free = []
-            for natoms in target["natoms"]:
-                natoms_free.append(
-                    torch.sum(mask[s_idx : s_idx + natoms]).item()
-                )
-                s_idx += natoms
-            target["natoms"] = torch.LongTensor(natoms_free).to(self.device)
-            out["natoms"] = torch.LongTensor(natoms_free).to(self.device)
-
-        if self.normalizer.get("normalize_labels", False):
-            out["energy"] = self.normalizers["target"].denorm(out["energy"])
-            out["forces"] = self.normalizers["grad_target"].denorm(
-                out["forces"]
-            )
-
-        metrics = evaluator.eval(out, target, prev_metrics=metrics)
-
-        return metrics
-
-
-    def visualize_predictions(self, x0: torch.Tensor, x1_true: torch.Tensor, x1_pred: torch.Tensor):
-        """
-        Visualizes the predicted MPFlow states (x1_pred) compared to the ground
-        truth (x1_true), starting from x0, using t-SNE.
-
-        Args:
-            x0 (torch.Tensor): Start points tensor [batch, N, D]. Assumed on CPU.
-            x1_true (torch.Tensor): Ground truth end points tensor [batch, N, D]. Assumed on CPU.
-            x1_pred (torch.Tensor): Predicted end points tensor [batch, N, D]. Assumed on CPU.
-        """
-        n_samples = x0.shape[0]
-        if n_samples == 0:
-            self.file_logger.warning("No samples provided for MPFlow visualization.")
-            return
-
-        self.file_logger.info(f"Generating MPFlow prediction visualizations for {n_samples} samples using t-SNE...")
-
-        # --- Define t-SNE plotting helper nested within visualize_predictions ---
-        # This keeps the t-SNE logic contained and avoids polluting the class namespace
-        def _create_tsne_plot(
-            n_components: int,
-            x0_tsne_in: np.ndarray,
-            x1_true_tsne_in: np.ndarray,
-            x1_pred_tsne_in: np.ndarray,
-            output_dir: str,
-            plot_suffix: str = ""
-        ):
-            # Create plot
-            fig = plt.figure(figsize=(14, 12) if n_components == 3 else (12, 10))
-            ax = fig.add_subplot(111, projection='3d' if n_components == 3 else None)
-            # Use plasma colormap and ensure n_samples is at least 1 for linspace
-            colors = plt.cm.plasma(np.linspace(0, 1, max(1, n_samples)))
-
-            for i in range(n_samples):
-                # Get t-SNE coordinates for sample i
-                start_coords = x0_tsne_in[i]
-                true_end_coords = x1_true_tsne_in[i]
-                pred_end_coords = x1_pred_tsne_in[i]
-                color = colors[i] # Get color for this sample
-
-                if n_components == 2:
-                    # Plot lines: start -> true_end (dashed), start -> pred_end (solid)
-                    ax.plot([start_coords[0], true_end_coords[0]], [start_coords[1], true_end_coords[1]],
-                            '--', color=color, alpha=0.5, linewidth=1.2, label='True Flow' if i==0 else "") # Slightly thinner dashed line
-                    ax.plot([start_coords[0], pred_end_coords[0]], [start_coords[1], pred_end_coords[1]],
-                            '-', color=color, alpha=0.7, linewidth=1.5, label='Predicted Flow' if i==0 else "") # Solid line
-                    # Mark points with edges and adjusted sizes/alpha
-                    ax.scatter(start_coords[0], start_coords[1], color='blue', s=45, marker='o', alpha=0.8, edgecolors='k', linewidths=0.5, label='Start (x0)' if i==0 else "")
-                    ax.scatter(true_end_coords[0], true_end_coords[1], color='green', s=60, marker='x', alpha=0.9, linewidths=0.5, label='True End (x1)' if i==0 else "")
-                    ax.scatter(pred_end_coords[0], pred_end_coords[1], color='red', s=60, marker='+', alpha=0.9, linewidths=0.5, label='Predicted End' if i==0 else "")
-                elif MPL_3D_AVAILABLE: # Only plot 3D if available
-                     # Plot lines
-                    ax.plot([start_coords[0], true_end_coords[0]], [start_coords[1], true_end_coords[1]], [start_coords[2], true_end_coords[2]],
-                            '--', color=color, alpha=0.5, linewidth=1.2, label='True Flow' if i==0 else "")
-                    ax.plot([start_coords[0], pred_end_coords[0]], [start_coords[1], pred_end_coords[1]], [start_coords[2], pred_end_coords[2]],
-                            '-', color=color, alpha=0.7, linewidth=1.5, label='Predicted Flow' if i==0 else "")
-                     # Mark points with edges and adjusted sizes/alpha
-                    ax.scatter(start_coords[0], start_coords[1], start_coords[2], color='blue', s=45, marker='o', alpha=0.8, edgecolors='k', linewidths=0.5, label='Start (x0)' if i==0 else "")
-                    ax.scatter(true_end_coords[0], true_end_coords[1], true_end_coords[2], color='green', s=60, marker='x', alpha=0.9, linewidths=0.5, label='True End (x1)' if i==0 else "")
-                    ax.scatter(pred_end_coords[0], pred_end_coords[1], pred_end_coords[2], color='red', s=60, marker='+', alpha=0.9, linewidths=0.5, label='Predicted End' if i==0 else "")
-
-            # Titles and labels
-            epoch_step_info = f"Epoch_{self.epoch:.2f}_Step_{self.step}"
-            title = f'MPFlow Prediction vs Truth - {n_components}D t-SNE (Perplexity={perplexity_value}, {epoch_step_info})' # Include perplexity used
-
-            ax.set_title(title, fontsize=14)
-            ax.set_xlabel('t-SNE Dimension 1', fontsize=12)
-            ax.set_ylabel('t-SNE Dimension 2', fontsize=12)
-            if n_components == 3 and MPL_3D_AVAILABLE:
-                ax.set_zlabel('t-SNE Dimension 3', fontsize=12)
-            ax.grid(True, linestyle='--', alpha=0.2) # Refined grid
-            ax.legend(loc='best', fontsize=10) # Adjust legend font size
-
-            # Save plot
-            plot_filename = f"mpflow_tsne_{n_components}d_{epoch_step_info}{plot_suffix}.png"
-            plot_path = os.path.join(self.viz_output_dir, plot_filename)
-            try:
-                plt.savefig(plot_path, dpi=self.viz_pca_dpi, bbox_inches='tight') # Keep using viz_pca_dpi for now, or add a viz_tsne_dpi config
-                self.file_logger.info(f"Saved {n_components}D t-SNE plot to {plot_path}")
-            except IOError as e:
-                self.file_logger.error(f"Failed to save {n_components}D t-SNE plot to {plot_path}: {e}")
-            finally:
-                plt.close(fig) # Ensure figure is closed
-        # --- End of nested helper function ---
-
-        # --- Main visualization logic ---
-        embedding_dim = x0.shape[1] * x0.shape[2] # N * D
-
-        # Flatten embedding dimensions: [batch, N*D]
-        # Tensors should already be on CPU from mpflow_validate
-        try:
-            x0_flat = x0.numpy().reshape(n_samples, embedding_dim)
-            x1_true_flat = x1_true.numpy().reshape(n_samples, embedding_dim)
-            x1_pred_flat = x1_pred.numpy().reshape(n_samples, embedding_dim)
-        except Exception as e:
-            self.file_logger.error(f"Error converting tensors to NumPy for t-SNE: {e}")
-            return
-
-        # Combine all points for t-SNE fitting: [3 * batch, N*D]
-        all_points_flat = np.vstack((x0_flat, x1_true_flat, x1_pred_flat))
-
-        # --- Perform t-SNE and Plotting ---
-        perplexity_value = 50 # As requested
-        # Adjust perplexity if it's too large for the number of samples
-        if perplexity_value >= all_points_flat.shape[0]:
-            perplexity_value = max(5, all_points_flat.shape[0] - 1)
-            self.file_logger.warning(f"Perplexity adjusted to {perplexity_value} due to low sample count.")
-
-        if "2d" in self.viz_plots:
-            try:
-                tsne_2d = TSNE(n_components=2, perplexity=perplexity_value, random_state=self.config["cmd"]["seed"], n_iter=300) # Add n_iter for faster convergence
-                all_points_transformed_2d = tsne_2d.fit_transform(all_points_flat)
-                # Separate the transformed points
-                x0_tsne_2d = all_points_transformed_2d[0*n_samples : 1*n_samples]
-                x1_true_tsne_2d = all_points_transformed_2d[1*n_samples : 2*n_samples]
-                x1_pred_tsne_2d = all_points_transformed_2d[2*n_samples : 3*n_samples]
-                # Create plot using the helper
-                _create_tsne_plot(2, x0_tsne_2d, x1_true_tsne_2d, x1_pred_tsne_2d, self.viz_output_dir)
-            except Exception as e:
-                self.file_logger.error(f"t-SNE or 2D plotting failed: {e}", exc_info=True) # Log traceback
-
-        if "3d" in self.viz_plots:
-            if MPL_3D_AVAILABLE:
-                try:
-                    tsne_3d = TSNE(n_components=3, perplexity=perplexity_value, random_state=self.config["cmd"]["seed"], n_iter=300) # Add n_iter
-                    all_points_transformed_3d = tsne_3d.fit_transform(all_points_flat)
-                    # Separate the transformed points
-                    x0_tsne_3d = all_points_transformed_3d[0*n_samples : 1*n_samples]
-                    x1_true_tsne_3d = all_points_transformed_3d[1*n_samples : 2*n_samples]
-                    x1_pred_tsne_3d = all_points_transformed_3d[2*n_samples : 3*n_samples]
-                    # Create plot using the helper
-                    _create_tsne_plot(3, x0_tsne_3d, x1_true_tsne_3d, x1_pred_tsne_3d, self.viz_output_dir)
-                except Exception as e:
-                    self.file_logger.error(f"t-SNE or 3D plotting failed: {e}", exc_info=True) # Log traceback
-            else:
-                self.file_logger.warning("Skipping 3D t-SNE plot because mpl_toolkits.mplot3d is not available.")

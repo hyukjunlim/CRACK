@@ -14,7 +14,7 @@ class SinusoidalTimeEmbedding(nn.Module):
     Creates position encodings with extended frequency range
     for better temporal signal representation. Copied from original MPFlow.
     """
-    def __init__(self, dim, max_period=10.0):
+    def __init__(self, dim, max_period=10000.0):
         super().__init__()
         self.dim = dim
         self.max_period = max_period

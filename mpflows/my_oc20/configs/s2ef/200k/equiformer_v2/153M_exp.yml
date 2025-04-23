@@ -3,14 +3,15 @@ trainer: forces_v2
 
 dataset:
   train:
-    src: datasets/oc20/Oabs_train/
+    src: datasets/oc20/s2ef/200k/train
     normalize_labels: True
     target_mean: -0.7554450631141663
     target_std: 2.887317180633545
     grad_target_mean: 0.0
     grad_target_std: 2.887317180633545
   val:
-    src: datasets/oc20/Oabs_val/
+    src: datasets/oc20/Oabs_val
+    # src: datasets/oc20/s2ef/200k/val
 
 
 logger: wandb
@@ -18,7 +19,7 @@ logger: wandb
 
 task:
   dataset: trajectory_lmdb_v2
-  primary_metric: forces_mae
+  primary_metric: mpflow_mae
   labels:
     - potential energy
   grad_input: atomic forces
@@ -28,7 +29,7 @@ task:
   # write_pos: True
   # # num_relaxation_batches: 100
   # relax_dataset:
-  #   src: 
+  #   src:
   # relax_opt:
   #   name: lbfgs
   #   maxstep: 0.04
@@ -51,7 +52,7 @@ model:
   max_radius:               12.0
   max_num_elements:         90
 
-  num_layers:               8
+  num_layers:               20
   sphere_channels:          128
   attn_hidden_channels:     64              # [64, 96] This determines the hidden size of message passing. Do not necessarily use 96.
   num_heads:                8
@@ -60,8 +61,8 @@ model:
   ffn_hidden_channels:      128
   norm_type:                'layer_norm_sh' # ['rms_norm_sh', 'layer_norm', 'layer_norm_sh']
 
-  lmax_list:                [4]
-  mmax_list:                [2]
+  lmax_list:                [6]
+  mmax_list:                [3]
   grid_resolution:          18              # [18, 16, 14, None] For `None`, simply comment this line.
 
   num_sphere_samples:       128
@@ -71,7 +72,7 @@ model:
   share_atom_edge_embedding:  False         # If `True`, `use_atom_edge_embedding` must be `True` and the atom edge embedding will be shared across all blocks. 
   distance_function:          'gaussian'
   num_distance_basis:         512         # not used
-
+  
   attn_activation:          'silu'
   use_s2_act_attn:          False       # [False, True] Switch between attention after S2 activation or the original EquiformerV1 attention. 
   use_attn_renorm:          True        # Attention re-normalization. Used for ablation study.
@@ -88,12 +89,12 @@ model:
 
 
 optim:
-  batch_size:                   8         # 6
-  eval_batch_size:              12        # 6
+  batch_size:                   8
+  eval_batch_size:              24
   grad_accumulation_steps:      1         # gradient accumulation: effective batch size = `grad_accumulation_steps` * `batch_size` * (num of GPUs)
   load_balancing: atoms
   num_workers: 8
-  lr_initial:                   0.0004    # [0.0002, 0.0004], eSCN uses 0.0008 for batch size 96
+  lr_initial:                   0.0001    # [0.0002, 0.0004], eSCN uses 0.0008 for batch size 96
 
   optimizer: AdamW
   optimizer_params:
@@ -105,15 +106,17 @@ optim:
     warmup_epochs: 0.01
     lr_min_factor: 0.01         
 
-  max_epochs: 3
-  force_coefficient: 100
-  energy_coefficient: 4
+  max_epochs: 1
+  force_coefficient: 25
+  energy_coefficient: 1
+  mpflow_coefficient: 100
+  
   clip_grad_norm: 100
   ema_decay: 0.999
   loss_energy: mae
   loss_force: l2mae
 
-  eval_every: 10000
+  eval_every: 5000
 
 
 #slurm:
