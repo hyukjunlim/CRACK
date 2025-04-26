@@ -310,6 +310,7 @@ class EquiformerV2_OC20(BaseModel):
                 self.proj_drop
             )
             self.blocks.append(block)
+
         
         # Output blocks for energy and forces
         self.norm = get_normalization_layer(self.norm_type, lmax=max(self.lmax_list), num_channels=self.sphere_channels)
@@ -350,38 +351,20 @@ class EquiformerV2_OC20(BaseModel):
                 alpha_drop=0.0
             )
         
-        # Initialize the sizes of radial functions (input channels and 2 hidden channels)
-        self.mpflow_edge_channels_list = [int(self.distance_expansion.num_output)] + [self.edge_channels] * 2
-        if self.share_atom_edge_embedding and self.use_atom_edge_embedding:
-            self.mpflow_edge_channels_list[0] = self.mpflow_edge_channels_list[0] + 2 * self.mpflow_edge_channels_list[-1]
-            
         # Equivariant MPFlow
+        dim = self.ffn_hidden_channels
         self.mpflow = EquivariantMPFlow(
             self.sphere_channels,
-            self.attn_hidden_channels,
-            self.num_heads,
-            self.attn_alpha_channels,
-            self.attn_value_channels,
-            self.ffn_hidden_channels,
-            self.sphere_channels, 
+            [dim * 2, dim * 4, dim * 2], 
+            self.sphere_channels,
             self.lmax_list,
             self.mmax_list,
-            self.SO3_rotation,
-            self.mappingReduced,
-            self.SO3_grid,
-            self.max_num_elements,
-            self.mpflow_edge_channels_list,
-            self.block_use_atom_edge_embedding,
-            self.use_m_share_rad,
-            self.attn_activation,
-            self.use_s2_act_attn,
-            self.use_attn_renorm,
+            self.SO3_grid,  
             self.ffn_activation,
             self.use_gate_act,
             self.use_grid_mlp,
             self.use_sep_s2_act,
-            self.norm_type,
-            0.0,
+            self.norm_type
         )
         
         self.apply(self._init_weights)
@@ -409,8 +392,6 @@ class EquiformerV2_OC20(BaseModel):
 
     @conditional_grad(torch.enable_grad())
     def forward(self, data):
-        if self.training:
-            data.pos.requires_grad = True
         self.batch_size = len(data.natoms)
         self.dtype = data.pos.dtype
         self.device = data.pos.device
@@ -523,13 +504,13 @@ class EquiformerV2_OC20(BaseModel):
             predicted_x1 = x1.clone()
         else:
             #### Speed Comparison
-            ut, predicted_ut = self.calculate_predicted_ut(x0, x1, atomic_numbers, edge_distance, edge_index, data.batch, self.device)
+            ut, predicted_ut = self.calculate_predicted_ut(x0, x1, self.device)
             if speed_compare:
                 start_time2 = time.time()
-            predicted_x1 = self.sample_trajectory(x0, atomic_numbers, edge_distance, edge_index, data.batch, self.device)
+            predicted_x1 = self.sample_trajectory(x0, self.device)
             if speed_compare:
                 end_time2 = time.time()
-                print(f"Time taken for mpflow: {end_time2 - start_time2} seconds", flush=True)
+                print(f"Time taken for sampling: {end_time2 - start_time2} seconds", flush=True)
                 print(f"Time ratio: {((end_time1 - start_time1) / (end_time2 - start_time2))}", flush=True)
             x = predicted_x1.clone()
 
@@ -538,9 +519,9 @@ class EquiformerV2_OC20(BaseModel):
         ###############################################################
         node_energy = self.energy_block(x) 
         node_energy = node_energy.embedding.narrow(1, 0, 1)
-        _energy = torch.zeros(len(data.natoms), device=node_energy.device, dtype=node_energy.dtype)
-        _energy.index_add_(0, data.batch, node_energy.view(-1))
-        energy = _energy / _AVG_NUM_NODES
+        energy = torch.zeros(len(data.natoms), device=node_energy.device, dtype=node_energy.dtype)
+        energy.index_add_(0, data.batch, node_energy.view(-1))
+        energy = energy / _AVG_NUM_NODES
 
         ###############################################################
         # Force estimation
@@ -551,37 +532,20 @@ class EquiformerV2_OC20(BaseModel):
                 edge_distance,
                 edge_index)
             forces = forces.embedding.narrow(1, 1, 3)
-            forces = forces.view(-1, 3)
-            if self.training:
-                dy = torch.autograd.grad(
-                    energy,  # [n_graphs,]
-                    data.pos,  # [n_nodes, 3]
-                    grad_outputs=torch.ones_like(energy),
-                    create_graph=True,
-                    retain_graph=True,
-                    allow_unused=True
-                )[0]
-                assert dy is not None
-                grad_forces = -1 * dy  # [n_nodes, 3]      
-            else:
-                grad_forces = None
+            forces = forces.view(-1, 3)            
             
         if not self.regress_forces:
             return energy, ut, predicted_ut, x0.embedding, x1.embedding, predicted_x1.embedding
         else:
-            return energy, forces, grad_forces, ut, predicted_ut, x0.embedding, x1.embedding, predicted_x1.embedding
+            return energy, forces, ut, predicted_ut, x0.embedding, x1.embedding, predicted_x1.embedding
 
-    # @torch.no_grad()
-    def sample_trajectory(self, x0, atomic_numbers, edge_distance, edge_index, batch, device):
+    @torch.no_grad()
+    def sample_trajectory(self, x0, device):
         """
         Samples a trajectory using a 1-step Euler method from t=0 to t=1.
         
         Args:
             x0: Starting point (SO3_Embedding object)
-            atomic_numbers: Atomic numbers of the atoms
-            edge_distance: Edge distance of the atoms
-            edge_index: Edge index of the atoms
-            batch: Batch tensor of the atoms
             device: The device tensors are on.
         """
         self.mpflow.eval()
@@ -592,7 +556,7 @@ class EquiformerV2_OC20(BaseModel):
         t0 = torch.zeros((y0.shape[0], 1), device=device, dtype=y0.dtype) # Time t=0
 
         # Calculate velocity at t=0
-        velocity_at_t0 = self.mpflow(x, t0, atomic_numbers, edge_distance, edge_index, batch) # mpflow returns SO3_Embedding
+        velocity_at_t0 = self.mpflow(x, t0) # mpflow returns SO3_Embedding
 
         # Perform 1-step Euler integration: y1 = y0 + v(t0) * dt (dt=1)
         y1 = y0 + velocity_at_t0.embedding 
@@ -603,23 +567,18 @@ class EquiformerV2_OC20(BaseModel):
         return x
     
     @torch.cuda.amp.autocast(enabled=False)
-    def calculate_predicted_ut(self, x0, x1, atomic_numbers, edge_distance, edge_index, batch, device):
+    def calculate_predicted_ut(self, x0, x1, device):
         num_nodes = x0.embedding.shape[0]
-        num_graphs = batch.max().item() + 1  # Get the number of graphs in the batch
         xt = x0.clone()
         eps = 1e-6
         
-        # Generate a random t for each graph in the batch
-        t_batch = torch.rand(num_graphs, device=device, dtype=x0.embedding.dtype)  # [num_graphs]
-        
-        # Map the batch-specific t to each node
-        t = t_batch[batch]  # [num_nodes]
-        t = t.unsqueeze(-1) # [num_nodes, 1]
-        t_expanded = t.unsqueeze(-1) # [num_nodes, 1, 1]
+        t = torch.rand(1, device=device) # [1]
+        t = t.expand(num_nodes, 1)  # [B, 1]
+        t_expanded = t.unsqueeze(1) # [B, 1, 1]
         
         ut = x1.embedding - x0.embedding
         xt.embedding = x0.embedding + t_expanded * ut
-        predicted_ut = self.mpflow(xt, t, atomic_numbers, edge_distance, edge_index, batch)
+        predicted_ut = self.mpflow(xt, t)
         
         return ut, predicted_ut.embedding
     

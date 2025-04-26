@@ -443,8 +443,8 @@ class BaseTrainer(ABC):
     def load_loss(self):
         self.loss_fn = {}
         self.loss_fn["energy"] = self.config["optim"].get("loss_energy", "mae")
-        self.loss_fn["force"] = self.config["optim"].get("loss_force", "mae")
-        self.loss_fn["mpflow"] = self.config["optim"].get("loss_mpflow", "mse")
+        self.loss_fn["force"] = self.config["optim"].get("loss_force", "l2mae")
+        self.loss_fn["mpflow"] = self.config["optim"].get("loss_mpflow", "l2mae")
         for loss, loss_name in self.loss_fn.items():
             if loss_name in ["l1", "mae"]:
                 self.loss_fn[loss] = nn.L1Loss()
