@@ -374,7 +374,7 @@ class BaseTrainer(ABC):
         if distutils.is_master():
             logging.info(
                 f"Loaded {self.model.__class__.__name__} with "
-                f"{self.model.num_params} parameters."
+                f"{self.model.num_params} EquiformerV2 parameters"
             )
 
         if self.logger is not None:
@@ -414,21 +414,23 @@ class BaseTrainer(ABC):
             # No need for OrderedDict since dictionaries are technically ordered
             # since Python 3.6 and officially ordered since Python 3.7
             new_dict = {k[7:]: v for k, v in checkpoint["state_dict"].items()}
-            self.model.load_state_dict(new_dict, strict=False)
+            load_result = self.model.load_state_dict(new_dict, strict=False)
+            print("Missing keys:", load_result.missing_keys, flush=True)
+            print("Unexpected keys:", load_result.unexpected_keys, flush=True)
         elif distutils.initialized() and first_key.split(".")[1] != "module":
             new_dict = {
                 f"module.{k}": v for k, v in checkpoint["state_dict"].items()
             }
-            self.model.load_state_dict(new_dict, strict=False)
+            load_result = self.model.load_state_dict(new_dict, strict=False)
+            print("Missing keys:", load_result.missing_keys, flush=True)
+            print("Unexpected keys:", load_result.unexpected_keys, flush=True)
         else:
-            self.model.load_state_dict(checkpoint["state_dict"], strict=False)
-            
-        # Load pretrained weights from the first EquiformerV2 block into the MPFlow module
-        self.model.module.mpflow.pretrained_TransBlockV2.load_state_dict(self.model.module.blocks[0].state_dict())
-        self.model.module.mpflow.norm.load_state_dict(self.model.module.norm.state_dict())
+            load_result = self.model.load_state_dict(checkpoint["state_dict"], strict=False)
+            print("Missing keys:", load_result.missing_keys, flush=True)
+            print("Unexpected keys:", load_result.unexpected_keys, flush=True)
 
-        if "optimizer" in checkpoint:
-            self.optimizer.load_state_dict(checkpoint["optimizer"])
+        # if "optimizer" in checkpoint:
+        #    self.optimizer.load_state_dict(checkpoint["optimizer"])
         if "scheduler" in checkpoint and checkpoint["scheduler"] is not None:
             self.scheduler.scheduler.load_state_dict(checkpoint["scheduler"])
         if "ema" in checkpoint and checkpoint["ema"] is not None:
@@ -447,8 +449,9 @@ class BaseTrainer(ABC):
     def load_loss(self):
         self.loss_fn = {}
         self.loss_fn["energy"] = self.config["optim"].get("loss_energy", "mae")
-        self.loss_fn["force"] = self.config["optim"].get("loss_force", "l2mae")
-        self.loss_fn["mpflow"] = self.config["optim"].get("loss_mpflow", "l2mae")
+        self.loss_fn["force"] = self.config["optim"].get("loss_force", "mae")
+        self.loss_fn["mpflow"] = self.config["optim"].get("loss_mpflow", "mse")
+        self.loss_fn["mpflow_dir"] = self.config["optim"].get("loss_mpflow_dir", "cosine")
         for loss, loss_name in self.loss_fn.items():
             if loss_name in ["l1", "mae"]:
                 self.loss_fn[loss] = nn.L1Loss()
@@ -456,6 +459,8 @@ class BaseTrainer(ABC):
                 self.loss_fn[loss] = nn.MSELoss()
             elif loss_name == "l2mae":
                 self.loss_fn[loss] = L2MAELoss()
+            elif loss_name == "cosine":
+                self.loss_fn[loss] = nn.CosineSimilarity(dim=1)
             else:
                 raise NotImplementedError(
                     f"Unknown loss function name: {loss_name}"

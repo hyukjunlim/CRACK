@@ -311,24 +311,8 @@ class EquiformerV2_OC20(BaseModel):
             )
             self.blocks.append(block)
         
-        self.norm = get_normalization_layer(self.norm_type, lmax=max(self.lmax_list), num_channels=self.sphere_channels)
-        
         # Output blocks for energy and forces
-        self.energy_ffn = FeedForwardNetwork(
-            self.sphere_channels,
-            self.ffn_hidden_channels, 
-            self.sphere_channels,
-            self.lmax_list,
-            self.mmax_list,
-            self.SO3_grid,  
-            self.ffn_activation,
-            self.use_gate_act,
-            self.use_grid_mlp,
-            self.use_sep_s2_act
-        )
-        
-        self.norm_e = get_normalization_layer(self.norm_type, lmax=max(self.lmax_list), num_channels=self.sphere_channels)
-        
+        self.norm = get_normalization_layer(self.norm_type, lmax=max(self.lmax_list), num_channels=self.sphere_channels)
         self.energy_block = FeedForwardNetwork(
             self.sphere_channels,
             self.ffn_hidden_channels, 
@@ -366,8 +350,10 @@ class EquiformerV2_OC20(BaseModel):
                 alpha_drop=0.0
             )
         
-        import copy
-        self.mpflow_edge_channels_list = copy.deepcopy(self.edge_channels_list)
+        # Initialize the sizes of radial functions (input channels and 2 hidden channels)
+        self.mpflow_edge_channels_list = [int(self.distance_expansion.num_output)] + [self.edge_channels] * 2
+        if self.share_atom_edge_embedding and self.use_atom_edge_embedding:
+            self.mpflow_edge_channels_list[0] = self.mpflow_edge_channels_list[0] + 2 * self.mpflow_edge_channels_list[-1]
             
         # Equivariant MPFlow
         self.mpflow = EquivariantMPFlow(
@@ -395,9 +381,7 @@ class EquiformerV2_OC20(BaseModel):
             self.use_grid_mlp,
             self.use_sep_s2_act,
             self.norm_type,
-            self.alpha_drop,
-            self.drop_path_rate,
-            self.proj_drop,
+            0.0,
         )
         
         self.apply(self._init_weights)
@@ -421,19 +405,12 @@ class EquiformerV2_OC20(BaseModel):
         
         for param in self.mpflow.parameters():
             param.requires_grad = True
-            
-        for param in self.energy_ffn.parameters():
-            param.requires_grad = True
-            
-        for param in self.norm_e.parameters():
-            param.requires_grad = True
         
 
     @conditional_grad(torch.enable_grad())
-    @torch.cuda.amp.autocast(enabled=False)
     def forward(self, data):
-        # if self.training:
-        #     data.pos.requires_grad = True
+        if self.training:
+            data.pos.requires_grad = True
         self.batch_size = len(data.natoms)
         self.dtype = data.pos.dtype
         self.device = data.pos.device
@@ -531,11 +508,11 @@ class EquiformerV2_OC20(BaseModel):
         # Final layer norm
         x.embedding = self.norm(x.embedding)
         
-        x1 = x.clone()
-        
         if speed_compare:
             end_time1 = time.time()
             print(f"Time taken for {self.num_layers} layers: {end_time1 - start_time1} seconds", flush=True)
+        
+        x1 = x.clone()
         
         ###############################################################
         # MPFlow
@@ -559,12 +536,7 @@ class EquiformerV2_OC20(BaseModel):
         ###############################################################
         # Energy estimation
         ###############################################################
-        x_res = x
-        node_energy = self.energy_ffn(x)
-        node_energy.embedding = self.norm_e(node_energy.embedding)
-        node_energy.embedding = x_res.embedding + node_energy.embedding
-        
-        node_energy = self.energy_block(node_energy) 
+        node_energy = self.energy_block(x) 
         node_energy = node_energy.embedding.narrow(1, 0, 1)
         _energy = torch.zeros(len(data.natoms), device=node_energy.device, dtype=node_energy.dtype)
         _energy.index_add_(0, data.batch, node_energy.view(-1))
@@ -580,20 +552,19 @@ class EquiformerV2_OC20(BaseModel):
                 edge_index)
             forces = forces.embedding.narrow(1, 1, 3)
             forces = forces.view(-1, 3)
-            # if self.training:
-            #     dy = torch.autograd.grad(
-            #         energy,  # [n_graphs,]
-            #         data.pos,  # [n_nodes, 3]
-            #         grad_outputs=torch.ones_like(energy),
-            #         create_graph=True,
-            #         retain_graph=True,
-            #         allow_unused=True
-            #     )[0]
-            #     assert dy is not None
-            #     grad_forces = -1 * dy  # [n_nodes, 3]      
-            # else:
-                # grad_forces = None
-            grad_forces = None
+            if self.training:
+                dy = torch.autograd.grad(
+                    energy,  # [n_graphs,]
+                    data.pos,  # [n_nodes, 3]
+                    grad_outputs=torch.ones_like(energy),
+                    create_graph=True,
+                    retain_graph=True,
+                    allow_unused=True
+                )[0]
+                assert dy is not None
+                grad_forces = -1 * dy  # [n_nodes, 3]      
+            else:
+                grad_forces = None
             
         if not self.regress_forces:
             return energy, ut, predicted_ut, x0.embedding, x1.embedding, predicted_x1.embedding

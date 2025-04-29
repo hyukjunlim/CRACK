@@ -492,20 +492,13 @@ class ForcesTrainerV2(BaseTrainerV2):
         if self.config.get("test_dataset", False):
             self.test_dataset.close_db()
 
-    def _forward(self, batch_list, predict_with_mpflow=False):
+    def _forward(self, batch_list):
         # forward pass.
-        if not predict_with_mpflow:
-            if (self.config["model_attributes"].get("regress_forces", True)
-                or self.config['model_attributes'].get('use_auxiliary_task', False)):
-                out_energy, out_forces, ut, predicted_ut, time_first, time_last, time_mpflow = self.model(batch_list, predict_with_mpflow=predict_with_mpflow)
-            else:
-                out_energy, ut, predicted_ut, time_first, time_last, time_mpflow = self.model(batch_list, predict_with_mpflow=predict_with_mpflow)
+        if (self.config["model_attributes"].get("regress_forces", True)
+            or self.config['model_attributes'].get('use_auxiliary_task', False)):
+            out_energy, out_forces, ut, predicted_ut, x0, x1, predicted_x1 = self.model(batch_list)
         else:
-            if (self.config["model_attributes"].get("regress_forces", True)
-                or self.config['model_attributes'].get('use_auxiliary_task', False)):
-                out_energy, out_forces, ut, predicted_ut, x0, x1, predicted_x1, time_first, time_last, time_mpflow = self.model(batch_list, predict_with_mpflow=predict_with_mpflow)
-            else:
-                out_energy, ut, predicted_ut, x0, x1, predicted_x1, time_first, time_last, time_mpflow = self.model(batch_list, predict_with_mpflow=predict_with_mpflow)
+            out_energy, ut, predicted_ut, x0, x1, predicted_x1 = self.model(batch_list)
 
         if out_energy.shape[-1] == 1:
             out_energy = out_energy.view(-1)
@@ -520,13 +513,9 @@ class ForcesTrainerV2(BaseTrainerV2):
         
         out["ut"] = ut
         out["predicted_ut"] = predicted_ut
-        if predict_with_mpflow:
-            out["x0"] = x0
-            out["x1"] = x1
-            out["predicted_x1"] = predicted_x1
-        out["time_first"] = time_first
-        out["time_last"] = time_last
-        out["time_mpflow"] = time_mpflow
+        out["x0"] = x0
+        out["x1"] = x1
+        out["predicted_x1"] = predicted_x1
         
         return out
 
@@ -1021,12 +1010,7 @@ class ForcesTrainerV2(BaseTrainerV2):
 
                 # Forward, loss, backward.
                 with torch.cuda.amp.autocast(enabled=self.scaler is not None):
-                    # ### Turn on at step 1 ###
-                    # out = self._forward(batch, predict_with_mpflow=False)
-                    
-                    ## Turn on at step 2 ###
-                    out = self._forward(batch, predict_with_mpflow=True)
-                    
+                    out = self._forward(batch)
                     loss = self._mpflow_compute_loss(out, batch)
                     
                 loss = self.scaler.scale(loss) if self.scaler else loss
@@ -1036,22 +1020,11 @@ class ForcesTrainerV2(BaseTrainerV2):
                 scale = self.scaler.get_scale() if self.scaler else 1.0
 
                 # Compute metrics including mpflow loss
-                # ### Turn on at step 1 ###
-                # self.metrics = self._mpflow_compute_metrics(
-                #     out,
-                #     batch,
-                #     self.evaluator,
-                #     self.metrics,
-                #     predict_with_mpflow=False
-                # )
-                
-                ### Turn on at step 2 ###
                 self.metrics = self._mpflow_compute_metrics(
                     out,
                     batch,
                     self.evaluator,
                     self.metrics,
-                    predict_with_mpflow=True
                 )
                 
                 self.metrics = self.evaluator.update(
@@ -1180,9 +1153,9 @@ class ForcesTrainerV2(BaseTrainerV2):
             disable=disable_tqdm,
         ):
             with torch.cuda.amp.autocast(enabled=self.scaler is not None):
-                out = self._forward(batch, predict_with_mpflow=True)
+                out = self._forward(batch)
             loss = self._mpflow_compute_loss(out, batch)
-            metrics = self._mpflow_compute_metrics(out, batch, evaluator, metrics, predict_with_mpflow=True)
+            metrics = self._mpflow_compute_metrics(out, batch, evaluator, metrics)
             metrics = evaluator.update("loss", loss.item(), metrics)
 
             # Collect visualization data on master process
@@ -1285,7 +1258,7 @@ class ForcesTrainerV2(BaseTrainerV2):
             disable=disable_tqdm,
         ):
             with torch.cuda.amp.autocast(enabled=self.scaler is not None):
-                out = self._forward(batch_list, predict_with_mpflow=True)
+                out = self._forward(batch_list)
 
             if self.normalizers is not None and "target" in self.normalizers:
                 out["energy"] = self.normalizers["target"].denorm(
@@ -1470,15 +1443,10 @@ class ForcesTrainerV2(BaseTrainerV2):
                             )
                         )
                         # # Gradient loss.
-                        # if not predict_with_mpflow:
-                        #     consistencyloss1 = self.config["optim"].get("force_coefficient_consistency1", force_mult * 0.025)
-                        #     loss.append(
-                        #         consistencyloss1 * self.loss_fn["force"](out["grad_forces"], force_target)
-                        #     )
-                        #     consistencyloss2 = self.config["optim"].get("force_coefficient_consistency2", force_mult * 0.25)
-                        #     loss.append(
-                        #         consistencyloss2 * self.loss_fn["force"](out["grad_forces"], out["forces"])
-                        #     )
+                        # consistencyloss1 = self.config["optim"].get("force_coefficient_consistency1", energy_mult)
+                        # loss.append(
+                        #     consistencyloss1 * self.loss_fn["force"](out["grad_forces"][mask], force_target[mask])
+                        # )
                 else:
                     loss.append(
                         force_mult
@@ -1495,7 +1463,7 @@ class ForcesTrainerV2(BaseTrainerV2):
         return loss
     
     
-    def _mpflow_compute_metrics(self, out, batch_list, evaluator, metrics={}, predict_with_mpflow=False):
+    def _mpflow_compute_metrics(self, out, batch_list, evaluator, metrics={}):
         natoms = torch.cat(
             [batch.natoms.to(self.device) for batch in batch_list], dim=0
         )
@@ -1510,14 +1478,13 @@ class ForcesTrainerV2(BaseTrainerV2):
             "natoms": natoms,
             "ut": out["ut"],
             "predicted_ut": out["predicted_ut"],
+            "x1": out["x1"],
+            "predicted_x1": out["predicted_x1"],
         }
+        
         out["natoms"] = natoms
         if self.config["model_attributes"].get("regress_forces", True):
             target["grad_forces"] = out["forces"]
-
-        if predict_with_mpflow:
-            target["x1"] = out["x1"]
-            target["predicted_x1"] = out["predicted_x1"]
 
         if self.config["task"].get("eval_on_free_atoms", True):
             fixed = torch.cat(

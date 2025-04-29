@@ -86,47 +86,12 @@ class EquivariantMPFlow(nn.Module):
 
         norm_type='rms_norm_sh',
 
-        alpha_drop=0.0,
-        drop_path_rate=0.0, 
-        proj_drop=0.0, 
-
-        ### Pretrained TransBlockV2 ###
-        pretrained_TransBlockV2=None,
+        alpha_drop=0.0, 
 
         ### MPFlow ###
         time_embed_dim=128,
     ):
         super(EquivariantMPFlow, self).__init__()
-        
-        self.pretrained_TransBlockV2 = TransBlockV2(
-            sphere_channels,
-            attn_hidden_channels,
-            num_heads,
-            attn_alpha_channels,
-            attn_value_channels,
-            ffn_hidden_channels,
-            sphere_channels, 
-            lmax_list,
-            mmax_list,
-            SO3_rotation,
-            mappingReduced,
-            SO3_grid,
-            max_num_elements,
-            edge_channels_list,
-            use_atom_edge_embedding,
-            use_m_share_rad,
-            attn_activation,
-            use_s2_act_attn,
-            use_attn_renorm,
-            ffn_activation,
-            use_gate_act,
-            use_grid_mlp,
-            use_sep_s2_act,
-            norm_type,
-            alpha_drop, 
-            drop_path_rate,
-            proj_drop
-        )
         
         # Time embedding network
         self.time_embed_dim = time_embed_dim
@@ -145,8 +110,33 @@ class EquivariantMPFlow(nn.Module):
         )
         
         max_lmax = max(lmax_list)
-        
-        self.norm = get_normalization_layer(norm_type, lmax=max_lmax, num_channels=sphere_channels)
+        self.norm_1 = get_normalization_layer(norm_type, lmax=max_lmax, num_channels=sphere_channels)
+
+        self.ga = SO2EquivariantGraphAttention(
+            sphere_channels=sphere_channels,
+            hidden_channels=attn_hidden_channels,
+            num_heads=num_heads, 
+            attn_alpha_channels=attn_alpha_channels,
+            attn_value_channels=attn_value_channels, 
+            output_channels=sphere_channels,
+            lmax_list=lmax_list,
+            mmax_list=mmax_list,
+            SO3_rotation=SO3_rotation, 
+            mappingReduced=mappingReduced, 
+            SO3_grid=SO3_grid, 
+            max_num_elements=max_num_elements,
+            edge_channels_list=edge_channels_list,
+            use_atom_edge_embedding=use_atom_edge_embedding, 
+            use_m_share_rad=use_m_share_rad,
+            activation=attn_activation, 
+            use_s2_act_attn=use_s2_act_attn,
+            use_attn_renorm=use_attn_renorm,
+            use_gate_act=use_gate_act,
+            use_sep_s2_act=use_sep_s2_act,
+            alpha_drop=alpha_drop,
+        )
+
+        self.norm_2 = get_normalization_layer(norm_type, lmax=max_lmax, num_channels=sphere_channels)
         
     @torch.cuda.amp.autocast(enabled=False)
     def forward(self, x, t, atomic_numbers, edge_distance, edge_index, batch):
@@ -163,6 +153,9 @@ class EquivariantMPFlow(nn.Module):
         Returns:
             torch.Tensor: Predicted velocity field dv/dt, same type as x.
         """
+    
+        output_embedding = x
+        output_embedding.embedding = self.norm_1(output_embedding.embedding)
         
         # Time Conditioning
         t = self.sinusoidal_time_embedding(t)
@@ -176,16 +169,16 @@ class EquivariantMPFlow(nn.Module):
         t_embedding.set_embedding(t.unsqueeze(1))
         t_feat = self.time_ffn(t_embedding).embedding # [num_nodes, 1, sphere_channels * 2]
         scale, shift = torch.chunk(t_feat, 2, dim=-1)
-        x.embedding = x.embedding * (1 + scale)
-        x.embedding[:, 0:1, :] = x.embedding[:, 0:1, :] + shift
+        output_embedding.embedding = output_embedding.embedding * (1 + scale)
+        output_embedding.embedding[:, 0:1, :] = output_embedding.embedding[:, 0:1, :] + shift
         
-        x = self.pretrained_TransBlockV2(x, 
+        x_res = output_embedding.embedding
+        output_embedding = self.ga(output_embedding, 
             atomic_numbers,
             edge_distance,
-            edge_index,
-            batch=batch
-        )
-        
-        x.embedding = self.norm(x.embedding)
+            edge_index)
+        output_embedding.embedding = output_embedding.embedding + x_res
 
-        return x
+        output_embedding.embedding = self.norm_2(output_embedding.embedding)
+
+        return output_embedding

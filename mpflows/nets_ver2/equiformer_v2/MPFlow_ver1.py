@@ -14,7 +14,7 @@ class SinusoidalTimeEmbedding(nn.Module):
     Creates position encodings with extended frequency range
     for better temporal signal representation. Copied from original MPFlow.
     """
-    def __init__(self, dim, max_period=10000.0):
+    def __init__(self, dim, max_period=10.0):
         super().__init__()
         self.dim = dim
         self.max_period = max_period
@@ -135,6 +135,7 @@ class EquivariantMPFlow(nn.Module):
             norm = get_normalization_layer(norm_type, lmax=max(lmax_list), num_channels=out_channels)
             self.norms.append(norm)
 
+    @torch.cuda.amp.autocast(enabled=False)
     def forward(self, x, t):
         """
         Forward pass for the equivariant flow model using TransBlockV2 blocks.
