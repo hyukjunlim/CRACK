@@ -481,7 +481,7 @@ class ForcesTrainerV2(BaseTrainerV2):
             mpflow_mult * mpflow_loss
         )
         
-        if mpflow_loss.item() < 1e-4:
+        if mpflow_loss.item() < 25 * 1e-4:
             # Energy loss.
             energy_target = torch.cat(
                 [batch.y.to(self.device) for batch in batch_list], dim=0
