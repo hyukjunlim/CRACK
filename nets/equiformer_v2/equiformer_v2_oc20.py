@@ -407,8 +407,6 @@ class EquiformerV2_OC20(BaseModel):
     @conditional_grad(torch.enable_grad())
     @torch.cuda.amp.autocast(enabled=False)
     def forward(self, data):
-        # if self.training:
-        #     data.pos.requires_grad = True
         self.batch_size = len(data.natoms)
         self.dtype = data.pos.dtype
         self.device = data.pos.device
@@ -487,6 +485,8 @@ class EquiformerV2_OC20(BaseModel):
         ###############################################################
 
         x0 = x.clone()
+        x0_detached = x0.clone()
+        x0_detached.embedding = x0_detached.embedding.detach()
         
         pure_eqv2 = False
         speed_compare = False
@@ -495,8 +495,8 @@ class EquiformerV2_OC20(BaseModel):
             start_time1 = time.time()
         
         for i in range(self.num_layers):
-            x = self.blocks[i](
-                x,                  # SO3_Embedding
+            x0_detached = self.blocks[i](
+                x0_detached,                  # SO3_Embedding
                 atomic_numbers,
                 edge_distance,
                 edge_index,
@@ -504,9 +504,9 @@ class EquiformerV2_OC20(BaseModel):
             )
 
         # Final layer norm
-        x.embedding = self.norm(x.embedding)
+        x0_detached.embedding = self.norm(x0_detached.embedding)
         
-        x1 = x.clone()
+        x1 = x0_detached.clone()
         
         if speed_compare:
             end_time1 = time.time()
@@ -516,12 +516,12 @@ class EquiformerV2_OC20(BaseModel):
         # MPFlow
         ###############################################################
         if pure_eqv2:
-            ut = x1.embedding - x0.embedding
+            ut = x1.embedding - x0_detached.embedding
             predicted_ut = ut
             predicted_x1 = x1.clone()
         else:
             #### Speed Comparison
-            ut, predicted_ut = self.calculate_predicted_ut(x0, x1, atomic_numbers, edge_distance, edge_index, data.batch, self.device)
+            ut, predicted_ut = self.calculate_predicted_ut(x0_detached, x1, atomic_numbers, edge_distance, edge_index, data.batch, self.device)
             if speed_compare:
                 start_time2 = time.time()
             predicted_x1 = self.sample_trajectory(x0, atomic_numbers, edge_distance, edge_index, data.batch, self.device)
@@ -550,26 +550,11 @@ class EquiformerV2_OC20(BaseModel):
                 edge_index)
             forces = forces.embedding.narrow(1, 1, 3)
             forces = forces.view(-1, 3)
-            # # if self.training:
-            # #     dy = torch.autograd.grad(
-            # #         energy,  # [n_graphs,]
-            # #         data.pos,  # [n_nodes, 3]
-            # #         grad_outputs=torch.ones_like(energy),
-            # #         create_graph=True,
-            # #         retain_graph=True,
-            # #         allow_unused=True
-            # #     )[0]
-            # #     assert dy is not None
-            # #     grad_forces = -1 * dy  # [n_nodes, 3]      
-            # # else:
-            #     # grad_forces = None
-            grad_forces = None
-        
             
         if not self.regress_forces:
             return energy, ut, predicted_ut, x0.embedding, x1.embedding, predicted_x1.embedding
         else:
-            return energy, forces, grad_forces, ut, predicted_ut, x0.embedding, x1.embedding, predicted_x1.embedding
+            return energy, forces, ut, predicted_ut, x0.embedding, x1.embedding, predicted_x1.embedding
 
     # @torch.no_grad()
     def sample_trajectory(self, x0, atomic_numbers, edge_distance, edge_index, batch, device):

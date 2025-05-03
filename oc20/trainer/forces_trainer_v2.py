@@ -448,7 +448,7 @@ class ForcesTrainerV2(BaseTrainerV2):
         # forward pass.
         if (self.config["model_attributes"].get("regress_forces", True)
             or self.config['model_attributes'].get('use_auxiliary_task', False)):
-            out_energy, out_forces, out_grad_forces, ut, predicted_ut, x0_embedding, x1_embedding, predicted_x1_embedding = self.model(batch_list)
+            out_energy, out_forces, ut, predicted_ut, x0_embedding, x1_embedding, predicted_x1_embedding = self.model(batch_list)
         else:
             out_energy, ut, predicted_ut, x0_embedding, x1_embedding, predicted_x1_embedding = self.model(batch_list)
 
@@ -467,7 +467,6 @@ class ForcesTrainerV2(BaseTrainerV2):
         if (self.config["model_attributes"].get("regress_forces", True)
            or self.config['model_attributes'].get('use_auxiliary_task', False)):
             out["forces"] = out_forces
-            out["grad_forces"] = out_grad_forces
 
         return out
 
@@ -479,6 +478,13 @@ class ForcesTrainerV2(BaseTrainerV2):
         mpflow_loss = self.loss_fn["mpflow"](out["predicted_ut"], out["ut"])
         loss.append(
             mpflow_mult * mpflow_loss
+        )
+        
+        # n2n loss.
+        n2n_mult = self.config["optim"].get("n2n_coefficient", 100)
+        n2n_loss = self.loss_fn["mpflow"](out["predicted_x1"], out["x1"])
+        loss.append(
+            n2n_mult * n2n_loss
         )
         
         # Energy loss.
@@ -572,14 +578,6 @@ class ForcesTrainerV2(BaseTrainerV2):
                                 out["forces"][mask], force_target[mask]
                             )
                         )
-                        # ### Gradient loss
-                        # if out["grad_forces"] is not None:
-                        #     loss.append(
-                        #         energy_mult
-                        #         * self.loss_fn["force"](
-                        #             out["grad_forces"][mask], force_target[mask]
-                        #         )
-                        #     )
                 else:
                     loss.append(
                         force_mult
