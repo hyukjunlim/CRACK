@@ -409,7 +409,6 @@ class EquiformerV2_OC20(BaseModel):
     def forward(self, data):
         # if self.training:
         #     data.pos.requires_grad = True
-        data.pos.requires_grad = True
         self.batch_size = len(data.natoms)
         self.dtype = data.pos.dtype
         self.device = data.pos.device
@@ -545,12 +544,12 @@ class EquiformerV2_OC20(BaseModel):
         # Force estimation
         ###############################################################
         if self.regress_forces:
-            # forces = self.force_block(x,
-            #     atomic_numbers,
-            #     edge_distance,
-            #     edge_index)
-            # forces = forces.embedding.narrow(1, 1, 3)
-            # forces = forces.view(-1, 3)
+            forces = self.force_block(x,
+                atomic_numbers,
+                edge_distance,
+                edge_index)
+            forces = forces.embedding.narrow(1, 1, 3)
+            forces = forces.view(-1, 3)
             # # if self.training:
             # #     dy = torch.autograd.grad(
             # #         energy,  # [n_graphs,]
@@ -564,18 +563,6 @@ class EquiformerV2_OC20(BaseModel):
             # #     grad_forces = -1 * dy  # [n_nodes, 3]      
             # # else:
             #     # grad_forces = None
-            # grad_forces = None
-            
-            dy = torch.autograd.grad(
-                energy,  # [n_graphs,]
-                data.pos,  # [n_nodes, 3]
-                grad_outputs=torch.ones_like(energy),
-                create_graph=True,
-                retain_graph=True,
-                allow_unused=True
-            )[0]
-            assert dy is not None
-            forces = -1 * dy  # [n_nodes, 3]      
             grad_forces = None
         
             
