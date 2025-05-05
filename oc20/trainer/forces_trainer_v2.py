@@ -480,12 +480,12 @@ class ForcesTrainerV2(BaseTrainerV2):
             mpflow_mult * mpflow_loss
         )
         
-        # n2n loss.
-        n2n_mult = self.config["optim"].get("n2n_coefficient", 100)
-        n2n_loss = self.loss_fn["mpflow"](out["predicted_x1"], out["x1"])
-        loss.append(
-            n2n_mult * n2n_loss
-        )
+        # # n2n loss.
+        # n2n_mult = self.config["optim"].get("n2n_coefficient", 100)
+        # n2n_loss = self.loss_fn["mpflow"](out["predicted_x1"], out["x1"])
+        # loss.append(
+        #     n2n_mult * n2n_loss
+        # )
         
         # Energy loss.
         energy_target = torch.cat(

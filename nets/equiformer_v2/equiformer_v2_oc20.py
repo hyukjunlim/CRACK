@@ -559,7 +559,7 @@ class EquiformerV2_OC20(BaseModel):
     # @torch.no_grad()
     def sample_trajectory(self, x0, atomic_numbers, edge_distance, edge_index, batch, device):
         """
-        Samples a trajectory using a 1-step Euler method from t=0 to t=1.
+        Samples a trajectory using Heun's method (2nd order Runge-Kutta) from t=0 to t=1.
         
         Args:
             x0: Starting point (SO3_Embedding object)
@@ -571,18 +571,30 @@ class EquiformerV2_OC20(BaseModel):
         """
         self.mpflow.eval()
         x = x0.clone()
+        dt = 1.0 # Integrate from t=0 to t=1
 
-        # Initial state tensor and time tensor
+        # Initial state and time
         y0 = x.embedding
         t0 = torch.zeros((y0.shape[0], 1), device=device, dtype=y0.dtype) # Time t=0
 
-        # Calculate velocity at t=0
-        velocity_at_t0 = self.mpflow(x, t0, atomic_numbers, edge_distance, edge_index, batch) # mpflow returns SO3_Embedding
+        # Step 1: Calculate velocity at t=0 (k1)
+        v0 = self.mpflow(x, t0, atomic_numbers, edge_distance, edge_index, batch) # v(t0, y0)
 
-        # Perform 1-step Euler integration: y1 = y0 + v(t0) * dt (dt=1)
-        y1 = y0 + velocity_at_t0.embedding 
+        # Step 2: Calculate preliminary next state using Euler's method
+        y1_tilde = y0 + v0.embedding * dt
+        x_tilde = x0.clone() # Create a temporary SO3_Embedding for the intermediate step
+        x_tilde.embedding = y1_tilde
+
+        # Step 3: Calculate time t=1
+        t1 = torch.ones((y0.shape[0], 1), device=device, dtype=y0.dtype) # Time t=1
+
+        # Step 4: Calculate velocity at t=1 using the preliminary state (k2)
+        v1_tilde = self.mpflow(x_tilde, t1, atomic_numbers, edge_distance, edge_index, batch) # v(t1, y1_tilde)
+
+        # Step 5: Calculate final state using Heun's method
+        y1 = y0 + (v0.embedding + v1_tilde.embedding) / 2.0 * dt
         
-        # Update the SO3_Embedding object
+        # Update the SO3_Embedding object with the final state
         x.embedding = y1
         
         return x
@@ -592,7 +604,6 @@ class EquiformerV2_OC20(BaseModel):
         num_nodes = x0.embedding.shape[0]
         num_graphs = batch.max().item() + 1  # Get the number of graphs in the batch
         xt = x0.clone()
-        eps = 1e-6
         
         # Generate a random t for each graph in the batch
         t_batch = torch.rand(num_graphs, device=device, dtype=x0.embedding.dtype)  # [num_graphs]
