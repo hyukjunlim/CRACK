@@ -18,7 +18,7 @@ task:
   dataset: trajectory_lmdb_v2
   description: "Regressing to energies and forces for DFT trajectories from OCP"
   type: regression
-  primary_metric: mpflow_mae
+  primary_metric: energy_mae
   labels:
     - potential energy
   grad_input: atomic forces
