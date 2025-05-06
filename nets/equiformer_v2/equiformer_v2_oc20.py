@@ -485,8 +485,6 @@ class EquiformerV2_OC20(BaseModel):
         ###############################################################
 
         x0 = x.clone()
-        x0_detached = x0.clone()
-        x0_detached.embedding = x0_detached.embedding.detach()
         
         pure_eqv2 = False
         speed_compare = False
@@ -495,8 +493,8 @@ class EquiformerV2_OC20(BaseModel):
             start_time1 = time.time()
         
         for i in range(self.num_layers):
-            x0_detached = self.blocks[i](
-                x0_detached,                  # SO3_Embedding
+            x = self.blocks[i](
+                x,                  # SO3_Embedding
                 atomic_numbers,
                 edge_distance,
                 edge_index,
@@ -504,9 +502,9 @@ class EquiformerV2_OC20(BaseModel):
             )
 
         # Final layer norm
-        x0_detached.embedding = self.norm(x0_detached.embedding)
+        x.embedding = self.norm(x.embedding)
         
-        x1 = x0_detached.clone()
+        x1 = x.clone()
         
         if speed_compare:
             end_time1 = time.time()
@@ -516,12 +514,12 @@ class EquiformerV2_OC20(BaseModel):
         # MPFlow
         ###############################################################
         if pure_eqv2:
-            ut = x1.embedding - x0_detached.embedding
+            ut = x1.embedding - x0.embedding
             predicted_ut = ut
             predicted_x1 = x1.clone()
         else:
             #### Speed Comparison
-            ut, predicted_ut = self.calculate_predicted_ut(x0_detached, x1, atomic_numbers, edge_distance, edge_index, data.batch, self.device)
+            ut, predicted_ut = self.calculate_predicted_ut(x0, x1, atomic_numbers, edge_distance, edge_index, data.batch, self.device)
             if speed_compare:
                 start_time2 = time.time()
             predicted_x1 = self.sample_trajectory(x0, atomic_numbers, edge_distance, edge_index, data.batch, self.device)
