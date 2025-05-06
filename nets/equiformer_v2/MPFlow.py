@@ -90,9 +90,6 @@ class EquivariantMPFlow(nn.Module):
         drop_path_rate=0.0, 
         proj_drop=0.0, 
 
-        ### Pretrained TransBlockV2 ###
-        pretrained_TransBlockV2=None,
-
         ### MPFlow ###
         time_embed_dim=128,
     ):
@@ -131,17 +128,10 @@ class EquivariantMPFlow(nn.Module):
         # Time embedding network
         self.time_embed_dim = time_embed_dim
         self.sinusoidal_time_embedding = SinusoidalTimeEmbedding(time_embed_dim)
-        self.time_ffn = FeedForwardNetwork(
-            time_embed_dim,
-            time_embed_dim * 2,
-            sphere_channels * 2,
-            [0],
-            [0],
-            SO3_grid,
-            ffn_activation,
-            use_gate_act,
-            use_grid_mlp,
-            use_sep_s2_act
+        self.time_ffn = nn.Sequential(
+            nn.Linear(time_embed_dim, time_embed_dim),
+            nn.SiLU(),
+            nn.Linear(time_embed_dim, sphere_channels * 2)
         )
         
         max_lmax = max(lmax_list)
@@ -166,16 +156,8 @@ class EquivariantMPFlow(nn.Module):
         
         # Time Conditioning
         t = self.sinusoidal_time_embedding(t)
-        t_embedding = SO3_Embedding(
-            0,
-            [0],
-            self.time_embed_dim,
-            device=x.device,
-            dtype=x.dtype
-        )
-        t_embedding.set_embedding(t.unsqueeze(1))
-        t_feat = self.time_ffn(t_embedding).embedding # [num_nodes, 1, sphere_channels * 2]
-        scale, shift = torch.chunk(t_feat, 2, dim=-1)
+        t = self.time_ffn(t.unsqueeze(1)) # [num_nodes, 1, sphere_channels * 2]
+        scale, shift = torch.chunk(t, 2, dim=-1)
         x.embedding = x.embedding * (1 + scale)
         x.embedding[:, 0:1, :] = x.embedding[:, 0:1, :] + shift
         

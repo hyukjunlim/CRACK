@@ -350,9 +350,6 @@ class EquiformerV2_OC20(BaseModel):
                 alpha_drop=0.0
             )
         
-        import copy
-        self.mpflow_edge_channels_list = copy.deepcopy(self.edge_channels_list)
-            
         # Equivariant MPFlow
         self.mpflow = EquivariantMPFlow(
             self.sphere_channels,
@@ -368,7 +365,7 @@ class EquiformerV2_OC20(BaseModel):
             self.mappingReduced,
             self.SO3_grid,
             self.max_num_elements,
-            self.mpflow_edge_channels_list,
+            self.edge_channels_list,
             self.block_use_atom_edge_embedding,
             self.use_m_share_rad,
             self.attn_activation,
@@ -382,6 +379,19 @@ class EquiformerV2_OC20(BaseModel):
             self.alpha_drop,
             self.drop_path_rate,
             self.proj_drop,
+        )
+        
+        self.mpflow_delta = FeedForwardNetwork(
+            self.sphere_channels,
+            self.ffn_hidden_channels, 
+            self.sphere_channels,
+            self.lmax_list,
+            self.mmax_list,
+            self.SO3_grid,  
+            self.ffn_activation,
+            self.use_gate_act,
+            self.use_grid_mlp,
+            self.use_sep_s2_act
         )
         
         self.apply(self._init_weights)
@@ -404,8 +414,10 @@ class EquiformerV2_OC20(BaseModel):
         for param in self.mpflow.parameters():
             param.requires_grad = True
             
+        for param in self.mpflow_delta.parameters():
+            param.requires_grad = True
+            
     @conditional_grad(torch.enable_grad())
-    @torch.cuda.amp.autocast(enabled=False)
     def forward(self, data):
         self.batch_size = len(data.natoms)
         self.dtype = data.pos.dtype
@@ -504,11 +516,11 @@ class EquiformerV2_OC20(BaseModel):
         # Final layer norm
         x.embedding = self.norm(x.embedding)
         
-        x1 = x.clone()
-        
         if speed_compare:
             end_time1 = time.time()
             print(f"Time taken for {self.num_layers} layers: {end_time1 - start_time1} seconds", flush=True)
+            
+        x1 = x.clone()
         
         ###############################################################
         # MPFlow
@@ -518,15 +530,22 @@ class EquiformerV2_OC20(BaseModel):
             predicted_ut = ut
             predicted_x1 = x1.clone()
         else:
-            #### Speed Comparison
             ut, predicted_ut = self.calculate_predicted_ut(x0, x1, atomic_numbers, edge_distance, edge_index, data.batch, self.device)
+            
             if speed_compare:
                 start_time2 = time.time()
+                
             predicted_x1 = self.sample_trajectory(x0, atomic_numbers, edge_distance, edge_index, data.batch, self.device)
+            
+            res_x = predicted_x1.embedding
+            predicted_x1 = self.mpflow_delta(predicted_x1)
+            predicted_x1.embedding = res_x + predicted_x1.embedding
+            
             if speed_compare:
                 end_time2 = time.time()
                 print(f"Time taken for mpflow: {end_time2 - start_time2} seconds", flush=True)
                 print(f"Time ratio: {((end_time1 - start_time1) / (end_time2 - start_time2))}", flush=True)
+                
             x = predicted_x1.clone()
 
         ###############################################################
@@ -554,10 +573,9 @@ class EquiformerV2_OC20(BaseModel):
         else:
             return energy, forces, ut, predicted_ut, x0.embedding, x1.embedding, predicted_x1.embedding
 
-    # @torch.no_grad()
     def sample_trajectory(self, x0, atomic_numbers, edge_distance, edge_index, batch, device):
         """
-        Samples a trajectory using Heun's method (2nd order Runge-Kutta) from t=0 to t=1.
+        Samples a trajectory using Euler's method from t=0 to t=1.
         
         Args:
             x0: Starting point (SO3_Embedding object)
@@ -567,7 +585,6 @@ class EquiformerV2_OC20(BaseModel):
             batch: Batch tensor of the atoms
             device: The device tensors are on.
         """
-        self.mpflow.eval()
         x = x0.clone()
         dt = 1.0 # Integrate from t=0 to t=1
 
@@ -575,22 +592,11 @@ class EquiformerV2_OC20(BaseModel):
         y0 = x.embedding
         t0 = torch.zeros((y0.shape[0], 1), device=device, dtype=y0.dtype) # Time t=0
 
-        # Step 1: Calculate velocity at t=0 (k1)
+        # Calculate velocity at t=0
         v0 = self.mpflow(x, t0, atomic_numbers, edge_distance, edge_index, batch) # v(t0, y0)
 
-        # Step 2: Calculate preliminary next state using Euler's method
-        y1_tilde = y0 + v0.embedding * dt
-        x_tilde = x0.clone() # Create a temporary SO3_Embedding for the intermediate step
-        x_tilde.embedding = y1_tilde
-
-        # Step 3: Calculate time t=1
-        t1 = torch.ones((y0.shape[0], 1), device=device, dtype=y0.dtype) # Time t=1
-
-        # Step 4: Calculate velocity at t=1 using the preliminary state (k2)
-        v1_tilde = self.mpflow(x_tilde, t1, atomic_numbers, edge_distance, edge_index, batch) # v(t1, y1_tilde)
-
-        # Step 5: Calculate final state using Heun's method
-        y1 = y0 + (v0.embedding + v1_tilde.embedding) / 2.0 * dt
+        # Calculate final state using Euler's method
+        y1 = y0 + v0.embedding * dt
         
         # Update the SO3_Embedding object with the final state
         x.embedding = y1
@@ -601,21 +607,31 @@ class EquiformerV2_OC20(BaseModel):
     def calculate_predicted_ut(self, x0, x1, atomic_numbers, edge_distance, edge_index, batch, device):
         num_nodes = x0.embedding.shape[0]
         num_graphs = batch.max().item() + 1  # Get the number of graphs in the batch
-        xt = x0.clone()
+        
+        # Detach embeddings from x0 and x1 to treat them as fixed targets/inputs for MPFlow
+        detached_x0_embedding = x0.embedding.detach()
+        detached_x1_embedding = x1.embedding.detach()
+
+        xt = x0.clone() # Create a new SO3_Embedding for xt
         
         # Generate a random t for each graph in the batch
-        t_batch = torch.rand(num_graphs, device=device, dtype=x0.embedding.dtype)  # [num_graphs]
+        t_batch = torch.rand(num_graphs, device=device, dtype=detached_x0_embedding.dtype)  # [num_graphs]
         
         # Map the batch-specific t to each node
         t = t_batch[batch]  # [num_nodes]
         t = t.unsqueeze(-1) # [num_nodes, 1]
         t_expanded = t.unsqueeze(-1) # [num_nodes, 1, 1]
         
-        ut = x1.embedding - x0.embedding
-        xt.embedding = x0.embedding + t_expanded * ut
-        predicted_ut = self.mpflow(xt, t, atomic_numbers, edge_distance, edge_index, batch)
+        # ut_target is based on detached versions of x0 and x1 embeddings
+        ut_target = detached_x1_embedding - detached_x0_embedding
         
-        return ut, predicted_ut.embedding
+        # xt.embedding is the interpolated state for MPFlow input, also based on detached x0 and ut_target
+        xt.embedding = detached_x0_embedding + t_expanded * ut_target
+        
+        # MPFlow predicts ut based on xt (which is built from detached components) and t
+        predicted_ut_embedding = self.mpflow(xt, t, atomic_numbers, edge_distance, edge_index, batch).embedding
+        
+        return ut_target, predicted_ut_embedding
     
     
     # Initialize the edge rotation matrics
