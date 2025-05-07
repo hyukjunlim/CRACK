@@ -95,7 +95,7 @@ class EquivariantMPFlow(nn.Module):
     ):
         super(EquivariantMPFlow, self).__init__()
         
-        self.pretrained_TransBlockV2 = TransBlockV2(
+        self.block = TransBlockV2(
             sphere_channels,
             attn_hidden_channels,
             num_heads,
@@ -161,7 +161,7 @@ class EquivariantMPFlow(nn.Module):
         x.embedding = x.embedding * (1 + scale)
         x.embedding[:, 0:1, :] = x.embedding[:, 0:1, :] + shift
         
-        x = self.pretrained_TransBlockV2(x, 
+        x = self.block(x, 
             atomic_numbers,
             edge_distance,
             edge_index,

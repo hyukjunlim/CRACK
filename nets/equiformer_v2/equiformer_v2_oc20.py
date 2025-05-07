@@ -536,6 +536,7 @@ class EquiformerV2_OC20(BaseModel):
                 start_time2 = time.time()
                 
             predicted_x1 = self.sample_trajectory(x0, atomic_numbers, edge_distance, edge_index, data.batch, self.device)
+            predicted_x1.embedding = predicted_x1.embedding.detach()
             
             res_x = predicted_x1.embedding
             predicted_x1 = self.mpflow_delta(predicted_x1)
