@@ -90,40 +90,46 @@ class EquivariantMPFlow(nn.Module):
         drop_path_rate=0.0, 
         proj_drop=0.0, 
 
+        ### GNN ###
+        num_layers=1,
+        
         ### MPFlow ###
         time_embed_dim=128,
     ):
         super(EquivariantMPFlow, self).__init__()
         
-        self.block = TransBlockV2(
-            sphere_channels,
-            attn_hidden_channels,
-            num_heads,
-            attn_alpha_channels,
-            attn_value_channels,
-            ffn_hidden_channels,
-            sphere_channels, 
-            lmax_list,
-            mmax_list,
-            SO3_rotation,
-            mappingReduced,
-            SO3_grid,
-            max_num_elements,
-            edge_channels_list,
-            use_atom_edge_embedding,
-            use_m_share_rad,
-            attn_activation,
-            use_s2_act_attn,
-            use_attn_renorm,
-            ffn_activation,
-            use_gate_act,
-            use_grid_mlp,
-            use_sep_s2_act,
-            norm_type,
-            alpha_drop, 
-            drop_path_rate,
-            proj_drop
-        )
+        self.blocks = nn.ModuleList()
+        for _ in range(num_layers):
+            block = TransBlockV2(
+                sphere_channels,
+                attn_hidden_channels,
+                num_heads,
+                attn_alpha_channels,
+                attn_value_channels,
+                ffn_hidden_channels,
+                sphere_channels, 
+                lmax_list,
+                mmax_list,
+                SO3_rotation,
+                mappingReduced,
+                SO3_grid,
+                max_num_elements,
+                edge_channels_list,
+                use_atom_edge_embedding,
+                use_m_share_rad,
+                attn_activation,
+                use_s2_act_attn,
+                use_attn_renorm,
+                ffn_activation,
+                use_gate_act,
+                use_grid_mlp,
+                use_sep_s2_act,
+                norm_type,
+                alpha_drop, 
+                drop_path_rate,
+                proj_drop
+            )
+            self.blocks.append(block)
         
         # Time embedding network
         self.time_embed_dim = time_embed_dim
@@ -161,12 +167,13 @@ class EquivariantMPFlow(nn.Module):
         x.embedding = x.embedding * (1 + scale)
         x.embedding[:, 0:1, :] = x.embedding[:, 0:1, :] + shift
         
-        x = self.block(x, 
-            atomic_numbers,
-            edge_distance,
-            edge_index,
-            batch=batch
-        )
+        for block in self.blocks:
+            x = block(x, 
+                atomic_numbers,
+                edge_distance,
+                edge_index,
+                batch=batch
+            )
         
         x.embedding = self.norm(x.embedding)
 
