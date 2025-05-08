@@ -646,6 +646,7 @@ class EquiformerV2_OC20(BaseModel):
         all_params = sum(p.numel() for p in self.parameters())
         trainable_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
 
+        mpflow_params = 0
         for name, param in self.named_parameters():
             if name.startswith('mpflow'):
                 mpflow_params += param.numel()
