@@ -379,7 +379,7 @@ class EquiformerV2_OC20(BaseModel):
             self.alpha_drop,
             self.drop_path_rate,
             self.proj_drop,
-            num_layers=1
+            num_layers=2
         )
         
         self.mpflow_delta = FeedForwardNetwork(

@@ -424,8 +424,12 @@ class BaseTrainer(ABC):
             self.model.load_state_dict(checkpoint["state_dict"], strict=False)
             
         # Load pretrained weights from the first EquiformerV2 block into the MPFlow module
+        # for i in range(len(self.model.module.mpflow.blocks)):
+        #     self.model.module.mpflow.blocks[i].load_state_dict(self.model.module.blocks[i].state_dict())
         self.model.module.mpflow.blocks[0].load_state_dict(self.model.module.blocks[0].state_dict())
+        self.model.module.mpflow.blocks[1].load_state_dict(self.model.module.blocks[-1].state_dict())
         self.model.module.mpflow.norm.load_state_dict(self.model.module.norm.state_dict())
+        
 
         if "optimizer" in checkpoint:
             self.optimizer.load_state_dict(checkpoint["optimizer"])
