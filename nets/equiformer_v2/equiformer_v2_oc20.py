@@ -646,11 +646,9 @@ class EquiformerV2_OC20(BaseModel):
         all_params = sum(p.numel() for p in self.parameters())
         trainable_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
 
-        # Check if mpflow is initialized before accessing parameters
-        if hasattr(self, 'mpflow') and self.mpflow is not None:
-            mpflow_params = sum(p.numel() for p in self.mpflow.parameters())
-        else:
-            mpflow_params = 0 # Or handle as an error if mpflow should always exist
+        for name, param in self.named_parameters():
+            if name.startswith('mpflow'):
+                mpflow_params += param.numel()
 
         # Calculate backbone params (total - mpflow)
         backbone_params = all_params - mpflow_params
@@ -660,7 +658,7 @@ class EquiformerV2_OC20(BaseModel):
         trainable_mpflow_params = 0
         for name, param in self.named_parameters():
             if param.requires_grad:
-                if name.startswith('mpflow.'):
+                if name.startswith('mpflow'):
                     trainable_mpflow_params += param.numel()
                 else:
                     trainable_backbone_params += param.numel()

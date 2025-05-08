@@ -2,13 +2,13 @@ trainer: forces_v2
 
 
 dataset:
-  - src: datasets/oc20/Oabs_train/
+  - src: /DATA/user_scratch/hyukjunlim03/Oabs_train/
     normalize_labels: True
     target_mean: -0.7554450631141663
     target_std: 2.887317180633545
     grad_target_mean: 0.0
     grad_target_std: 2.887317180633545
-  - src: datasets/oc20/Oabs_val/
+  - src: /DATA/user_scratch/hyukjunlim03/Oabs_val/
 
 
 logger: wandb
@@ -18,7 +18,7 @@ task:
   dataset: trajectory_lmdb_v2
   description: "Regressing to energies and forces for DFT trajectories from OCP"
   type: regression
-  primary_metric: mpflow_mae
+  primary_metric: energy_mae
   labels:
     - potential energy
   grad_input: atomic forces
@@ -94,14 +94,14 @@ optim:
     lr_min_factor: 0.01         
 
   max_epochs: 50
-  force_coefficient: 0.1
-  energy_coefficient: 1
+  force_coefficient: 10
+  energy_coefficient: 0.4
   mpflow_coefficient: 100
   clip_grad_norm: 100
   ema_decay: 0.999
   loss_energy: mae
   loss_force: l2mae
-  loss_mpflow: l2mae
+  loss_mpflow: mse
 
   eval_every: 1000000000
 
