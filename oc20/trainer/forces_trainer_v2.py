@@ -357,7 +357,8 @@ class ForcesTrainerV2(BaseTrainerV2):
                 log_dict = {k: self.metrics[k]["metric"] for k in self.metrics}
                 log_dict.update(
                     {
-                        "lr": self.scheduler.get_lr(),
+                        "lr_ef": self.scheduler_ef.get_lr(),
+                        "lr_mpflow": self.scheduler_mpflow.get_lr(),
                         "epoch": self.epoch,
                         "step": self.step,
                     }
@@ -421,17 +422,29 @@ class ForcesTrainerV2(BaseTrainerV2):
                         else:
                             self.run_relaxations()
 
-                if self.scheduler.scheduler_type == "ReduceLROnPlateau":
+                if self.scheduler_ef.scheduler_type == "ReduceLROnPlateau":
                     if self.step % eval_every == 0:
-                        self.scheduler.step(
+                        self.scheduler_ef.step(
                             metrics=val_metrics[primary_metric]["metric"],
                         )
                 else:
                     if self.grad_accumulation_steps != 1:
                         if self.step % self.grad_accumulation_steps == 0:
-                            self.scheduler.step()
+                            self.scheduler_ef.step()
                     else:
-                        self.scheduler.step()
+                        self.scheduler_ef.step()
+
+                if self.scheduler_mpflow.scheduler_type == "ReduceLROnPlateau":
+                    if self.step % eval_every == 0:
+                        self.scheduler_mpflow.step(
+                            metrics=val_metrics[primary_metric]["metric"],
+                        )
+                else:
+                    if self.grad_accumulation_steps != 1:
+                        if self.step % self.grad_accumulation_steps == 0:
+                            self.scheduler_mpflow.step()
+                    else:
+                        self.scheduler_mpflow.step()
 
             torch.cuda.empty_cache()
 

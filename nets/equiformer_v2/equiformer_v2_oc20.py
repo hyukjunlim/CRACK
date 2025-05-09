@@ -395,6 +395,8 @@ class EquiformerV2_OC20(BaseModel):
             self.use_sep_s2_act
         )
         
+        self.norm2 = get_normalization_layer(norm_type, lmax=max(self.lmax_list), num_channels=self.sphere_channels)
+        
         self.apply(self._init_weights)
         self.apply(self._uniform_init_rad_func_linear_weights)
         
@@ -416,6 +418,9 @@ class EquiformerV2_OC20(BaseModel):
             param.requires_grad = True
             
         for param in self.mpflow_delta.parameters():
+            param.requires_grad = True
+        
+        for param in self.norm2.parameters():
             param.requires_grad = True
             
     @conditional_grad(torch.enable_grad())
@@ -500,7 +505,7 @@ class EquiformerV2_OC20(BaseModel):
         x0 = x.clone()
         
         pure_eqv2 = False
-        speed_compare = False
+        speed_compare = True
         
         if speed_compare:
             start_time1 = time.time()
@@ -595,6 +600,7 @@ class EquiformerV2_OC20(BaseModel):
 
         # Calculate velocity at t=0
         v0 = self.mpflow(x, t0, atomic_numbers, edge_distance, edge_index, batch) # v(t0, y0)
+        v0.embedding = self.norm2(v0.embedding)
 
         # Calculate final state using Euler's method
         y1 = y0 + v0.embedding * dt
@@ -631,6 +637,7 @@ class EquiformerV2_OC20(BaseModel):
         
         # MPFlow predicts ut based on xt (which is built from detached components) and t
         predicted_ut_embedding = self.mpflow(xt, t, atomic_numbers, edge_distance, edge_index, batch).embedding
+        predicted_ut_embedding = self.norm2(predicted_ut_embedding)
         
         return ut_target, predicted_ut_embedding
     

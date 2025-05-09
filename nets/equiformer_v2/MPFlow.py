@@ -140,10 +140,6 @@ class EquivariantMPFlow(nn.Module):
             nn.Linear(time_embed_dim, sphere_channels * 2)
         )
         
-        max_lmax = max(lmax_list)
-        
-        self.norm = get_normalization_layer(norm_type, lmax=max_lmax, num_channels=sphere_channels)
-        
     @torch.cuda.amp.autocast(enabled=False)
     def forward(self, x, t, atomic_numbers, edge_distance, edge_index, batch):
         """
@@ -175,6 +171,4 @@ class EquivariantMPFlow(nn.Module):
                 batch=batch
             )
         
-        x.embedding = self.norm(x.embedding)
-
         return x

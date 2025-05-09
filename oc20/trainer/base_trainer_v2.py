@@ -11,6 +11,7 @@ import logging
 import os
 import random
 import subprocess
+import copy
 from abc import ABC, abstractmethod
 from collections import defaultdict
 
@@ -58,24 +59,41 @@ from .engine import AverageMeter
 
 
 def add_weight_decay(model, weight_decay, skip_list=()):
-    decay = []
-    no_decay = []
-    name_no_wd = []
+    ef_decay = []
+    ef_no_decay = []
+    mpflow_decay = []
+    mpflow_no_decay = []
+    name_no_wd_collector = []
+
     for name, param in model.named_parameters():
         if not param.requires_grad:
             continue  # frozen weights
-        if (name.endswith(".bias") or name.endswith(".affine_weight")
-            or name.endswith(".affine_bias") or name.endswith('.mean_shift')
-            or 'bias.' in name
-            or any(name.endswith(skip_name) for skip_name in skip_list)):
-            no_decay.append(param)
-            name_no_wd.append(name)
+
+        is_no_decay = (name.endswith(".bias") or name.endswith(".affine_weight")
+                       or name.endswith(".affine_bias") or name.endswith('.mean_shift')
+                       or 'bias.' in name
+                       or any(name.endswith(skip_name) for skip_name in skip_list))
+
+        if is_no_decay:
+            name_no_wd_collector.append(name)
+            if 'mpflow' in name:
+                mpflow_no_decay.append(param)
+            else:
+                ef_no_decay.append(param)
         else:
-            decay.append(param)
-    name_no_wd.sort()
-    params = [{'params': no_decay, 'weight_decay': 0.},
-              {'params': decay, 'weight_decay': weight_decay}]
-    return params, name_no_wd
+            if 'mpflow' in name:
+                mpflow_decay.append(param)
+            else:
+                ef_decay.append(param)
+
+    name_no_wd_collector.sort()
+
+    params_ef = [{'params': ef_no_decay, 'weight_decay': 0.},
+                 {'params': ef_decay, 'weight_decay': weight_decay}]
+    params_mpflow = [{'params': mpflow_no_decay, 'weight_decay': 0.},
+                     {'params': mpflow_decay, 'weight_decay': weight_decay}]
+
+    return params_ef, params_mpflow, name_no_wd_collector
 
 
 def interpolate_init_relaxed_pos(batch):
@@ -390,14 +408,20 @@ class BaseTrainerV2(BaseTrainer):
         optimizer_params = self.config['optim']['optimizer_params']
         weight_decay = optimizer_params['weight_decay']
 
-        parameters, name_no_wd = add_weight_decay(self.model,
+        parameters_ef, parameters_mpflow, name_no_wd = add_weight_decay(self.model,
             weight_decay, self.model_params_no_wd)
         self.file_logger.info('Parameters without weight decay:')
         self.file_logger.info(name_no_wd)
 
-        self.optimizer = optimizer(
-            parameters,
-            lr=self.config["optim"]["lr_initial"],
+        self.optimizer_ef = optimizer(
+            parameters_ef,
+            lr=self.config["optim"]["lr_initial_ef"],
+            **optimizer_params,
+        )
+
+        self.optimizer_mpflow = optimizer(
+            parameters_mpflow,
+            lr=self.config["optim"]["lr_initial_mpflow"],
             **optimizer_params,
         )
 
@@ -449,19 +473,27 @@ class BaseTrainerV2(BaseTrainer):
             return obj
 
         self.config["optim"]['scheduler_params']['epochs'] = self.config["optim"]["max_epochs"]
-        self.config["optim"]['scheduler_params']['lr'] = self.config["optim"]["lr_initial"]
 
         # convert epochs into number of steps
         n_iter_per_epoch = len(self.train_loader)
         if self.grad_accumulation_steps != 1:
             n_iter_per_epoch = n_iter_per_epoch // self.grad_accumulation_steps
-        scheduler_params = self.config['optim']['scheduler_params']
-        for k in scheduler_params.keys():
+        
+        scheduler_params_ref = self.config['optim']['scheduler_params']
+        for k in list(scheduler_params_ref.keys()):
             if 'epochs' in k:
-                if isinstance(scheduler_params[k], (int, float, list)):
-                    scheduler_params[k] = multiply(scheduler_params[k], n_iter_per_epoch)
+                if isinstance(scheduler_params_ref[k], (int, float, list)):
+                    scheduler_params_ref[k] = multiply(scheduler_params_ref[k], n_iter_per_epoch)
 
-        self.scheduler = LRScheduler(self.optimizer, self.config["optim"])
+        # Config for scheduler_ef
+        optim_config_ef = copy.deepcopy(self.config["optim"])
+        optim_config_ef['scheduler_params']['lr'] = self.config["optim"]["lr_initial_ef"] 
+        self.scheduler_ef = LRScheduler(self.optimizer_ef, optim_config_ef)
+
+        # Config for scheduler_mpflow
+        optim_config_mpflow = copy.deepcopy(self.config["optim"])
+        optim_config_mpflow['scheduler_params']['lr'] = self.config["optim"]["lr_initial_mpflow"]
+        self.scheduler_mpflow = LRScheduler(self.optimizer_mpflow, optim_config_mpflow)
 
         self.clip_grad_norm = self.config["optim"].get("clip_grad_norm")
         self.ema_decay = self.config["optim"].get("ema_decay")
@@ -545,7 +577,8 @@ class BaseTrainerV2(BaseTrainer):
 
     def _backward(self, loss):
         if self.grad_accumulation_steps == 1:
-            self.optimizer.zero_grad()
+            self.optimizer_ef.zero_grad()
+            self.optimizer_mpflow.zero_grad()
 
         loss.backward()
 
@@ -569,26 +602,34 @@ class BaseTrainerV2(BaseTrainer):
 
         if self.clip_grad_norm:
             if self.scaler:
-                self.scaler.unscale_(self.optimizer)
-            grad_norm = torch.nn.utils.clip_grad_norm_(
+                self.scaler.unscale_(self.optimizer_ef)
+                self.scaler.unscale_(self.optimizer_mpflow)
+            grad_norm_ef = torch.nn.utils.clip_grad_norm_(
+                self.model.parameters(),
+                max_norm=self.clip_grad_norm,
+            )
+            grad_norm_mpflow = torch.nn.utils.clip_grad_norm_(
                 self.model.parameters(),
                 max_norm=self.clip_grad_norm,
             )
             if self.logger is not None:
                 self.logger.log(
-                    {"grad_norm": grad_norm}, step=self.step, split="train"
+                    {"grad_norm_ef": grad_norm_ef, "grad_norm_mpflow": grad_norm_mpflow}, step=self.step, split="train"
                 )
         if self.scaler:
-            self.scaler.step(self.optimizer)
+            self.scaler.step(self.optimizer_ef)
+            self.scaler.step(self.optimizer_mpflow)
             self.scaler.update()
         else:
-            self.optimizer.step()
+            self.optimizer_ef.step()
+            self.optimizer_mpflow.step()
         if self.ema:
             self.ema.update()
 
         if (self.grad_accumulation_steps != 1):
             if (self.step % self.grad_accumulation_steps == 0):
-                self.optimizer.zero_grad()
+                self.optimizer_ef.zero_grad()
+                self.optimizer_mpflow.zero_grad()
 
 
     def compute_stats(self):
