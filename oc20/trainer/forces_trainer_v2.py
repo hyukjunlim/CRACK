@@ -357,8 +357,8 @@ class ForcesTrainerV2(BaseTrainerV2):
                 log_dict = {k: self.metrics[k]["metric"] for k in self.metrics}
                 log_dict.update(
                     {
-                        "lr_ef": self.scheduler_ef.get_lr(),
-                        "lr_mpflow": self.scheduler_mpflow.get_lr(),
+                        "lr_ef": self.scheduler.get_lr('ef'),
+                        "lr_mpflow": self.scheduler.get_lr('mpflow'),
                         "epoch": self.epoch,
                         "step": self.step,
                     }
@@ -422,29 +422,17 @@ class ForcesTrainerV2(BaseTrainerV2):
                         else:
                             self.run_relaxations()
 
-                if self.scheduler_ef.scheduler_type == "ReduceLROnPlateau":
+                if self.scheduler.scheduler_type == "ReduceLROnPlateau":
                     if self.step % eval_every == 0:
-                        self.scheduler_ef.step(
+                        self.scheduler.step(
                             metrics=val_metrics[primary_metric]["metric"],
                         )
                 else:
                     if self.grad_accumulation_steps != 1:
                         if self.step % self.grad_accumulation_steps == 0:
-                            self.scheduler_ef.step()
+                            self.scheduler.step()
                     else:
-                        self.scheduler_ef.step()
-
-                if self.scheduler_mpflow.scheduler_type == "ReduceLROnPlateau":
-                    if self.step % eval_every == 0:
-                        self.scheduler_mpflow.step(
-                            metrics=val_metrics[primary_metric]["metric"],
-                        )
-                else:
-                    if self.grad_accumulation_steps != 1:
-                        if self.step % self.grad_accumulation_steps == 0:
-                            self.scheduler_mpflow.step()
-                    else:
-                        self.scheduler_mpflow.step()
+                        self.scheduler.step()
 
             torch.cuda.empty_cache()
 

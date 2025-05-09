@@ -172,9 +172,12 @@ class LRScheduler:
         return scheduler_args
 
 
-    def get_lr(self):
+    def get_lr(self, mode='ef'):
         for group in self.optimizer.param_groups:
-            return group["lr"]
+            if group.get('name') == mode:
+                return group['lr']
+        # If the loop completes without finding the group, then raise the error.
+        raise ValueError(f"No group found with name: {mode}")
         
 """
 def create_scheduler(optimizer, config, n_iter_per_epoch):

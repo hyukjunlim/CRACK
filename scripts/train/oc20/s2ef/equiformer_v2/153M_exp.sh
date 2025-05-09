@@ -4,7 +4,7 @@
 #     --run-dir 'models' \
 #     --print-every 200 \
 #     --amp \
-#     --checkpoint 'save_models/best_checkpoint.pt'
+#     --checkpoint 'save_models/eq2_153M_ec4_allmd.pt'
 
 
 python main_oc20.py \
