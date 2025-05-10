@@ -58,9 +58,11 @@ from .lr_scheduler import LRScheduler
 from .engine import AverageMeter
 
 
-def add_weight_decay(model, weight_decay, lr_initial_ef, lr_initial_mpflow, skip_list=()):
-    ef_decay = []
-    ef_no_decay = []
+def add_weight_decay(model, weight_decay, lr_initial_e, lr_initial_f, lr_initial_mpflow, skip_list=()):
+    e_decay = []
+    e_no_decay = []
+    f_decay = []
+    f_no_decay = []
     mpflow_decay = []
     mpflow_no_decay = []
     name_no_wd_collector = []
@@ -78,18 +80,24 @@ def add_weight_decay(model, weight_decay, lr_initial_ef, lr_initial_mpflow, skip
             name_no_wd_collector.append(name)
             if 'mpflow' in name:
                 mpflow_no_decay.append(param)
+            elif 'energy' in name:
+                e_no_decay.append(param)
             else:
-                ef_no_decay.append(param)
+                f_no_decay.append(param)
         else:
             if 'mpflow' in name:
                 mpflow_decay.append(param)
+            elif 'energy' in name:
+                e_decay.append(param)
             else:
-                ef_decay.append(param)
+                f_decay.append(param)
 
     name_no_wd_collector.sort()
 
-    params = [{'params': ef_no_decay, 'weight_decay': 0., 'lr': lr_initial_ef, 'name': 'ef'},
-              {'params': ef_decay, 'weight_decay': weight_decay, 'lr': lr_initial_ef, 'name': 'ef'},
+    params = [{'params': e_no_decay, 'weight_decay': 0., 'lr': lr_initial_e, 'name': 'energy'},
+              {'params': e_decay, 'weight_decay': weight_decay, 'lr': lr_initial_e, 'name': 'energy'},
+              {'params': f_no_decay, 'weight_decay': 0., 'lr': lr_initial_f, 'name': 'force'},
+              {'params': f_decay, 'weight_decay': weight_decay, 'lr': lr_initial_f, 'name': 'force'},
               {'params': mpflow_no_decay, 'weight_decay': 0., 'lr': lr_initial_mpflow, 'name': 'mpflow'},
               {'params': mpflow_decay, 'weight_decay': weight_decay, 'lr': lr_initial_mpflow, 'name': 'mpflow'}]
 
@@ -407,11 +415,12 @@ class BaseTrainerV2(BaseTrainer):
         optimizer = getattr(optim, optimizer)
         optimizer_params = self.config['optim']['optimizer_params']
         weight_decay = optimizer_params['weight_decay']
-        lr_initial_ef = self.config["optim"]["lr_initial_ef"]
+        lr_initial_e = self.config["optim"]["lr_initial_e"]
+        lr_initial_f = self.config["optim"]["lr_initial_f"]
         lr_initial_mpflow = self.config["optim"]["lr_initial_mpflow"]
         
         parameters, name_no_wd = add_weight_decay(self.model,
-            weight_decay, lr_initial_ef, lr_initial_mpflow)
+            weight_decay, lr_initial_e, lr_initial_f, lr_initial_mpflow)
         self.file_logger.info('Parameters without weight decay:')
         self.file_logger.info(name_no_wd)
 

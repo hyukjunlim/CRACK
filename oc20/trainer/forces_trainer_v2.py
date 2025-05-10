@@ -357,7 +357,8 @@ class ForcesTrainerV2(BaseTrainerV2):
                 log_dict = {k: self.metrics[k]["metric"] for k in self.metrics}
                 log_dict.update(
                     {
-                        "lr_ef": self.scheduler.get_lr('ef'),
+                        "lr_energy": self.scheduler.get_lr('energy'),
+                        "lr_force": self.scheduler.get_lr('force'),
                         "lr_mpflow": self.scheduler.get_lr('mpflow'),
                         "epoch": self.epoch,
                         "step": self.step,
