@@ -505,7 +505,7 @@ class EquiformerV2_OC20(BaseModel):
         x0 = x.clone()
         
         pure_eqv2 = False
-        speed_compare = True
+        speed_compare = False
         
         if speed_compare:
             start_time1 = time.time()
