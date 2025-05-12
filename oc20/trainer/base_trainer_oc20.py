@@ -450,9 +450,9 @@ class BaseTrainer(ABC):
 
     def load_loss(self):
         self.loss_fn = {}
-        self.loss_fn["energy"] = self.config["optim"].get("loss_energy", "mae")
-        self.loss_fn["force"] = self.config["optim"].get("loss_force", "l2mae")
-        self.loss_fn["mpflow"] = self.config["optim"].get("loss_mpflow", "l2mae")
+        self.loss_fn["energy"] = self.config["optim"].get("loss_energy", "huber")
+        self.loss_fn["force"] = self.config["optim"].get("loss_force", "huber")
+        self.loss_fn["mpflow"] = self.config["optim"].get("loss_mpflow", "huber")
         for loss, loss_name in self.loss_fn.items():
             if loss_name in ["l1", "mae"]:
                 self.loss_fn[loss] = nn.L1Loss()
@@ -460,6 +460,8 @@ class BaseTrainer(ABC):
                 self.loss_fn[loss] = nn.MSELoss()
             elif loss_name == "l2mae":
                 self.loss_fn[loss] = L2MAELoss()
+            elif loss_name == "huber":
+                self.loss_fn[loss] = nn.HuberLoss(delta=0.01)
             else:
                 raise NotImplementedError(
                     f"Unknown loss function name: {loss_name}"

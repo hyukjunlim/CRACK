@@ -21,6 +21,17 @@ import torch
 import torch_geometric
 from tqdm import tqdm
 
+# Visualization Imports
+import matplotlib.pyplot as plt
+from sklearn.manifold import TSNE # Import TSNE
+try:
+    from mpl_toolkits.mplot3d import Axes3D
+    MPL_3D_AVAILABLE = True
+except ImportError:
+    Axes3D = None # Define Axes3D as None if import fails
+    MPL_3D_AVAILABLE = False
+    logging.warning("mpl_toolkits.mplot3d not found. 3D PCA/t-SNE plot will be disabled.")
+
 from ocpmodels.common import distutils
 from ocpmodels.common.registry import registry
 from ocpmodels.common.relaxation.ml_relaxation import ml_relax
@@ -112,6 +123,21 @@ class ForcesTrainerV2(BaseTrainerV2):
             slurm=slurm,
             noddp=noddp,
         )
+
+        # --- MPFlow Visualization Configuration ---
+        self.visualize_mpflow = self.config.get("visualize_mpflow", True) # Enable/disable visualization
+        self.viz_output_dir = self.config.get("visualization_output_dir", os.path.join(self.run_dir, "mpflow_visualizations")) # Default to run_dir subdir
+        self.viz_num_samples = self.config.get("visualization_num_samples", 100) # Max samples to plot
+        self.viz_plots = self.config.get("visualization_plots", ["2d", "3d"]) # Plots to generate ('2d', '3d')
+        self.viz_pca_dpi = self.config.get("visualization_pca_dpi", 300) # DPI for saved plots
+
+        if self.visualize_mpflow and distutils.is_master():
+            os.makedirs(self.viz_output_dir, exist_ok=True)
+            if hasattr(self, 'file_logger') and self.file_logger:
+                self.file_logger.info(f"MPFlow visualizations will be saved to: {self.viz_output_dir}")
+            else:
+                # Fallback to print if file_logger is not available, though it should be from BaseTrainerV2
+                print(f"MPFlow visualizations will be saved to: {self.viz_output_dir}")
 
     def load_task(self):
         self.file_logger.info(f"Loading dataset: {self.config['task']['dataset']}")
@@ -450,7 +476,7 @@ class ForcesTrainerV2(BaseTrainerV2):
         # forward pass.
         if (self.config["model_attributes"].get("regress_forces", True)
             or self.config['model_attributes'].get('use_auxiliary_task', False)):
-            out_energy, out_forces, ut, predicted_ut, x0_embedding, x1_embedding, predicted_x1_embedding = self.model(batch_list)
+            out_energy, out_forces, out_grad_forces, ut, predicted_ut, x0_embedding, x1_embedding, predicted_x1_embedding = self.model(batch_list)
         else:
             out_energy, ut, predicted_ut, x0_embedding, x1_embedding, predicted_x1_embedding = self.model(batch_list)
 
@@ -469,7 +495,8 @@ class ForcesTrainerV2(BaseTrainerV2):
         if (self.config["model_attributes"].get("regress_forces", True)
            or self.config['model_attributes'].get('use_auxiliary_task', False)):
             out["forces"] = out_forces
-
+            out["grad_forces"] = out_grad_forces
+            
         return out
 
     def _compute_loss(self, out, batch_list):
@@ -580,6 +607,13 @@ class ForcesTrainerV2(BaseTrainerV2):
                                 out["forces"][mask], force_target[mask]
                             )
                         )
+                        
+                        # # Gradient loss.
+                        # if out["grad_forces"] is not None:
+                        #     loss.append(
+                        #         energy_mult
+                        #         * self.loss_fn["force"](out["grad_forces"][mask], force_target[mask])
+                        #     )
                 else:
                     loss.append(
                         force_mult
@@ -885,7 +919,11 @@ class ForcesTrainerV2(BaseTrainerV2):
         rank = distutils.get_rank()
 
         loader = self.val_loader if split == "val" else self.test_loader
-
+        
+        # Data collection for visualization (only on master)
+        viz_data = {"x0": [], "x1": [], "predicted_x1": []}
+        samples_collected = 0
+        
         for i, batch in tqdm(
             enumerate(loader),
             total=len(loader),
@@ -898,6 +936,20 @@ class ForcesTrainerV2(BaseTrainerV2):
             loss = self._compute_loss(out, batch)
             metrics = self._compute_metrics(out, batch, evaluator, metrics)
             metrics = evaluator.update("loss", loss.item(), metrics)
+            
+            # Collect visualization data on master process
+            if distutils.is_master() and self.visualize_mpflow and samples_collected < self.viz_num_samples:
+                needed = self.viz_num_samples - samples_collected
+                
+                # Ensure tensors are on CPU for storage
+                x0_batch = out["x0"].detach().cpu()[:needed]
+                x1_batch = out["x1"].detach().cpu()[:needed]
+                predicted_x1_batch = out["predicted_x1"].detach().cpu()[:needed]
+                
+                viz_data["x0"].append(x0_batch)
+                viz_data["x1"].append(x1_batch)
+                viz_data["predicted_x1"].append(predicted_x1_batch)
+                samples_collected += len(x0_batch)
 
         aggregated_metrics = {}
         for k in metrics:
@@ -928,7 +980,161 @@ class ForcesTrainerV2(BaseTrainerV2):
                 split=split,
             )
 
+        # Call visualization function on master process if enabled and data collected
+        if distutils.is_master() and self.visualize_mpflow and samples_collected > 0:
+            # Concatenate collected batches
+            viz_x0 = torch.cat(viz_data["x0"], dim=0)
+            viz_x1 = torch.cat(viz_data["x1"], dim=0)
+            viz_predicted_x1 = torch.cat(viz_data["predicted_x1"], dim=0)
+            
+            self.visualize_predictions(viz_x0, viz_x1, viz_predicted_x1)
+            
         if self.ema and use_ema:
             self.ema.restore()
 
         return metrics
+
+    def visualize_predictions(self, x0: torch.Tensor, x1_true: torch.Tensor, x1_pred: torch.Tensor):
+        """
+        Visualizes the predicted MPFlow states (x1_pred) compared to the ground
+        truth (x1_true), starting from x0, using t-SNE.
+
+        Args:
+            x0 (torch.Tensor): Start points tensor [batch, N, D]. Assumed on CPU.
+            x1_true (torch.Tensor): Ground truth end points tensor [batch, N, D]. Assumed on CPU.
+            x1_pred (torch.Tensor): Predicted end points tensor [batch, N, D]. Assumed on CPU.
+        """
+        n_samples = x0.shape[0]
+        if n_samples == 0:
+            self.file_logger.warning("No samples provided for MPFlow visualization.")
+            return
+
+        self.file_logger.info(f"Generating MPFlow prediction visualizations for {n_samples} samples using t-SNE...")
+
+        # --- Define t-SNE plotting helper nested within visualize_predictions ---
+        # This keeps the t-SNE logic contained and avoids polluting the class namespace
+        def _create_tsne_plot(
+            n_components: int,
+            x0_tsne_in: np.ndarray,
+            x1_true_tsne_in: np.ndarray,
+            x1_pred_tsne_in: np.ndarray,
+            output_dir: str,
+            plot_suffix: str = ""
+        ):
+            # Create plot
+            fig = plt.figure(figsize=(14, 12) if n_components == 3 else (12, 10))
+            ax = fig.add_subplot(111, projection='3d' if n_components == 3 else None)
+            # Use plasma colormap and ensure n_samples is at least 1 for linspace
+            colors = plt.cm.plasma(np.linspace(0, 1, max(1, n_samples)))
+
+            for i in range(n_samples):
+                # Get t-SNE coordinates for sample i
+                start_coords = x0_tsne_in[i]
+                true_end_coords = x1_true_tsne_in[i]
+                pred_end_coords = x1_pred_tsne_in[i]
+                color = colors[i] # Get color for this sample
+
+                if n_components == 2:
+                    # Plot lines: start -> true_end (dashed), start -> pred_end (solid)
+                    ax.plot([start_coords[0], true_end_coords[0]], [start_coords[1], true_end_coords[1]],
+                            '--', color=color, alpha=0.5, linewidth=1.2, label='True Flow' if i==0 else "") # Slightly thinner dashed line
+                    ax.plot([start_coords[0], pred_end_coords[0]], [start_coords[1], pred_end_coords[1]],
+                            '-', color=color, alpha=0.7, linewidth=1.5, label='Predicted Flow' if i==0 else "") # Solid line
+                    # Mark points with edges and adjusted sizes/alpha
+                    ax.scatter(start_coords[0], start_coords[1], color='blue', s=45, marker='o', alpha=0.8, edgecolors='k', linewidths=0.5, label='Start (x0)' if i==0 else "")
+                    ax.scatter(true_end_coords[0], true_end_coords[1], color='green', s=60, marker='x', alpha=0.9, linewidths=0.5, label='True End (x1)' if i==0 else "")
+                    ax.scatter(pred_end_coords[0], pred_end_coords[1], color='red', s=60, marker='+', alpha=0.9, linewidths=0.5, label='Predicted End' if i==0 else "")
+                elif MPL_3D_AVAILABLE and n_components == 3: # Only plot 3D if available and requested
+                     # Plot lines
+                    ax.plot([start_coords[0], true_end_coords[0]], [start_coords[1], true_end_coords[1]], [start_coords[2], true_end_coords[2]],
+                            '--', color=color, alpha=0.5, linewidth=1.2, label='True Flow' if i==0 else "")
+                    ax.plot([start_coords[0], pred_end_coords[0]], [start_coords[1], pred_end_coords[1]], [start_coords[2], pred_end_coords[2]],
+                            '-', color=color, alpha=0.7, linewidth=1.5, label='Predicted Flow' if i==0 else "")
+                     # Mark points with edges and adjusted sizes/alpha
+                    ax.scatter(start_coords[0], start_coords[1], start_coords[2], color='blue', s=45, marker='o', alpha=0.8, edgecolors='k', linewidths=0.5, label='Start (x0)' if i==0 else "")
+                    ax.scatter(true_end_coords[0], true_end_coords[1], true_end_coords[2], color='green', s=60, marker='x', alpha=0.9, linewidths=0.5, label='True End (x1)' if i==0 else "")
+                    ax.scatter(pred_end_coords[0], pred_end_coords[1], pred_end_coords[2], color='red', s=60, marker='+', alpha=0.9, linewidths=0.5, label='Predicted End' if i==0 else "")
+
+            # Titles and labels
+            epoch_step_info = f"Epoch_{self.epoch:.2f}_Step_{self.step}" if hasattr(self, 'epoch') and hasattr(self, 'step') else "Unknown_Epoch_Step"
+            # Ensure perplexity_value is defined before being used in the title
+            # It will be defined in the outer scope before this helper is called.
+            title = f'MPFlow Prediction vs Truth - {n_components}D t-SNE (Perplexity={_perplexity_value_for_plot}, {epoch_step_info})'
+
+
+            ax.set_title(title, fontsize=14)
+            ax.set_xlabel('t-SNE Dimension 1', fontsize=12)
+            ax.set_ylabel('t-SNE Dimension 2', fontsize=12)
+            if n_components == 3 and MPL_3D_AVAILABLE:
+                ax.set_zlabel('t-SNE Dimension 3', fontsize=12)
+            ax.grid(True, linestyle='--', alpha=0.2) # Refined grid
+            ax.legend(loc='best', fontsize=10) # Adjust legend font size
+
+            # Save plot
+            plot_filename = f"mpflow_tsne_{n_components}d_{epoch_step_info}{plot_suffix}.png"
+            plot_path = os.path.join(self.viz_output_dir, plot_filename)
+            try:
+                plt.savefig(plot_path, dpi=self.viz_pca_dpi, bbox_inches='tight')
+                self.file_logger.info(f"Saved {n_components}D t-SNE plot to {plot_path}")
+            except IOError as e:
+                self.file_logger.error(f"Failed to save {n_components}D t-SNE plot to {plot_path}: {e}")
+            finally:
+                plt.close(fig) # Ensure figure is closed
+        # --- End of nested helper function ---
+
+        # --- Main visualization logic ---
+        embedding_dim = x0.shape[1] * x0.shape[2] # N * D
+
+        # Flatten embedding dimensions: [batch, N*D]
+        # Tensors should already be on CPU if passed correctly
+        try:
+            x0_flat = x0.numpy().reshape(n_samples, embedding_dim)
+            x1_true_flat = x1_true.numpy().reshape(n_samples, embedding_dim)
+            x1_pred_flat = x1_pred.numpy().reshape(n_samples, embedding_dim)
+        except Exception as e:
+            self.file_logger.error(f"Error converting tensors to NumPy for t-SNE: {e}")
+            return
+
+        # Combine all points for t-SNE fitting: [3 * batch, N*D]
+        all_points_flat = np.vstack((x0_flat, x1_true_flat, x1_pred_flat))
+
+        # --- Perform t-SNE and Plotting ---
+        perplexity_value = 50 # Default perplexity
+        # Adjust perplexity if it's too large for the number of samples
+        # n_samples for t-SNE is the number of rows in all_points_flat
+        if perplexity_value >= all_points_flat.shape[0]:
+            perplexity_value = max(5.0, float(all_points_flat.shape[0] - 1)) # t-SNE perplexity must be float and < n_samples
+            self.file_logger.warning(f"Perplexity adjusted to {perplexity_value} due to low sample count ({all_points_flat.shape[0]} total points for t-SNE).")
+
+        _perplexity_value_for_plot = perplexity_value # To pass to the plotting helper
+
+        seed = self.config.get("cmd", {}).get("seed", None) # Safely get seed
+
+        if "2d" in self.viz_plots:
+            try:
+                tsne_2d = TSNE(n_components=2, perplexity=perplexity_value, random_state=seed, n_iter=300, init='pca', learning_rate='auto')
+                all_points_transformed_2d = tsne_2d.fit_transform(all_points_flat)
+                # Separate the transformed points
+                x0_tsne_2d = all_points_transformed_2d[0*n_samples : 1*n_samples]
+                x1_true_tsne_2d = all_points_transformed_2d[1*n_samples : 2*n_samples]
+                x1_pred_tsne_2d = all_points_transformed_2d[2*n_samples : 3*n_samples]
+                # Create plot using the helper
+                _create_tsne_plot(2, x0_tsne_2d, x1_true_tsne_2d, x1_pred_tsne_2d, self.viz_output_dir)
+            except Exception as e:
+                self.file_logger.error(f"t-SNE or 2D plotting failed: {e}", exc_info=True) # Log traceback
+
+        if "3d" in self.viz_plots:
+            if MPL_3D_AVAILABLE:
+                try:
+                    tsne_3d = TSNE(n_components=3, perplexity=perplexity_value, random_state=seed, n_iter=300, init='pca', learning_rate='auto')
+                    all_points_transformed_3d = tsne_3d.fit_transform(all_points_flat)
+                    # Separate the transformed points
+                    x0_tsne_3d = all_points_transformed_3d[0*n_samples : 1*n_samples]
+                    x1_true_tsne_3d = all_points_transformed_3d[1*n_samples : 2*n_samples]
+                    x1_pred_tsne_3d = all_points_transformed_3d[2*n_samples : 3*n_samples]
+                    # Create plot using the helper
+                    _create_tsne_plot(3, x0_tsne_3d, x1_true_tsne_3d, x1_pred_tsne_3d, self.viz_output_dir)
+                except Exception as e:
+                    self.file_logger.error(f"t-SNE or 3D plotting failed: {e}", exc_info=True) # Log traceback
+            else:
+                self.file_logger.warning("Skipping 3D t-SNE plot because mpl_toolkits.mplot3d is not available.")

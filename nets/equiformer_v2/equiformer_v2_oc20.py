@@ -432,6 +432,8 @@ class EquiformerV2_OC20(BaseModel):
         atomic_numbers = data.atomic_numbers.long()
         num_atoms = len(atomic_numbers)
         pos = data.pos
+        # if self.regress_forces and self.training:
+        #     pos.requires_grad_(True)
 
         (
             edge_index,
@@ -566,6 +568,7 @@ class EquiformerV2_OC20(BaseModel):
         ###############################################################
         # Force estimation
         ###############################################################
+        forces = None # Initialize forces to None
         if self.regress_forces:
             forces = self.force_block(x,
                 atomic_numbers,
@@ -573,11 +576,24 @@ class EquiformerV2_OC20(BaseModel):
                 edge_index)
             forces = forces.embedding.narrow(1, 1, 3)
             forces = forces.view(-1, 3)
+            grad_forces = None
+            # if self.training:
+            #     # Calculate forces as the negative gradient of total energy w.r.t. positions
+            #     total_energy = energy.sum() # Sum energy over the batch to get a scalar
+            #     grad_forces = -torch.autograd.grad(
+            #         outputs=total_energy, 
+            #         inputs=pos, 
+            #         create_graph=True,      # Allow for higher-order derivatives
+            #         retain_graph=True       # Keep graph for potential further use (e.g. loss.backward())
+            #     )[0]
+            #     # forces will have shape [num_atoms, 3] matching pos
+            #     if grad_forces is None: # Safeguard check
+            #         raise RuntimeError("Forces were not computed despite self.regress_forces being True.")
             
         if not self.regress_forces:
             return energy, ut, predicted_ut, x0.embedding, x1.embedding, predicted_x1.embedding
         else:
-            return energy, forces, ut, predicted_ut, x0.embedding, x1.embedding, predicted_x1.embedding
+            return energy, forces, grad_forces, ut, predicted_ut, x0.embedding, x1.embedding, predicted_x1.embedding
 
     def sample_trajectory(self, x0, atomic_numbers, edge_distance, edge_index, batch, device):
         """
