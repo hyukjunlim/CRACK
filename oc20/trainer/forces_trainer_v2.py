@@ -476,9 +476,9 @@ class ForcesTrainerV2(BaseTrainerV2):
         # forward pass.
         if (self.config["model_attributes"].get("regress_forces", True)
             or self.config['model_attributes'].get('use_auxiliary_task', False)):
-            out_energy, out_forces, out_grad_forces, ut, predicted_ut, x0_embedding, x1_embedding, predicted_x1_embedding = self.model(batch_list)
+            out_energy, out_forces, out_grad_forces, ut, predicted_ut, x0_embedding, x1_embedding, predicted_x1_embedding, node_energy, node_energy2 = self.model(batch_list)
         else:
-            out_energy, ut, predicted_ut, x0_embedding, x1_embedding, predicted_x1_embedding = self.model(batch_list)
+            out_energy, ut, predicted_ut, x0_embedding, x1_embedding, predicted_x1_embedding, node_energy, node_energy2 = self.model(batch_list)
 
         if out_energy.shape[-1] == 1:
             out_energy = out_energy.view(-1)
@@ -490,6 +490,8 @@ class ForcesTrainerV2(BaseTrainerV2):
             "x0": x0_embedding,
             "x1": x1_embedding,
             "predicted_x1": predicted_x1_embedding,
+            "node_energy": node_energy,
+            "node_energy2": node_energy2,
         }
 
         if (self.config["model_attributes"].get("regress_forces", True)
@@ -522,10 +524,17 @@ class ForcesTrainerV2(BaseTrainerV2):
         )
         if self.normalizer.get("normalize_labels", False):
             energy_target = self.normalizers["target"].norm (energy_target)
-        energy_mult = self.config["optim"].get("energy_coefficient", 1)
+        energy_mult = self.config["optim"].get("energy_coefficient", 4)
         loss.append(
             energy_mult * self.loss_fn["energy"](out["energy"], energy_target)
         )
+        
+        # Per-atom energy loss.
+        if out["node_energy"] is not None:
+            energy_mult2 = self.config["optim"].get("energy_coefficient", 4)
+            loss.append(
+                energy_mult2 * self.loss_fn["mpflow"](out["node_energy"], out["node_energy2"])
+            )
 
         # Force loss.
         if (self.config["model_attributes"].get("regress_forces", True)
@@ -574,7 +583,7 @@ class ForcesTrainerV2(BaseTrainerV2):
 
             else:
                 # Force coefficient = 30 has been working well for us.
-                force_mult = self.config["optim"].get("force_coefficient", 30)
+                force_mult = self.config["optim"].get("force_coefficient", 100)
                 if self.config["task"].get("train_on_free_atoms", False):
                     fixed = torch.cat(
                         [batch.fixed.to(self.device) for batch in batch_list]
@@ -584,7 +593,7 @@ class ForcesTrainerV2(BaseTrainerV2):
                         "atomwise"
                     ):
                         force_mult = self.config["optim"].get(
-                            "force_coefficient", 1
+                            "force_coefficient", 100
                         )
                         natoms = torch.cat(
                             [

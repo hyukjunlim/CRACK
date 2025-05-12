@@ -397,6 +397,19 @@ class EquiformerV2_OC20(BaseModel):
         
         self.norm2 = get_normalization_layer(norm_type, lmax=max(self.lmax_list), num_channels=self.sphere_channels)
         
+        self.energy_block2 = FeedForwardNetwork(
+            self.sphere_channels,
+            self.ffn_hidden_channels, 
+            1,
+            self.lmax_list,
+            self.mmax_list,
+            self.SO3_grid,  
+            self.ffn_activation,
+            self.use_gate_act,
+            self.use_grid_mlp,
+            self.use_sep_s2_act
+        )
+        
         self.apply(self._init_weights)
         self.apply(self._uniform_init_rad_func_linear_weights)
         
@@ -406,9 +419,6 @@ class EquiformerV2_OC20(BaseModel):
     def freeze_backbone(self):
         for param in self.parameters():
             param.requires_grad = False
-        
-        for param in self.energy_block.parameters():
-            param.requires_grad = True
         
         if self.regress_forces:
             for param in self.force_block.parameters():
@@ -421,6 +431,9 @@ class EquiformerV2_OC20(BaseModel):
             param.requires_grad = True
         
         for param in self.norm2.parameters():
+            param.requires_grad = True
+            
+        for param in self.energy_block2.parameters():
             param.requires_grad = True
             
     @conditional_grad(torch.enable_grad())
@@ -554,15 +567,19 @@ class EquiformerV2_OC20(BaseModel):
                 print(f"Time taken for mpflow: {end_time2 - start_time2} seconds", flush=True)
                 print(f"Time ratio: {((end_time1 - start_time1) / (end_time2 - start_time2))}", flush=True)
                 
-            x = predicted_x1.clone()
-
         ###############################################################
         # Energy estimation
         ###############################################################
-        node_energy = self.energy_block(x) 
-        node_energy = node_energy.embedding.narrow(1, 0, 1)
-        _energy = torch.zeros(len(data.natoms), device=node_energy.device, dtype=node_energy.dtype)
-        _energy.index_add_(0, data.batch, node_energy.view(-1))
+        node_energy = None
+        if self.training:
+            node_energy = self.energy_block(x) 
+            node_energy = node_energy.embedding.narrow(1, 0, 1)
+        
+        node_energy2 = self.energy_block2(predicted_x1)
+        node_energy2 = node_energy2.embedding.narrow(1, 0, 1)
+        
+        _energy = torch.zeros(len(data.natoms), device=node_energy2.device, dtype=node_energy2.dtype)
+        _energy.index_add_(0, data.batch, node_energy2.view(-1))
         energy = _energy / _AVG_NUM_NODES
 
         ###############################################################
@@ -570,7 +587,7 @@ class EquiformerV2_OC20(BaseModel):
         ###############################################################
         forces = None # Initialize forces to None
         if self.regress_forces:
-            forces = self.force_block(x,
+            forces = self.force_block(predicted_x1,
                 atomic_numbers,
                 edge_distance,
                 edge_index)
@@ -591,9 +608,9 @@ class EquiformerV2_OC20(BaseModel):
             #         raise RuntimeError("Forces were not computed despite self.regress_forces being True.")
             
         if not self.regress_forces:
-            return energy, ut, predicted_ut, x0.embedding, x1.embedding, predicted_x1.embedding
+            return energy, ut, predicted_ut, x0.embedding, x1.embedding, predicted_x1.embedding, node_energy, node_energy2
         else:
-            return energy, forces, grad_forces, ut, predicted_ut, x0.embedding, x1.embedding, predicted_x1.embedding
+            return energy, forces, grad_forces, ut, predicted_ut, x0.embedding, x1.embedding, predicted_x1.embedding, node_energy, node_energy2
 
     def sample_trajectory(self, x0, atomic_numbers, edge_distance, edge_index, batch, device):
         """
