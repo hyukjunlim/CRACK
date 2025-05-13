@@ -411,8 +411,9 @@ class ForcesTrainerV2(BaseTrainerV2):
                     )
 
                 if (
-                    checkpoint_every != -1
-                    and self.step % checkpoint_every == 0
+                    (checkpoint_every != -1
+                    and self.step % checkpoint_every == 0)
+                    or i == (len(self.train_loader) - 1)
                 ):
                     self.save(
                         checkpoint_file="checkpoint.pt", training_state=True
