@@ -140,7 +140,6 @@ class EquivariantMPFlow(nn.Module):
             nn.Linear(time_embed_dim, sphere_channels * 2)
         )
         
-    @torch.cuda.amp.autocast(enabled=False)
     def forward(self, x, t, atomic_numbers, edge_distance, edge_index, batch):
         """
         Forward pass for the equivariant flow model using TransBlockV2 blocks.

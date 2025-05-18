@@ -643,7 +643,6 @@ class EquiformerV2_OC20(BaseModel):
         
         return x
     
-    @torch.cuda.amp.autocast(enabled=False)
     def calculate_predicted_ut(self, x0, x1, atomic_numbers, edge_distance, edge_index, batch, device):
         num_nodes = x0.embedding.shape[0]
         num_graphs = batch.max().item() + 1  # Get the number of graphs in the batch
