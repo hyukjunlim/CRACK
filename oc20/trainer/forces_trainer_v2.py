@@ -505,12 +505,12 @@ class ForcesTrainerV2(BaseTrainerV2):
     def _compute_loss(self, out, batch_list):
         loss = []
         
-        # MPFlow loss.
-        mpflow_mult = self.config["optim"].get("mpflow_coefficient", 100)
-        mpflow_loss = self.loss_fn["mpflow"](out["predicted_ut"], out["ut"])
-        loss.append(
-            mpflow_mult * mpflow_loss
-        )
+        # # MPFlow loss.
+        # mpflow_mult = self.config["optim"].get("mpflow_coefficient", 100)
+        # mpflow_loss = self.loss_fn["mpflow"](out["predicted_ut"], out["ut"])
+        # loss.append(
+        #     mpflow_mult * mpflow_loss
+        # )
         
         # n2n loss.
         n2n_mult = self.config["optim"].get("n2n_coefficient", 100)

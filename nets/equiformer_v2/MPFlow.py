@@ -131,16 +131,16 @@ class EquivariantMPFlow(nn.Module):
             )
             self.blocks.append(block)
         
-        # Time embedding network
-        self.time_embed_dim = time_embed_dim
-        self.sinusoidal_time_embedding = SinusoidalTimeEmbedding(time_embed_dim)
-        self.time_ffn = nn.Sequential(
-            nn.Linear(time_embed_dim, time_embed_dim),
-            nn.SiLU(),
-            nn.Linear(time_embed_dim, sphere_channels * 2)
-        )
+        # # Time embedding network
+        # self.time_embed_dim = time_embed_dim
+        # self.sinusoidal_time_embedding = SinusoidalTimeEmbedding(time_embed_dim)
+        # self.time_ffn = nn.Sequential(
+        #     nn.Linear(time_embed_dim, time_embed_dim),
+        #     nn.SiLU(),
+        #     nn.Linear(time_embed_dim, sphere_channels * 2)
+        # )
         
-    def forward(self, x, t, atomic_numbers, edge_distance, edge_index, batch):
+    def forward(self, x, atomic_numbers, edge_distance, edge_index, batch):
         """
         Forward pass for the equivariant flow model using TransBlockV2 blocks.
 
@@ -155,12 +155,12 @@ class EquivariantMPFlow(nn.Module):
             torch.Tensor: Predicted velocity field dv/dt, same type as x.
         """
         
-        # Time Conditioning
-        t = self.sinusoidal_time_embedding(t)
-        t = self.time_ffn(t.unsqueeze(1)) # [num_nodes, 1, sphere_channels * 2]
-        scale, shift = torch.chunk(t, 2, dim=-1)
-        x.embedding = x.embedding * (1 + scale)
-        x.embedding[:, 0:1, :] = x.embedding[:, 0:1, :] + shift
+        # # Time Conditioning
+        # t = self.sinusoidal_time_embedding(t)
+        # t = self.time_ffn(t.unsqueeze(1)) # [num_nodes, 1, sphere_channels * 2]
+        # scale, shift = torch.chunk(t, 2, dim=-1)
+        # x.embedding = x.embedding * (1 + scale)
+        # x.embedding[:, 0:1, :] = x.embedding[:, 0:1, :] + shift
         
         for block in self.blocks:
             x = block(x, 

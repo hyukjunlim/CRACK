@@ -551,7 +551,8 @@ class EquiformerV2_OC20(BaseModel):
             predicted_ut = ut
             predicted_x1 = x1.clone()
         else:
-            ut, predicted_ut = self.calculate_predicted_ut(x0, x1, atomic_numbers, edge_distance, edge_index, data.batch, self.device)
+            ut, predicted_ut = None, None
+            # ut, predicted_ut = self.calculate_predicted_ut(x0, x1, atomic_numbers, edge_distance, edge_index, data.batch, self.device)
             
             if speed_compare:
                 start_time2 = time.time()
@@ -625,21 +626,12 @@ class EquiformerV2_OC20(BaseModel):
             device: The device tensors are on.
         """
         x = x0.clone()
-        dt = 1.0 # Integrate from t=0 to t=1
 
-        # Initial state and time
-        y0 = x.embedding
-        t0 = torch.zeros((y0.shape[0], 1), device=device, dtype=y0.dtype) # Time t=0
-
-        # Calculate velocity at t=0
-        v0 = self.mpflow(x, t0, atomic_numbers, edge_distance, edge_index, batch) # v(t0, y0)
+        v0 = self.mpflow(x, atomic_numbers, edge_distance, edge_index, batch) # v(t0, y0)
         v0.embedding = self.norm2(v0.embedding)
 
-        # Calculate final state using Euler's method
-        y1 = y0 + v0.embedding * dt
-        
         # Update the SO3_Embedding object with the final state
-        x.embedding = y1
+        x.embedding = v0.embedding
         
         return x
     
