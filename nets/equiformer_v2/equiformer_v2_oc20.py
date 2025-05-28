@@ -437,16 +437,13 @@ class EquiformerV2_OC20(BaseModel):
             param.requires_grad = True
             
     @conditional_grad(torch.enable_grad())
-    def forward(self, data):
-        self.batch_size = len(data.natoms)
-        self.dtype = data.pos.dtype
-        self.device = data.pos.device
-
+    def _initialize_graph_and_embeddings(self, data, set_pos_requires_grad=False):
         atomic_numbers = data.atomic_numbers.long()
         num_atoms = len(atomic_numbers)
         pos = data.pos
-        # if self.regress_forces and self.training:
-        #     pos.requires_grad_(True)
+        
+        if set_pos_requires_grad:
+            pos.requires_grad_(True)
 
         (
             edge_index,
@@ -512,7 +509,21 @@ class EquiformerV2_OC20(BaseModel):
             edge_distance,
             edge_index)
         x.embedding = x.embedding + edge_degree.embedding
+        
+        return atomic_numbers, num_atoms, pos, edge_index, edge_distance, edge_distance_vec, x
 
+    @conditional_grad(torch.enable_grad())
+    def forward(self, data):
+        self.batch_size = len(data.natoms)
+        self.dtype = data.pos.dtype
+        self.device = data.pos.device
+        
+        atomic_numbers, num_atoms, pos, edge_index, edge_distance, edge_distance_vec, x = \
+            self._initialize_graph_and_embeddings(data, set_pos_requires_grad=False)
+        
+        atomic_numbers_mp, num_atoms_mp, pos_mp, edge_index_mp, edge_distance_mp, edge_distance_vec_mp, x_mp = \
+            self._initialize_graph_and_embeddings(data, set_pos_requires_grad=False)
+        
         ###############################################################
         # Update spherical node embeddings
         ###############################################################
@@ -557,7 +568,7 @@ class EquiformerV2_OC20(BaseModel):
             if speed_compare:
                 start_time2 = time.time()
                 
-            predicted_x1 = self.sample_trajectory(x0, atomic_numbers, edge_distance, edge_index, data.batch, self.device)
+            predicted_x1 = self.sample_trajectory(x_mp, atomic_numbers_mp, edge_distance_mp, edge_index_mp, data.batch, self.device)
             
             res_x = predicted_x1.embedding
             predicted_x1 = self.mpflow_delta(predicted_x1)
@@ -613,26 +624,21 @@ class EquiformerV2_OC20(BaseModel):
         else:
             return energy, forces, grad_forces, ut, predicted_ut, x0.embedding, x1.embedding, predicted_x1.embedding, node_energy, node_energy2
 
-    def sample_trajectory(self, x0, atomic_numbers, edge_distance, edge_index, batch, device):
+    def sample_trajectory(self, x, atomic_numbers, edge_distance, edge_index, batch, device):
         """
         Samples a trajectory using Euler's method from t=0 to t=1.
         
         Args:
-            x0: Starting point (SO3_Embedding object)
+            x: Starting point (SO3_Embedding object)
             atomic_numbers: Atomic numbers of the atoms
             edge_distance: Edge distance of the atoms
             edge_index: Edge index of the atoms
             batch: Batch tensor of the atoms
             device: The device tensors are on.
         """
-        x = x0.clone()
+        x = self.mpflow(x, atomic_numbers, edge_distance, edge_index, batch)
+        x.embedding = self.norm2(x.embedding)
 
-        v0 = self.mpflow(x, atomic_numbers, edge_distance, edge_index, batch) # v(t0, y0)
-        v0.embedding = self.norm2(v0.embedding)
-
-        # Update the SO3_Embedding object with the final state
-        x.embedding = v0.embedding
-        
         return x
     
     def calculate_predicted_ut(self, x0, x1, atomic_numbers, edge_distance, edge_index, batch, device):

@@ -618,12 +618,12 @@ class ForcesTrainerV2(BaseTrainerV2):
                             )
                         )
                         
-                        # # Gradient loss.
-                        # if out["grad_forces"] is not None:
-                        #     loss.append(
-                        #         energy_mult
-                        #         * self.loss_fn["force"](out["grad_forces"][mask], force_target[mask])
-                        #     )
+                        # Gradient loss.
+                        if out["grad_forces"] is not None:
+                            loss.append(
+                                energy_mult
+                                * self.loss_fn["force"](out["grad_forces"][mask], force_target[mask])
+                            )
                 else:
                     loss.append(
                         force_mult
