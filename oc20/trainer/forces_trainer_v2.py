@@ -19,6 +19,7 @@ from pathlib import Path
 import numpy as np
 import torch
 import torch_geometric
+import torch.nn.functional as F
 from tqdm import tqdm
 
 # Visualization Imports
@@ -477,22 +478,22 @@ class ForcesTrainerV2(BaseTrainerV2):
         # forward pass.
         if (self.config["model_attributes"].get("regress_forces", True)
             or self.config['model_attributes'].get('use_auxiliary_task', False)):
-            out_energy, out_forces, out_grad_forces, ut, predicted_ut, x0_embedding, x1_embedding, predicted_x1_embedding, node_energy, node_energy2 = self.model(batch_list)
+            out_energy, out_forces, out_grad_forces, x0_embedding, x1_embedding, predicted_x1_embedding, node_energy, node_energy2, proj_x1, proj_predicted_x1 = self.model(batch_list)
         else:
-            out_energy, ut, predicted_ut, x0_embedding, x1_embedding, predicted_x1_embedding, node_energy, node_energy2 = self.model(batch_list)
+            out_energy, x0_embedding, x1_embedding, predicted_x1_embedding, node_energy, node_energy2, proj_x1, proj_predicted_x1 = self.model(batch_list)
 
         if out_energy.shape[-1] == 1:
             out_energy = out_energy.view(-1)
 
         out = {
             "energy": out_energy,
-            "ut": ut,
-            "predicted_ut": predicted_ut,
             "x0": x0_embedding,
             "x1": x1_embedding,
             "predicted_x1": predicted_x1_embedding,
             "node_energy": node_energy,
             "node_energy2": node_energy2,
+            "proj_x1": proj_x1,
+            "proj_predicted_x1": proj_predicted_x1,
         }
 
         if (self.config["model_attributes"].get("regress_forces", True)
@@ -502,15 +503,24 @@ class ForcesTrainerV2(BaseTrainerV2):
             
         return out
 
+    def node_infonce_loss(self, student, teacher, temperature=0.1):
+        student = F.normalize(student, dim=-1)
+        teacher = F.normalize(teacher, dim=-1)
+        logits = torch.matmul(student, teacher.T) / temperature  # [num_nodes, num_nodes]
+        labels = torch.arange(student.size(0), device=student.device)
+        return F.cross_entropy(logits, labels)
+    
     def _compute_loss(self, out, batch_list):
         loss = []
         
-        # # MPFlow loss.
-        # mpflow_mult = self.config["optim"].get("mpflow_coefficient", 100)
-        # mpflow_loss = self.loss_fn["mpflow"](out["predicted_ut"], out["ut"])
-        # loss.append(
-        #     mpflow_mult * mpflow_loss
-        # )
+        # InfoNCE loss (node-level, final layer only)
+        infonce_mult = self.config["optim"].get("infonce_coefficient", 10)
+        proj_predicted_x1 = out["proj_predicted_x1"]
+        proj_x1 = out["proj_x1"]
+        infonce_loss = self.node_infonce_loss(proj_predicted_x1, proj_x1, temperature=0.1)
+        loss.append(
+            infonce_mult * infonce_loss
+        )
         
         # n2n loss.
         n2n_mult = self.config["optim"].get("n2n_coefficient", 100)
@@ -650,8 +660,6 @@ class ForcesTrainerV2(BaseTrainerV2):
                 [batch.force.to(self.device) for batch in batch_list], dim=0
             ),
             "natoms": natoms,
-            "ut": out["ut"],
-            "predicted_ut": out["predicted_ut"],
             "x1": out["x1"],
             "predicted_x1": out["predicted_x1"],
         }

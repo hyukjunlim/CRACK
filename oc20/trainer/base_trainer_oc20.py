@@ -428,7 +428,7 @@ class BaseTrainer(ABC):
         #     self.model.module.mpflow.blocks[i].load_state_dict(self.model.module.blocks[i].state_dict())
         for i in range(len(self.model.module.mpflow.blocks)):
             self.model.module.mpflow.blocks[i].load_state_dict(self.model.module.blocks[i].state_dict())
-        self.model.module.norm2.load_state_dict(self.model.module.norm.state_dict())
+        self.model.module.mpflow.norm.load_state_dict(self.model.module.norm.state_dict())
         self.model.module.energy_block2.load_state_dict(self.model.module.energy_block.state_dict())
         
 

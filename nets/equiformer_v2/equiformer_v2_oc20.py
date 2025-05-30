@@ -395,7 +395,31 @@ class EquiformerV2_OC20(BaseModel):
             self.use_sep_s2_act
         )
         
-        self.norm2 = get_normalization_layer(norm_type, lmax=max(self.lmax_list), num_channels=self.sphere_channels)
+        self.proj_x1 = FeedForwardNetwork(
+            self.sphere_channels,
+            self.ffn_hidden_channels, 
+            self.sphere_channels,
+            self.lmax_list,
+            self.mmax_list,
+            self.SO3_grid,  
+            self.ffn_activation,
+            self.use_gate_act,
+            self.use_grid_mlp,
+            self.use_sep_s2_act
+        )
+        
+        self.proj_predicted_x1 = FeedForwardNetwork(
+            self.sphere_channels,
+            self.ffn_hidden_channels, 
+            self.sphere_channels,
+            self.lmax_list,
+            self.mmax_list,
+            self.SO3_grid,  
+            self.ffn_activation,
+            self.use_gate_act,
+            self.use_grid_mlp,
+            self.use_sep_s2_act
+        )
         
         self.energy_block2 = FeedForwardNetwork(
             self.sphere_channels,
@@ -430,11 +454,15 @@ class EquiformerV2_OC20(BaseModel):
         for param in self.mpflow_delta.parameters():
             param.requires_grad = True
         
-        for param in self.norm2.parameters():
-            param.requires_grad = True
-            
         for param in self.energy_block2.parameters():
             param.requires_grad = True
+            
+        for param in self.proj_x1.parameters():
+            param.requires_grad = True
+            
+        for param in self.proj_predicted_x1.parameters():
+            param.requires_grad = True
+            
             
     @conditional_grad(torch.enable_grad())
     def _initialize_graph_and_embeddings(self, data, set_pos_requires_grad=False):
@@ -558,17 +586,12 @@ class EquiformerV2_OC20(BaseModel):
         # MPFlow
         ###############################################################
         if pure_eqv2:
-            ut = x1.embedding - x0.embedding
-            predicted_ut = ut
             predicted_x1 = x1.clone()
         else:
-            ut, predicted_ut = None, None
-            # ut, predicted_ut = self.calculate_predicted_ut(x0, x1, atomic_numbers, edge_distance, edge_index, data.batch, self.device)
-            
             if speed_compare:
                 start_time2 = time.time()
                 
-            predicted_x1 = self.sample_trajectory(x_mp, atomic_numbers_mp, edge_distance_mp, edge_index_mp, data.batch, self.device)
+            predicted_x1 = self.mpflow(x_mp, atomic_numbers_mp, edge_distance_mp, edge_index_mp, data.batch)
             
             res_x = predicted_x1.embedding
             predicted_x1 = self.mpflow_delta(predicted_x1)
@@ -578,6 +601,10 @@ class EquiformerV2_OC20(BaseModel):
                 end_time2 = time.time()
                 print(f"Time taken for mpflow: {end_time2 - start_time2} seconds", flush=True)
                 print(f"Time ratio: {((end_time1 - start_time1) / (end_time2 - start_time2))}", flush=True)
+            
+            # [N, D]
+            proj_x1 = self.proj_x1(x1).embedding.narrow(1, 0, 1).view(-1, self.sphere_channels)
+            proj_predicted_x1 = self.proj_predicted_x1(predicted_x1).embedding.narrow(1, 0, 1).view(-1, self.sphere_channels)
                 
         ###############################################################
         # Energy estimation
@@ -620,57 +647,10 @@ class EquiformerV2_OC20(BaseModel):
             #         raise RuntimeError("Forces were not computed despite self.regress_forces being True.")
             
         if not self.regress_forces:
-            return energy, ut, predicted_ut, x0.embedding, x1.embedding, predicted_x1.embedding, node_energy, node_energy2
+            return energy, x0.embedding, x1.embedding, predicted_x1.embedding, node_energy, node_energy2, proj_x1, proj_predicted_x1
         else:
-            return energy, forces, grad_forces, ut, predicted_ut, x0.embedding, x1.embedding, predicted_x1.embedding, node_energy, node_energy2
+            return energy, forces, grad_forces, x0.embedding, x1.embedding, predicted_x1.embedding, node_energy, node_energy2, proj_x1, proj_predicted_x1
 
-    def sample_trajectory(self, x, atomic_numbers, edge_distance, edge_index, batch, device):
-        """
-        Samples a trajectory using Euler's method from t=0 to t=1.
-        
-        Args:
-            x: Starting point (SO3_Embedding object)
-            atomic_numbers: Atomic numbers of the atoms
-            edge_distance: Edge distance of the atoms
-            edge_index: Edge index of the atoms
-            batch: Batch tensor of the atoms
-            device: The device tensors are on.
-        """
-        x = self.mpflow(x, atomic_numbers, edge_distance, edge_index, batch)
-        x.embedding = self.norm2(x.embedding)
-
-        return x
-    
-    def calculate_predicted_ut(self, x0, x1, atomic_numbers, edge_distance, edge_index, batch, device):
-        num_nodes = x0.embedding.shape[0]
-        num_graphs = batch.max().item() + 1  # Get the number of graphs in the batch
-        
-        # Detach embeddings from x0 and x1 to treat them as fixed targets/inputs for MPFlow
-        detached_x0_embedding = x0.embedding.detach()
-        detached_x1_embedding = x1.embedding.detach()
-
-        xt = x0.clone() # Create a new SO3_Embedding for xt
-        
-        # Generate a random t for each graph in the batch
-        t_batch = torch.rand(num_graphs, device=device, dtype=detached_x0_embedding.dtype)  # [num_graphs]
-        
-        # Map the batch-specific t to each node
-        t = t_batch[batch]  # [num_nodes]
-        t = t.unsqueeze(-1) # [num_nodes, 1]
-        t_expanded = t.unsqueeze(-1) # [num_nodes, 1, 1]
-        
-        # ut_target is based on detached versions of x0 and x1 embeddings
-        ut_target = detached_x1_embedding - detached_x0_embedding
-        
-        # xt.embedding is the interpolated state for MPFlow input, also based on detached x0 and ut_target
-        xt.embedding = detached_x0_embedding + t_expanded * ut_target
-        
-        # MPFlow predicts ut based on xt (which is built from detached components) and t
-        predicted_ut_embedding = self.mpflow(xt, t, atomic_numbers, edge_distance, edge_index, batch).embedding
-        predicted_ut_embedding = self.norm2(predicted_ut_embedding)
-        
-        return ut_target, predicted_ut_embedding
-    
     
     # Initialize the edge rotation matrics
     def _init_edge_rot_mat(self, data, edge_index, edge_distance_vec):
