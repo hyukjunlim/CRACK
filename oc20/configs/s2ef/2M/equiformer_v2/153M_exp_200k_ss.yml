@@ -96,7 +96,7 @@ optim:
   num_workers: 2
   lr_initial_f:                0.0005     # [0.0002, 0.0004], eSCN uses 0.0008 for batch size 96
   lr_initial_e:                0.0005     # [0.0002, 0.0004], eSCN uses 0.0008 for batch size 96
-  lr_initial_mpflow:           0.0005     # [0.0002, 0.0004], eSCN uses 0.0008 for batch size 96
+  lr_initial_student:           0.0005     # [0.0002, 0.0004], eSCN uses 0.0008 for batch size 96
   
   optimizer: AdamW
   optimizer_params:
@@ -116,7 +116,7 @@ optim:
   ema_decay: 0.999
   loss_energy: mae
   loss_force: l2mae
-  loss_mpflow: mse
+  loss_student: mse
 
   eval_every: 1000000000
 
