@@ -508,6 +508,7 @@ class ForcesTrainerV2(BaseTrainerV2):
         teacher = F.normalize(teacher, dim=-1)
         logits = torch.matmul(student, teacher.T) / temperature  # [num_nodes, num_nodes]
         labels = torch.arange(student.size(0), device=student.device)
+        
         return F.cross_entropy(logits, labels)
     
     def supcon_loss(self, embs_student, embs_teacher, temperature=0.1):
@@ -557,23 +558,12 @@ class ForcesTrainerV2(BaseTrainerV2):
     def _compute_loss(self, out, batch_list):
         loss = []
         
-        # SupCon loss
-        supcon_mult = self.config["optim"].get("supcon_coefficient", 10)
-        embs_student = out["embs_student"]
-        embs = out["embs"]
-        supcon_loss = self.supcon_loss(embs_student[-1:], embs[-1:], temperature=0.1)
+        # SimCLR loss
+        simclr_mult = self.config["optim"].get("simclr_coefficient", 10)
+        simclr_loss = self.simclr_loss(out["embs_student"], out["embs"], temperature=0.1)
         loss.append(
-            supcon_mult * supcon_loss
+            simclr_mult * simclr_loss
         )
-        
-        # # SimCLR loss
-        # simclr_mult = self.config["optim"].get("simclr_coefficient", 10)
-        # embs_student = out["embs_student"]
-        # embs = out["embs"]
-        # simclr_loss = self.simclr_loss(embs_student[-1], embs[-1], temperature=0.1)
-        # loss.append(
-        #     simclr_mult * simclr_loss
-        # )
         
         # n2n loss.
         n2n_mult = self.config["optim"].get("n2n_coefficient", 100)

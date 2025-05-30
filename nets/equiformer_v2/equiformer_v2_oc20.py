@@ -569,9 +569,6 @@ class EquiformerV2_OC20(BaseModel):
         pure_eqv2 = False
         speed_compare = False
         
-        n_atoms, n_channels, n_dim = x.embedding.shape
-        embs = torch.zeros(self.num_layers, n_atoms, n_dim, device=x.embedding.device, dtype=x.embedding.dtype)
-        
         if speed_compare:
             start_time1 = time.time()
         for i in range(self.num_layers):
@@ -582,7 +579,6 @@ class EquiformerV2_OC20(BaseModel):
                 edge_index,
                 batch=data.batch    # for GraphDropPath
             )
-            embs[i] = self.proj_teacher(x).embedding.narrow(1, 0, 1).view(-1, self.sphere_channels)
             
         # Final layer norm
         x.embedding = self.norm(x.embedding)
@@ -599,8 +595,6 @@ class EquiformerV2_OC20(BaseModel):
         if pure_eqv2:
             predicted_x1 = x1.clone()
         else:
-            embs_student = torch.zeros(self.num_layers_student, n_atoms, n_dim, device=x.embedding.device, dtype=x.embedding.dtype)
-            
             if speed_compare:
                 start_time2 = time.time()
                 
@@ -612,7 +606,6 @@ class EquiformerV2_OC20(BaseModel):
                     edge_index_s,
                     batch=data.batch    # for GraphDropPath
                 )
-                embs_student[i] = self.proj_student(x_s).embedding.narrow(1, 0, 1).view(-1, self.sphere_channels)
                 
             x_s.embedding = self.norm_student(x_s.embedding)
             
@@ -624,6 +617,9 @@ class EquiformerV2_OC20(BaseModel):
                 end_time2 = time.time()
                 print(f"Time taken for student: {end_time2 - start_time2} seconds", flush=True)
                 print(f"Time ratio: {((end_time1 - start_time1) / (end_time2 - start_time2))}", flush=True)
+                
+            embs = self.proj_teacher(x).embedding.narrow(1, 0, 1).reshape(-1, self.sphere_channels)
+            embs_student = self.proj_student(x_s).embedding.narrow(1, 0, 1).reshape(-1, self.sphere_channels)
             
         ###############################################################
         # Energy estimation
