@@ -125,20 +125,20 @@ class ForcesTrainerV2(BaseTrainerV2):
             noddp=noddp,
         )
 
-        # --- MPFlow Visualization Configuration ---
-        self.visualize_mpflow = self.config.get("visualize_mpflow", True) # Enable/disable visualization
-        self.viz_output_dir = self.config.get("visualization_output_dir", os.path.join(self.run_dir, "mpflow_visualizations")) # Default to run_dir subdir
+        # --- Student Visualization Configuration ---
+        self.visualize_student = self.config.get("visualize_student", True) # Enable/disable visualization
+        self.viz_output_dir = self.config.get("visualization_output_dir", os.path.join(self.run_dir, "student_visualizations")) # Default to run_dir subdir
         self.viz_num_samples = self.config.get("visualization_num_samples", 100) # Max samples to plot
         self.viz_plots = self.config.get("visualization_plots", ["2d", "3d"]) # Plots to generate ('2d', '3d')
         self.viz_pca_dpi = self.config.get("visualization_pca_dpi", 300) # DPI for saved plots
 
-        if self.visualize_mpflow and distutils.is_master():
+        if self.visualize_student and distutils.is_master():
             os.makedirs(self.viz_output_dir, exist_ok=True)
             if hasattr(self, 'file_logger') and self.file_logger:
-                self.file_logger.info(f"MPFlow visualizations will be saved to: {self.viz_output_dir}")
+                self.file_logger.info(f"Student visualizations will be saved to: {self.viz_output_dir}")
             else:
                 # Fallback to print if file_logger is not available, though it should be from BaseTrainerV2
-                print(f"MPFlow visualizations will be saved to: {self.viz_output_dir}")
+                print(f"Student visualizations will be saved to: {self.viz_output_dir}")
 
     def load_task(self):
         self.file_logger.info(f"Loading dataset: {self.config['task']['dataset']}")
@@ -386,7 +386,7 @@ class ForcesTrainerV2(BaseTrainerV2):
                     {
                         "lr_energy": self.scheduler.get_lr('energy'),
                         "lr_force": self.scheduler.get_lr('force'),
-                        "lr_mpflow": self.scheduler.get_lr('mpflow'),
+                        "lr_student": self.scheduler.get_lr('student'),
                         "epoch": self.epoch,
                         "step": self.step,
                     }
@@ -478,9 +478,9 @@ class ForcesTrainerV2(BaseTrainerV2):
         # forward pass.
         if (self.config["model_attributes"].get("regress_forces", True)
             or self.config['model_attributes'].get('use_auxiliary_task', False)):
-            out_energy, out_forces, out_grad_forces, x0_embedding, x1_embedding, predicted_x1_embedding, node_energy, node_energy2, proj_x1, proj_predicted_x1 = self.model(batch_list)
+            out_energy, out_forces, out_grad_forces, embs, embs_student, x0_embedding, x1_embedding, predicted_x1_embedding, node_energy, node_energy2 = self.model(batch_list)
         else:
-            out_energy, x0_embedding, x1_embedding, predicted_x1_embedding, node_energy, node_energy2, proj_x1, proj_predicted_x1 = self.model(batch_list)
+            out_energy, embs, embs_student, x0_embedding, x1_embedding, predicted_x1_embedding, node_energy, node_energy2 = self.model(batch_list)
 
         if out_energy.shape[-1] == 1:
             out_energy = out_energy.view(-1)
@@ -492,8 +492,8 @@ class ForcesTrainerV2(BaseTrainerV2):
             "predicted_x1": predicted_x1_embedding,
             "node_energy": node_energy,
             "node_energy2": node_energy2,
-            "proj_x1": proj_x1,
-            "proj_predicted_x1": proj_predicted_x1,
+            "embs": embs,
+            "embs_student": embs_student,
         }
 
         if (self.config["model_attributes"].get("regress_forces", True)
@@ -503,28 +503,81 @@ class ForcesTrainerV2(BaseTrainerV2):
             
         return out
 
-    def node_infonce_loss(self, student, teacher, temperature=0.1):
+    def simclr_loss(self, student, teacher, temperature=0.1):
         student = F.normalize(student, dim=-1)
         teacher = F.normalize(teacher, dim=-1)
         logits = torch.matmul(student, teacher.T) / temperature  # [num_nodes, num_nodes]
         labels = torch.arange(student.size(0), device=student.device)
         return F.cross_entropy(logits, labels)
     
+    def supcon_loss(self, embs_student, embs_teacher, temperature=0.1):
+        """
+        Compute Supervised Contrastive Loss (instance-level) using student and teacher embeddings.
+        
+        Args:
+            embs_student (Tensor): shape (L_s, N, D), student views
+            embs_teacher (Tensor): shape (L_t, N, D), teacher views
+            temperature (float): scaling temperature for similarity
+            
+        Returns:
+            Tensor: scalar loss
+        """
+        # 1. Concatenate student and teacher views → (L, N, D)
+        embs = torch.cat([embs_student, embs_teacher], dim=0)
+        L, N, D = embs.shape
+
+        # 2. Normalize along feature dim
+        embs = F.normalize(embs, p=2, dim=2)
+
+        # 3. Flatten views → (L*N, D)
+        embs_flat = embs.view(L * N, D)
+
+        # 4. Compute similarity matrix → (L*N, L*N)
+        sim_matrix = torch.matmul(embs_flat, embs_flat.T) / temperature
+
+        # 5. Mask out self-comparisons
+        mask_self = ~torch.eye(L * N, device=embs.device).bool()
+        
+        # 6. Build positive-mask: same sample id across views
+        #    sample_id for each flattened entry: repeat [0,1,...,N-1] for each view
+        sample_ids = torch.arange(N, device=embs.device).repeat(L)
+        pos_mask = sample_ids.unsqueeze(0).eq(sample_ids.unsqueeze(1)) & mask_self
+
+        # 7. Exponential of similarities (excluding self)
+        exp_sim = torch.exp(sim_matrix) * mask_self
+
+        # 8. Numerator = sum over positives; Denominator = sum over all (excluding self)
+        numerator = (exp_sim * pos_mask).sum(dim=1)
+        denominator = exp_sim.sum(dim=1)
+
+        # 9. Compute loss
+        loss = -torch.log(numerator / denominator)
+        return loss.mean()
+    
     def _compute_loss(self, out, batch_list):
         loss = []
         
-        # InfoNCE loss (node-level, final layer only)
-        infonce_mult = self.config["optim"].get("infonce_coefficient", 10)
-        proj_predicted_x1 = out["proj_predicted_x1"]
-        proj_x1 = out["proj_x1"]
-        infonce_loss = self.node_infonce_loss(proj_predicted_x1, proj_x1, temperature=0.1)
+        # # SupCon loss
+        # supcon_mult = self.config["optim"].get("supcon_coefficient", 10)
+        # embs_student = out["embs_student"]
+        # embs = out["embs"]
+        # supcon_loss = self.supcon_loss(embs_student, embs, temperature=0.1)
+        # loss.append(
+        #     supcon_mult * supcon_loss
+        # )
+        
+        # SimCLR loss
+        simclr_mult = self.config["optim"].get("simclr_coefficient", 10)
+        embs_student = out["embs_student"]
+        embs = out["embs"]
+        simclr_loss = self.simclr_loss(embs_student[-1], embs[-1], temperature=0.1)
         loss.append(
-            infonce_mult * infonce_loss
+            simclr_mult * simclr_loss
         )
         
         # n2n loss.
         n2n_mult = self.config["optim"].get("n2n_coefficient", 100)
-        n2n_loss = self.loss_fn["mpflow"](out["predicted_x1"], out["x1"])
+        n2n_loss = self.loss_fn["student"](out["predicted_x1"], out["x1"])
         loss.append(
             n2n_mult * n2n_loss
         )
@@ -544,7 +597,7 @@ class ForcesTrainerV2(BaseTrainerV2):
         if out["node_energy"] is not None:
             energy_mult2 = self.config["optim"].get("energy_coefficient", 4)
             loss.append(
-                energy_mult2 * self.loss_fn["mpflow"](out["node_energy"], out["node_energy2"])
+                energy_mult2 * self.loss_fn["student"](out["node_energy"], out["node_energy2"])
             )
 
         # Force loss.
@@ -956,7 +1009,7 @@ class ForcesTrainerV2(BaseTrainerV2):
             metrics = evaluator.update("loss", loss.item(), metrics)
             
             # Collect visualization data on master process
-            if distutils.is_master() and self.visualize_mpflow and samples_collected < self.viz_num_samples:
+            if distutils.is_master() and self.visualize_student and samples_collected < self.viz_num_samples:
                 needed = self.viz_num_samples - samples_collected
                 
                 # Ensure tensors are on CPU for storage
@@ -999,7 +1052,7 @@ class ForcesTrainerV2(BaseTrainerV2):
             )
 
         # Call visualization function on master process if enabled and data collected
-        if distutils.is_master() and self.visualize_mpflow and samples_collected > 0:
+        if distutils.is_master() and self.visualize_student and samples_collected > 0:
             # Concatenate collected batches
             viz_x0 = torch.cat(viz_data["x0"], dim=0)
             viz_x1 = torch.cat(viz_data["x1"], dim=0)
@@ -1014,7 +1067,7 @@ class ForcesTrainerV2(BaseTrainerV2):
 
     def visualize_predictions(self, x0: torch.Tensor, x1_true: torch.Tensor, x1_pred: torch.Tensor):
         """
-        Visualizes the predicted MPFlow states (x1_pred) compared to the ground
+        Visualizes the predicted student states (x1_pred) compared to the ground
         truth (x1_true), starting from x0, using t-SNE.
 
         Args:
@@ -1024,10 +1077,10 @@ class ForcesTrainerV2(BaseTrainerV2):
         """
         n_samples = x0.shape[0]
         if n_samples == 0:
-            self.file_logger.warning("No samples provided for MPFlow visualization.")
+            self.file_logger.warning("No samples provided for student visualization.")
             return
 
-        self.file_logger.info(f"Generating MPFlow prediction visualizations for {n_samples} samples using t-SNE...")
+        self.file_logger.info(f"Generating student prediction visualizations for {n_samples} samples using t-SNE...")
 
         # --- Define t-SNE plotting helper nested within visualize_predictions ---
         # This keeps the t-SNE logic contained and avoids polluting the class namespace
@@ -1077,7 +1130,7 @@ class ForcesTrainerV2(BaseTrainerV2):
             epoch_step_info = f"Epoch_{self.epoch:.2f}_Step_{self.step}" if hasattr(self, 'epoch') and hasattr(self, 'step') else "Unknown_Epoch_Step"
             # Ensure perplexity_value is defined before being used in the title
             # It will be defined in the outer scope before this helper is called.
-            title = f'MPFlow Prediction vs Truth - {n_components}D t-SNE (Perplexity={_perplexity_value_for_plot}, {epoch_step_info})'
+            title = f'Student Prediction vs Truth - {n_components}D t-SNE (Perplexity={_perplexity_value_for_plot}, {epoch_step_info})'
 
 
             ax.set_title(title, fontsize=14)
@@ -1089,7 +1142,7 @@ class ForcesTrainerV2(BaseTrainerV2):
             ax.legend(loc='best', fontsize=10) # Adjust legend font size
 
             # Save plot
-            plot_filename = f"mpflow_tsne_{n_components}d_{epoch_step_info}{plot_suffix}.png"
+            plot_filename = f"student_tsne_{n_components}d_{epoch_step_info}{plot_suffix}.png"
             plot_path = os.path.join(self.viz_output_dir, plot_filename)
             try:
                 plt.savefig(plot_path, dpi=self.viz_pca_dpi, bbox_inches='tight')

@@ -423,13 +423,11 @@ class BaseTrainer(ABC):
         else:
             self.model.load_state_dict(checkpoint["state_dict"], strict=False)
             
-        # Load pretrained weights from the first EquiformerV2 block into the MPFlow module
-        # for i in range(len(self.model.module.mpflow.blocks)):
-        #     self.model.module.mpflow.blocks[i].load_state_dict(self.model.module.blocks[i].state_dict())
-        for i in range(len(self.model.module.mpflow.blocks)):
-            self.model.module.mpflow.blocks[i].load_state_dict(self.model.module.blocks[i].state_dict())
-        self.model.module.mpflow.norm.load_state_dict(self.model.module.norm.state_dict())
-        self.model.module.energy_block2.load_state_dict(self.model.module.energy_block.state_dict())
+        # Load pretrained weights from the first EquiformerV2 block into the student module
+        for i in range(len(self.model.module.blocks_student)):
+            self.model.module.blocks_student[i].load_state_dict(self.model.module.blocks[i].state_dict())
+        self.model.module.norm_student.load_state_dict(self.model.module.norm.state_dict())
+        self.model.module.energy_block_student.load_state_dict(self.model.module.energy_block.state_dict())
         
 
         if "optimizer" in checkpoint:
@@ -451,9 +449,9 @@ class BaseTrainer(ABC):
 
     def load_loss(self):
         self.loss_fn = {}
-        self.loss_fn["energy"] = self.config["optim"].get("loss_energy", "huber")
-        self.loss_fn["force"] = self.config["optim"].get("loss_force", "huber")
-        self.loss_fn["mpflow"] = self.config["optim"].get("loss_mpflow", "huber")
+        self.loss_fn["energy"] = self.config["optim"].get("loss_energy", "mae")
+        self.loss_fn["force"] = self.config["optim"].get("loss_force", "l2mae")
+        self.loss_fn["student"] = self.config["optim"].get("loss_student", "mse")
         for loss, loss_name in self.loss_fn.items():
             if loss_name in ["l1", "mae"]:
                 self.loss_fn[loss] = nn.L1Loss()
@@ -461,8 +459,6 @@ class BaseTrainer(ABC):
                 self.loss_fn[loss] = nn.MSELoss()
             elif loss_name == "l2mae":
                 self.loss_fn[loss] = L2MAELoss()
-            elif loss_name == "huber":
-                self.loss_fn[loss] = nn.HuberLoss(delta=0.01)
             else:
                 raise NotImplementedError(
                     f"Unknown loss function name: {loss_name}"

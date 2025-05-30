@@ -50,7 +50,6 @@ from .transformer_block import (
     TransBlockV2, 
 )
 from .input_block import EdgeDegreeEmbedding
-from .MPFlow import EquivariantMPFlow
 
 # Statistics of IS2RE 100K 
 _AVG_NUM_NODES  = 77.81317
@@ -350,39 +349,44 @@ class EquiformerV2_OC20(BaseModel):
                 alpha_drop=0.0
             )
         
-        # Equivariant MPFlow
-        self.mpflow = EquivariantMPFlow(
-            self.sphere_channels,
-            self.attn_hidden_channels,
-            self.num_heads,
-            self.attn_alpha_channels,
-            self.attn_value_channels,
-            self.ffn_hidden_channels,
-            self.sphere_channels, 
-            self.lmax_list,
-            self.mmax_list,
-            self.SO3_rotation,
-            self.mappingReduced,
-            self.SO3_grid,
-            self.max_num_elements,
-            self.edge_channels_list,
-            self.block_use_atom_edge_embedding,
-            self.use_m_share_rad,
-            self.attn_activation,
-            self.use_s2_act_attn,
-            self.use_attn_renorm,
-            self.ffn_activation,
-            self.use_gate_act,
-            self.use_grid_mlp,
-            self.use_sep_s2_act,
-            self.norm_type,
-            self.alpha_drop,
-            self.drop_path_rate,
-            self.proj_drop,
-            num_layers=2
-        )
+        # Initialize the blocks for each layer of EquiformerV2
+        self.blocks_student = nn.ModuleList()
+        self.num_layers_student = 2
+        for i in range(self.num_layers_student):
+            block_student = TransBlockV2(
+                self.sphere_channels,
+                self.attn_hidden_channels,
+                self.num_heads,
+                self.attn_alpha_channels,
+                self.attn_value_channels,
+                self.ffn_hidden_channels,
+                self.sphere_channels, 
+                self.lmax_list,
+                self.mmax_list,
+                self.SO3_rotation,
+                self.mappingReduced,
+                self.SO3_grid,
+                self.max_num_elements,
+                self.edge_channels_list,
+                self.block_use_atom_edge_embedding,
+                self.use_m_share_rad,
+                self.attn_activation,
+                self.use_s2_act_attn,
+                self.use_attn_renorm,
+                self.ffn_activation,
+                self.use_gate_act,
+                self.use_grid_mlp,
+                self.use_sep_s2_act,
+                self.norm_type,
+                self.alpha_drop, 
+                self.drop_path_rate,
+                self.proj_drop
+            )
+            self.blocks_student.append(block_student)
         
-        self.mpflow_delta = FeedForwardNetwork(
+        self.norm_student = get_normalization_layer(self.norm_type, lmax=max(self.lmax_list), num_channels=self.sphere_channels)
+        
+        self.delta_student = FeedForwardNetwork(
             self.sphere_channels,
             self.ffn_hidden_channels, 
             self.sphere_channels,
@@ -395,7 +399,7 @@ class EquiformerV2_OC20(BaseModel):
             self.use_sep_s2_act
         )
         
-        self.proj_x1 = FeedForwardNetwork(
+        self.proj_teacher = FeedForwardNetwork(
             self.sphere_channels,
             self.ffn_hidden_channels, 
             self.sphere_channels,
@@ -408,7 +412,7 @@ class EquiformerV2_OC20(BaseModel):
             self.use_sep_s2_act
         )
         
-        self.proj_predicted_x1 = FeedForwardNetwork(
+        self.proj_student = FeedForwardNetwork(
             self.sphere_channels,
             self.ffn_hidden_channels, 
             self.sphere_channels,
@@ -421,7 +425,7 @@ class EquiformerV2_OC20(BaseModel):
             self.use_sep_s2_act
         )
         
-        self.energy_block2 = FeedForwardNetwork(
+        self.energy_block_student = FeedForwardNetwork(
             self.sphere_channels,
             self.ffn_hidden_channels, 
             1,
@@ -448,19 +452,23 @@ class EquiformerV2_OC20(BaseModel):
             for param in self.force_block.parameters():
                 param.requires_grad = True
         
-        for param in self.mpflow.parameters():
-            param.requires_grad = True
+        for block in self.blocks_student:
+            for param in block.parameters():
+                param.requires_grad = True
             
-        for param in self.mpflow_delta.parameters():
+        for param in self.norm_student.parameters():
+            param.requires_grad = True
+                
+        for param in self.delta_student.parameters():
             param.requires_grad = True
         
-        for param in self.energy_block2.parameters():
+        for param in self.energy_block_student.parameters():
             param.requires_grad = True
             
-        for param in self.proj_x1.parameters():
+        for param in self.proj_teacher.parameters():
             param.requires_grad = True
             
-        for param in self.proj_predicted_x1.parameters():
+        for param in self.proj_student.parameters():
             param.requires_grad = True
             
             
@@ -549,7 +557,7 @@ class EquiformerV2_OC20(BaseModel):
         atomic_numbers, num_atoms, pos, edge_index, edge_distance, edge_distance_vec, x = \
             self._initialize_graph_and_embeddings(data, set_pos_requires_grad=False)
         
-        atomic_numbers_mp, num_atoms_mp, pos_mp, edge_index_mp, edge_distance_mp, edge_distance_vec_mp, x_mp = \
+        atomic_numbers_s, num_atoms_s, pos_s, edge_index_s, edge_distance_s, edge_distance_vec_s, x_s = \
             self._initialize_graph_and_embeddings(data, set_pos_requires_grad=False)
         
         ###############################################################
@@ -561,9 +569,11 @@ class EquiformerV2_OC20(BaseModel):
         pure_eqv2 = False
         speed_compare = False
         
+        n_atoms, n_channels, n_dim = x.embedding.shape
+        embs = torch.zeros(self.num_layers, n_atoms, n_dim, device=x.embedding.device, dtype=x.embedding.dtype)
+        
         if speed_compare:
             start_time1 = time.time()
-        
         for i in range(self.num_layers):
             x = self.blocks[i](
                 x,                  # SO3_Embedding
@@ -572,7 +582,8 @@ class EquiformerV2_OC20(BaseModel):
                 edge_index,
                 batch=data.batch    # for GraphDropPath
             )
-
+            embs[i] = self.proj_teacher(x).embedding.narrow(1, 0, 1).view(-1, self.sphere_channels)
+            
         # Final layer norm
         x.embedding = self.norm(x.embedding)
         
@@ -583,29 +594,37 @@ class EquiformerV2_OC20(BaseModel):
         x1 = x.clone()
         
         ###############################################################
-        # MPFlow
+        # Student
         ###############################################################
         if pure_eqv2:
             predicted_x1 = x1.clone()
         else:
+            embs_student = torch.zeros(self.num_layers_student, n_atoms, n_dim, device=x.embedding.device, dtype=x.embedding.dtype)
+            
             if speed_compare:
                 start_time2 = time.time()
                 
-            predicted_x1 = self.mpflow(x_mp, atomic_numbers_mp, edge_distance_mp, edge_index_mp, data.batch)
+            for i in range(self.num_layers_student):
+                x_s = self.blocks_student[i](
+                    x_s,                  # SO3_Embedding
+                    atomic_numbers_s,
+                    edge_distance_s,
+                    edge_index_s,
+                    batch=data.batch    # for GraphDropPath
+                )
+                embs_student[i] = self.proj_student(x_s).embedding.narrow(1, 0, 1).view(-1, self.sphere_channels)
+                
+            x_s.embedding = self.norm_student(x_s.embedding)
             
-            res_x = predicted_x1.embedding
-            predicted_x1 = self.mpflow_delta(predicted_x1)
-            predicted_x1.embedding = res_x + predicted_x1.embedding
+            res_x_s = x_s.embedding
+            predicted_x1 = self.delta_student(x_s)
+            predicted_x1.embedding = res_x_s + predicted_x1.embedding
             
             if speed_compare:
                 end_time2 = time.time()
-                print(f"Time taken for mpflow: {end_time2 - start_time2} seconds", flush=True)
+                print(f"Time taken for student: {end_time2 - start_time2} seconds", flush=True)
                 print(f"Time ratio: {((end_time1 - start_time1) / (end_time2 - start_time2))}", flush=True)
             
-            # [N, D]
-            proj_x1 = self.proj_x1(x1).embedding.narrow(1, 0, 1).view(-1, self.sphere_channels)
-            proj_predicted_x1 = self.proj_predicted_x1(predicted_x1).embedding.narrow(1, 0, 1).view(-1, self.sphere_channels)
-                
         ###############################################################
         # Energy estimation
         ###############################################################
@@ -614,7 +633,7 @@ class EquiformerV2_OC20(BaseModel):
             node_energy = self.energy_block(x) 
             node_energy = node_energy.embedding.narrow(1, 0, 1)
         
-        node_energy2 = self.energy_block2(predicted_x1)
+        node_energy2 = self.energy_block_student(predicted_x1)
         node_energy2 = node_energy2.embedding.narrow(1, 0, 1)
         
         _energy = torch.zeros(len(data.natoms), device=node_energy2.device, dtype=node_energy2.dtype)
@@ -627,9 +646,9 @@ class EquiformerV2_OC20(BaseModel):
         forces = None # Initialize forces to None
         if self.regress_forces:
             forces = self.force_block(predicted_x1,
-                atomic_numbers,
-                edge_distance,
-                edge_index)
+                atomic_numbers_s,
+                edge_distance_s,
+                edge_index_s)
             forces = forces.embedding.narrow(1, 1, 3)
             forces = forces.view(-1, 3)
             grad_forces = None
@@ -647,9 +666,9 @@ class EquiformerV2_OC20(BaseModel):
             #         raise RuntimeError("Forces were not computed despite self.regress_forces being True.")
             
         if not self.regress_forces:
-            return energy, x0.embedding, x1.embedding, predicted_x1.embedding, node_energy, node_energy2, proj_x1, proj_predicted_x1
+            return energy, embs, embs_student, x0.embedding, x1.embedding, predicted_x1.embedding, node_energy, node_energy2
         else:
-            return energy, forces, grad_forces, x0.embedding, x1.embedding, predicted_x1.embedding, node_energy, node_energy2, proj_x1, proj_predicted_x1
+            return energy, forces, grad_forces, embs, embs_student, x0.embedding, x1.embedding, predicted_x1.embedding, node_energy, node_energy2
 
     
     # Initialize the edge rotation matrics
@@ -659,32 +678,32 @@ class EquiformerV2_OC20(BaseModel):
 
     @property
     def num_params(self):
-        # divide pretrained equiforemrv2 and mpflow
+        # divide pretrained equiforemrv2 and student
         all_params = sum(p.numel() for p in self.parameters())
         trainable_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
 
-        mpflow_params = 0
+        student_params = 0
         for name, param in self.named_parameters():
-            if name.startswith('mpflow'):
-                mpflow_params += param.numel()
+            if name.startswith('student'):
+                student_params += param.numel()
 
-        # Calculate backbone params (total - mpflow)
-        backbone_params = all_params - mpflow_params
+        # Calculate backbone params (total - student)
+        backbone_params = all_params - student_params
 
         # Calculate trainable backbone params
         trainable_backbone_params = 0
-        trainable_mpflow_params = 0
+        trainable_student_params = 0
         for name, param in self.named_parameters():
             if param.requires_grad:
-                if name.startswith('mpflow'):
-                    trainable_mpflow_params += param.numel()
+                if name.startswith('student'):
+                    trainable_student_params += param.numel()
                 else:
                     trainable_backbone_params += param.numel()
 
         # Verify calculation (optional)
-        # assert trainable_params == trainable_backbone_params + trainable_mpflow_params, "Trainable parameter mismatch"
+        # assert trainable_params == trainable_backbone_params + trainable_student_params, "Trainable parameter mismatch"
 
-        return f"Backbone: {backbone_params} (Trainable: {trainable_backbone_params}), MPFlow: {mpflow_params} (Trainable: {trainable_mpflow_params})"
+        return f"Backbone: {backbone_params} (Trainable: {trainable_backbone_params}), Student: {student_params} (Trainable: {trainable_student_params})"
     
 
     def _init_weights(self, m):

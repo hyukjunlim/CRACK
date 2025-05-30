@@ -58,13 +58,13 @@ from .lr_scheduler import LRScheduler
 from .engine import AverageMeter
 
 
-def add_weight_decay(model, weight_decay, lr_initial_e, lr_initial_f, lr_initial_mpflow, skip_list=()):
+def add_weight_decay(model, weight_decay, lr_initial_e, lr_initial_f, lr_initial_student, skip_list=()):
     e_decay = []
     e_no_decay = []
     f_decay = []
     f_no_decay = []
-    mpflow_decay = []
-    mpflow_no_decay = []
+    student_decay = []
+    student_no_decay = []
     name_no_wd_collector = []
 
     for name, param in model.named_parameters():
@@ -78,15 +78,15 @@ def add_weight_decay(model, weight_decay, lr_initial_e, lr_initial_f, lr_initial
 
         if is_no_decay:
             name_no_wd_collector.append(name)
-            if 'mpflow' in name:
-                mpflow_no_decay.append(param)
+            if 'student' in name:
+                student_no_decay.append(param)
             elif 'energy' in name:
                 e_no_decay.append(param)
             else:
                 f_no_decay.append(param)
         else:
-            if 'mpflow' in name:
-                mpflow_decay.append(param)
+            if 'student' in name:
+                student_decay.append(param)
             elif 'energy' in name:
                 e_decay.append(param)
             else:
@@ -98,8 +98,8 @@ def add_weight_decay(model, weight_decay, lr_initial_e, lr_initial_f, lr_initial
               {'params': e_decay, 'weight_decay': weight_decay, 'lr': lr_initial_e, 'name': 'energy'},
               {'params': f_no_decay, 'weight_decay': 0., 'lr': lr_initial_f, 'name': 'force'},
               {'params': f_decay, 'weight_decay': weight_decay, 'lr': lr_initial_f, 'name': 'force'},
-              {'params': mpflow_no_decay, 'weight_decay': 0., 'lr': lr_initial_mpflow, 'name': 'mpflow'},
-              {'params': mpflow_decay, 'weight_decay': weight_decay, 'lr': lr_initial_mpflow, 'name': 'mpflow'}]
+              {'params': student_no_decay, 'weight_decay': 0., 'lr': lr_initial_student, 'name': 'student'},
+              {'params': student_decay, 'weight_decay': weight_decay, 'lr': lr_initial_student, 'name': 'student'}]
 
     return params, name_no_wd_collector
 
@@ -417,10 +417,10 @@ class BaseTrainerV2(BaseTrainer):
         weight_decay = optimizer_params['weight_decay']
         lr_initial_e = self.config["optim"]["lr_initial_e"]
         lr_initial_f = self.config["optim"]["lr_initial_f"]
-        lr_initial_mpflow = self.config["optim"]["lr_initial_mpflow"]
+        lr_initial_student = self.config["optim"]["lr_initial_student"]
         
         parameters, name_no_wd = add_weight_decay(self.model,
-            weight_decay, lr_initial_e, lr_initial_f, lr_initial_mpflow)
+            weight_decay, lr_initial_e, lr_initial_f, lr_initial_student)
         self.file_logger.info('Parameters without weight decay:')
         self.file_logger.info(name_no_wd)
 
