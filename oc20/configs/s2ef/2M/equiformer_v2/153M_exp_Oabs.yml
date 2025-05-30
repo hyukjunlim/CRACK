@@ -39,7 +39,7 @@ task:
   #   traj_dir: path/to/traj/dir
 
 
-hide_eval_progressbar: False
+hide_eval_progressbar: True
 
 
 model:
@@ -94,7 +94,7 @@ optim:
   grad_accumulation_steps:      1         # gradient accumulation: effective batch size = `grad_accumulation_steps` * `batch_size` * (num of GPUs)
   load_balancing: atoms
   num_workers: 2
-  lr_initial_f:                0.0005     # [0.0002, 0.0004], eSCN uses 0.0008 for batch size 96
+  lr_initial_f:                0.00005     # [0.0002, 0.0004], eSCN uses 0.0008 for batch size 96
   lr_initial_e:                0.0005     # [0.0002, 0.0004], eSCN uses 0.0008 for batch size 96
   lr_initial_student:           0.0005     # [0.0002, 0.0004], eSCN uses 0.0008 for batch size 96
   
@@ -105,13 +105,14 @@ optim:
   scheduler_params:
     lambda_type: cosine
     warmup_factor: 0.2
-    warmup_epochs: 0.1
+    warmup_epochs: 0.5
     lr_min_factor: 0.01         
 
-  max_epochs: 10
+  max_epochs: 50
   force_coefficient: 10
   energy_coefficient: 0.4
   n2n_coefficient: 100
+  simclr_coefficient: 10
   clip_grad_norm: 100
   ema_decay: 0.999
   loss_energy: mae

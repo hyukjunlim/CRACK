@@ -565,12 +565,12 @@ class ForcesTrainerV2(BaseTrainerV2):
             simclr_mult * simclr_loss
         )
         
-        # n2n loss.
-        n2n_mult = self.config["optim"].get("n2n_coefficient", 100)
-        n2n_loss = self.loss_fn["student"](out["predicted_x1"], out["x1"])
-        loss.append(
-            n2n_mult * n2n_loss
-        )
+        # # n2n loss.
+        # n2n_mult = self.config["optim"].get("n2n_coefficient", 100)
+        # n2n_loss = self.loss_fn["student"](out["predicted_x1"], out["x1"])
+        # loss.append(
+        #     n2n_mult * n2n_loss
+        # )
         
         # Energy loss.
         energy_target = torch.cat(
@@ -687,6 +687,7 @@ class ForcesTrainerV2(BaseTrainerV2):
         for lc in loss:
             assert hasattr(lc, "grad_fn")
 
+        # print(loss, flush=True)
         loss = sum(loss)
         return loss
 

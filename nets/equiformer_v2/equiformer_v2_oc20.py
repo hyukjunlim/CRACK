@@ -618,8 +618,8 @@ class EquiformerV2_OC20(BaseModel):
                 print(f"Time taken for student: {end_time2 - start_time2} seconds", flush=True)
                 print(f"Time ratio: {((end_time1 - start_time1) / (end_time2 - start_time2))}", flush=True)
                 
-            embs = self.proj_teacher(x).embedding.narrow(1, 0, 1).reshape(-1, self.sphere_channels)
-            embs_student = self.proj_student(x_s).embedding.narrow(1, 0, 1).reshape(-1, self.sphere_channels)
+            embs = self.proj_teacher(x).embedding.narrow(1, 0, 1).reshape(x.embedding.size(0), -1)
+            embs_student = self.proj_student(x_s).embedding.narrow(1, 0, 1).reshape(x_s.embedding.size(0), -1)
             
         ###############################################################
         # Energy estimation
@@ -680,7 +680,7 @@ class EquiformerV2_OC20(BaseModel):
 
         student_params = 0
         for name, param in self.named_parameters():
-            if name.startswith('student'):
+            if 'student' in name or 'teacher' in name:
                 student_params += param.numel()
 
         # Calculate backbone params (total - student)
@@ -691,7 +691,7 @@ class EquiformerV2_OC20(BaseModel):
         trainable_student_params = 0
         for name, param in self.named_parameters():
             if param.requires_grad:
-                if name.startswith('student'):
+                if 'student' in name or 'teacher' in name:
                     trainable_student_params += param.numel()
                 else:
                     trainable_backbone_params += param.numel()
