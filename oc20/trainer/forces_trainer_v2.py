@@ -558,12 +558,20 @@ class ForcesTrainerV2(BaseTrainerV2):
     def _compute_loss(self, out, batch_list):
         loss = []
         
-        # SimCLR loss
-        simclr_mult = self.config["optim"].get("simclr_coefficient", 10)
-        simclr_loss = self.simclr_loss(out["embs_student"], out["embs"], temperature=0.1)
+        # SupCon loss
+        supcon_mult = self.config["optim"].get("supcon_coefficient", 10)
+        supcon_loss = self.supcon_loss(out["embs_student"].unsqueeze(0), out["embs"].unsqueeze(0), temperature=0.1)
         loss.append(
-            simclr_mult * simclr_loss
+            supcon_mult * supcon_loss
         )
+        
+        # # SimCLR loss
+        # simclr_mult = self.config["optim"].get("simclr_coefficient", 10)
+        # simclr_loss = self.simclr_loss(out["embs_student"], out["embs"], temperature=0.1)
+        # loss.append(
+        #     simclr_mult * simclr_loss
+        # )
+        
         
         # # n2n loss.
         # n2n_mult = self.config["optim"].get("n2n_coefficient", 100)
