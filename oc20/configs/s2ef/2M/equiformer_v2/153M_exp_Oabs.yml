@@ -109,10 +109,11 @@ optim:
     lr_min_factor: 0.01         
 
   max_epochs: 10
-  force_coefficient: 10
-  energy_coefficient: 0.4
-  n2n_coefficient: 100
-  info_nce_coefficient: 10
+  force_coefficient: 100
+  energy_coefficient: 4
+  energy_coefficient2: 0.4
+  n2n_coefficient: 10
+  info_nce_coefficient: 1
   clip_grad_norm: 100
   ema_decay: 0.999
   loss_energy: mae

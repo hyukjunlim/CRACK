@@ -32,7 +32,6 @@ with the relevant metrics computed.
 class Evaluator:
     task_metrics = {
         "s2ef": [
-            "mpflow_mae",
             "mpflow_predict_mae",
             "mpflow_predict_cos",
             # "forcesx_mae",
@@ -59,7 +58,7 @@ class Evaluator:
     }
 
     task_primary_metric = {
-        "s2ef": "mpflow_mae",
+        "s2ef": "energy_mae",
         "is2rs": "average_distance_within_threshold",
         "is2re": "energy_mae",
     }
@@ -112,9 +111,6 @@ class Evaluator:
             raise NotImplementedError
 
         return metrics
-
-def mpflow_mae(prediction, target):
-    return absolute_error(prediction["ut"], prediction["predicted_ut"])
 
 
 def mpflow_predict_mae(prediction, target):

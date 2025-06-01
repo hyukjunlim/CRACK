@@ -478,9 +478,9 @@ class ForcesTrainerV2(BaseTrainerV2):
         # forward pass.
         if (self.config["model_attributes"].get("regress_forces", True)
             or self.config['model_attributes'].get('use_auxiliary_task', False)):
-            out_energy, out_forces, out_grad_forces, embs, embs_2, embs_student, embs_student_2, x0_embedding, x1_embedding, predicted_x1_embedding, node_energy, node_energy2 = self.model(batch_list)
+            out_energy, out_forces, out_grad_forces, embs_teacher, embs_student, x0_embedding, x1_embedding, predicted_x1_embedding, node_energy, node_energy2 = self.model(batch_list)
         else:
-            out_energy, embs, embs_2, embs_student, embs_student_2, x0_embedding, x1_embedding, predicted_x1_embedding, node_energy, node_energy2 = self.model(batch_list)
+            out_energy, embs_teacher, embs_student, x0_embedding, x1_embedding, predicted_x1_embedding, node_energy, node_energy2 = self.model(batch_list)
 
         if out_energy.shape[-1] == 1:
             out_energy = out_energy.view(-1)
@@ -492,10 +492,8 @@ class ForcesTrainerV2(BaseTrainerV2):
             "predicted_x1": predicted_x1_embedding,
             "node_energy": node_energy,
             "node_energy2": node_energy2,
-            "embs": embs,
-            "embs_2": embs_2,
+            "embs_teacher": embs_teacher,
             "embs_student": embs_student,
-            "embs_student_2": embs_student_2,
         }
 
         if (self.config["model_attributes"].get("regress_forces", True)
@@ -516,21 +514,14 @@ class ForcesTrainerV2(BaseTrainerV2):
         loss = []
         
         # InfoNCE loss
-        info_nce_mult = self.config["optim"].get("info_nce_coefficient", 10)
-        info_nce_loss = self.InfoNCE_loss(out["embs_student"], out["embs"], temperature=0.1)
+        info_nce_mult = self.config["optim"].get("info_nce_coefficient", 1)
+        info_nce_loss = self.InfoNCE_loss(out["embs_student"], out["embs_teacher"], temperature=0.1)
         loss.append(
             info_nce_mult * info_nce_loss
         )
         
-        # InfoNCE_2 loss
-        info_nce_mult_2 = self.config["optim"].get("info_nce_coefficient_2", 10)
-        info_nce_loss_2 = self.InfoNCE_loss(out["embs_student_2"], out["embs_2"], temperature=0.1)
-        loss.append(
-            info_nce_mult_2 * info_nce_loss_2
-        )
-        
         # n2n loss.
-        n2n_mult = self.config["optim"].get("n2n_coefficient", 100)
+        n2n_mult = self.config["optim"].get("n2n_coefficient", 10)
         n2n_loss = self.loss_fn["student"](out["predicted_x1"], out["x1"])
         loss.append(
             n2n_mult * n2n_loss
@@ -549,7 +540,7 @@ class ForcesTrainerV2(BaseTrainerV2):
         
         # Per-atom energy loss.
         if out["node_energy"] is not None:
-            energy_mult2 = self.config["optim"].get("energy_coefficient", 4)
+            energy_mult2 = self.config["optim"].get("energy_coefficient2", 0.4)
             loss.append(
                 energy_mult2 * self.loss_fn["student"](out["node_energy"], out["node_energy2"])
             )
@@ -651,8 +642,8 @@ class ForcesTrainerV2(BaseTrainerV2):
         for lc in loss:
             assert hasattr(lc, "grad_fn")
 
-        # print(loss, flush=True)
         loss = sum(loss)
+        
         return loss
 
     def _compute_metrics(self, out, batch_list, evaluator, metrics={}):

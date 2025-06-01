@@ -78,14 +78,14 @@ def add_weight_decay(model, weight_decay, lr_initial_e, lr_initial_f, lr_initial
 
         if is_no_decay:
             name_no_wd_collector.append(name)
-            if 'student' in name:
+            if 'student' in name or 'teacher' in name:
                 student_no_decay.append(param)
             elif 'energy' in name:
                 e_no_decay.append(param)
             else:
                 f_no_decay.append(param)
         else:
-            if 'student' in name:
+            if 'student' in name or 'teacher' in name:
                 student_decay.append(param)
             elif 'energy' in name:
                 e_decay.append(param)
