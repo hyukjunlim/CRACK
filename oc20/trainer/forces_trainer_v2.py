@@ -503,22 +503,21 @@ class ForcesTrainerV2(BaseTrainerV2):
             
         return out
 
-    def simclr_loss(self, student, teacher, temperature=0.1):
+    def InfoNCE_loss(self, student, teacher, temperature=0.1):
         student = F.normalize(student, dim=-1)
         teacher = F.normalize(teacher, dim=-1)
         logits = torch.matmul(student, teacher.T) / temperature  # [num_nodes, num_nodes]
         labels = torch.arange(student.size(0), device=student.device)
-        
         return F.cross_entropy(logits, labels)
     
     def _compute_loss(self, out, batch_list):
         loss = []
         
         # SimCLR loss
-        simclr_mult = self.config["optim"].get("simclr_coefficient", 10)
-        simclr_loss = self.simclr_loss(out["embs_student"], out["embs"], temperature=0.1)
+        info_nce_mult = self.config["optim"].get("info_nce_coefficient", 10)
+        info_nce_loss = self.InfoNCE_loss(out["embs_student"], out["embs"], temperature=0.1)
         loss.append(
-            simclr_mult * simclr_loss
+            info_nce_mult * info_nce_loss
         )
         
         # n2n loss.
