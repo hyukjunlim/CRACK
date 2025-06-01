@@ -511,74 +511,22 @@ class ForcesTrainerV2(BaseTrainerV2):
         
         return F.cross_entropy(logits, labels)
     
-    def supcon_loss(self, embs_student, embs_teacher, temperature=0.1):
-        """
-        Compute Supervised Contrastive Loss (instance-level) using student and teacher embeddings.
-        
-        Args:
-            embs_student (Tensor): shape (L_s, N, D), student views
-            embs_teacher (Tensor): shape (L_t, N, D), teacher views
-            temperature (float): scaling temperature for similarity
-            
-        Returns:
-            Tensor: scalar loss
-        """
-        # 1. Concatenate student and teacher views → (L, N, D)
-        embs = torch.cat([embs_student, embs_teacher], dim=0)
-        L, N, D = embs.shape
-
-        # 2. Normalize along feature dim
-        embs = F.normalize(embs, p=2, dim=2)
-
-        # 3. Flatten views → (L*N, D)
-        embs_flat = embs.view(L * N, D)
-
-        # 4. Compute similarity matrix → (L*N, L*N)
-        sim_matrix = torch.matmul(embs_flat, embs_flat.T) / temperature
-
-        # 5. Mask out self-comparisons
-        mask_self = ~torch.eye(L * N, device=embs.device).bool()
-        
-        # 6. Build positive-mask: same sample id across views
-        #    sample_id for each flattened entry: repeat [0,1,...,N-1] for each view
-        sample_ids = torch.arange(N, device=embs.device).repeat(L)
-        pos_mask = sample_ids.unsqueeze(0).eq(sample_ids.unsqueeze(1)) & mask_self
-
-        # 7. Exponential of similarities (excluding self)
-        exp_sim = torch.exp(sim_matrix) * mask_self
-
-        # 8. Numerator = sum over positives; Denominator = sum over all (excluding self)
-        numerator = (exp_sim * pos_mask).sum(dim=1)
-        denominator = exp_sim.sum(dim=1)
-
-        # 9. Compute loss
-        loss = -torch.log(numerator / denominator)
-        return loss.mean()
-    
     def _compute_loss(self, out, batch_list):
         loss = []
         
-        # SupCon loss
-        supcon_mult = self.config["optim"].get("supcon_coefficient", 10)
-        supcon_loss = self.supcon_loss(out["embs_student"].unsqueeze(0), out["embs"].unsqueeze(0), temperature=0.1)
+        # SimCLR loss
+        simclr_mult = self.config["optim"].get("simclr_coefficient", 10)
+        simclr_loss = self.simclr_loss(out["embs_student"], out["embs"], temperature=0.1)
         loss.append(
-            supcon_mult * supcon_loss
+            simclr_mult * simclr_loss
         )
         
-        # # SimCLR loss
-        # simclr_mult = self.config["optim"].get("simclr_coefficient", 10)
-        # simclr_loss = self.simclr_loss(out["embs_student"], out["embs"], temperature=0.1)
-        # loss.append(
-        #     simclr_mult * simclr_loss
-        # )
-        
-        
-        # # n2n loss.
-        # n2n_mult = self.config["optim"].get("n2n_coefficient", 100)
-        # n2n_loss = self.loss_fn["student"](out["predicted_x1"], out["x1"])
-        # loss.append(
-        #     n2n_mult * n2n_loss
-        # )
+        # n2n loss.
+        n2n_mult = self.config["optim"].get("n2n_coefficient", 100)
+        n2n_loss = self.loss_fn["student"](out["predicted_x1"], out["x1"])
+        loss.append(
+            n2n_mult * n2n_loss
+        )
         
         # Energy loss.
         energy_target = torch.cat(
