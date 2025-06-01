@@ -105,10 +105,10 @@ optim:
   scheduler_params:
     lambda_type: cosine
     warmup_factor: 0.2
-    warmup_epochs: 0.5
+    warmup_epochs: 0.1
     lr_min_factor: 0.01         
 
-  max_epochs: 50
+  max_epochs: 10
   force_coefficient: 10
   energy_coefficient: 0.4
   n2n_coefficient: 100
