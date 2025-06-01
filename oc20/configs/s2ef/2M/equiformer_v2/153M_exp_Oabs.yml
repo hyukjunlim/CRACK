@@ -3,16 +3,16 @@ trainer: forces_v2
 
 dataset:
   train:
-    src: datasets/oc20/Oabs_train/
-    # src: /DATA/user_scratch/hyukjunlim03/Oabs_train/
+    # src: datasets/oc20/Oabs_train/
+    src: /DATA/user_scratch/hyukjunlim03/Oabs_train/
     normalize_labels: True
     target_mean: -0.7554450631141663
     target_std: 2.887317180633545
     grad_target_mean: 0.0
     grad_target_std: 2.887317180633545
   val:
-    src: datasets/oc20/Oabs_val/
-    # src: /DATA/user_scratch/hyukjunlim03/Oabs_val/
+    # src: datasets/oc20/Oabs_val/
+    src: /DATA/user_scratch/hyukjunlim03/Oabs_val/
 
 logger: wandb
 
@@ -94,7 +94,7 @@ optim:
   grad_accumulation_steps:      1         # gradient accumulation: effective batch size = `grad_accumulation_steps` * `batch_size` * (num of GPUs)
   load_balancing: atoms
   num_workers: 2
-  lr_initial_f:                0.000005     # [0.0002, 0.0004], eSCN uses 0.0008 for batch size 96
+  lr_initial_f:                0.0005     # [0.0002, 0.0004], eSCN uses 0.0008 for batch size 96
   lr_initial_e:                0.0005     # [0.0002, 0.0004], eSCN uses 0.0008 for batch size 96
   lr_initial_student:           0.0005     # [0.0002, 0.0004], eSCN uses 0.0008 for batch size 96
   
@@ -111,9 +111,9 @@ optim:
   max_epochs: 10
   force_coefficient: 100
   energy_coefficient: 4
-  energy_coefficient2: 0.4
-  n2n_coefficient: 10
-  info_nce_coefficient: 1
+  energy_coefficient2: 0.5
+  n2n_coefficient: 100
+  info_nce_coefficient: 10
   clip_grad_norm: 100
   ema_decay: 0.999
   loss_energy: mae
