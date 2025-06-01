@@ -412,7 +412,33 @@ class EquiformerV2_OC20(BaseModel):
             self.use_sep_s2_act
         )
         
+        self.proj_teacher_2 = FeedForwardNetwork(
+            self.sphere_channels,
+            self.ffn_hidden_channels, 
+            self.sphere_channels,
+            self.lmax_list,
+            self.mmax_list,
+            self.SO3_grid,  
+            self.ffn_activation,
+            self.use_gate_act,
+            self.use_grid_mlp,
+            self.use_sep_s2_act
+        )
+        
         self.proj_student = FeedForwardNetwork(
+            self.sphere_channels,
+            self.ffn_hidden_channels, 
+            self.sphere_channels,
+            self.lmax_list,
+            self.mmax_list,
+            self.SO3_grid,  
+            self.ffn_activation,
+            self.use_gate_act,
+            self.use_grid_mlp,
+            self.use_sep_s2_act
+        )
+        
+        self.proj_student_2 = FeedForwardNetwork(
             self.sphere_channels,
             self.ffn_hidden_channels, 
             self.sphere_channels,
@@ -468,7 +494,13 @@ class EquiformerV2_OC20(BaseModel):
         for param in self.proj_teacher.parameters():
             param.requires_grad = True
             
+        for param in self.proj_teacher_2.parameters():
+            param.requires_grad = True
+            
         for param in self.proj_student.parameters():
+            param.requires_grad = True
+            
+        for param in self.proj_student_2.parameters():
             param.requires_grad = True
             
             
@@ -580,8 +612,13 @@ class EquiformerV2_OC20(BaseModel):
                 batch=data.batch    # for GraphDropPath
             )
             
+            if i == self.num_layers // 2 - 1:
+                embs_2 = self.proj_teacher_2(x).embedding.narrow(1, 0, 1).reshape(x.embedding.size(0), -1)
+            
         # Final layer norm
         x.embedding = self.norm(x.embedding)
+        
+        embs = self.proj_teacher(x).embedding.narrow(1, 0, 1).reshape(x.embedding.size(0), -1)
         
         if speed_compare:
             end_time1 = time.time()
@@ -607,7 +644,13 @@ class EquiformerV2_OC20(BaseModel):
                     batch=data.batch    # for GraphDropPath
                 )
                 
+                if i == self.num_layers_student // 2 - 1:
+                    embs_student_2 = self.proj_student_2(x_s).embedding.narrow(1, 0, 1).reshape(x_s.embedding.size(0), -1)
+            
+            # Final layer norm
             x_s.embedding = self.norm_student(x_s.embedding)
+            
+            embs_student = self.proj_student(x_s).embedding.narrow(1, 0, 1).reshape(x_s.embedding.size(0), -1)
             
             res_x_s = x_s.embedding
             predicted_x1 = self.delta_student(x_s)
@@ -618,8 +661,6 @@ class EquiformerV2_OC20(BaseModel):
                 print(f"Time taken for student: {end_time2 - start_time2} seconds", flush=True)
                 print(f"Time ratio: {((end_time1 - start_time1) / (end_time2 - start_time2))}", flush=True)
                 
-            embs = self.proj_teacher(x).embedding.narrow(1, 0, 1).reshape(x.embedding.size(0), -1)
-            embs_student = self.proj_student(x_s).embedding.narrow(1, 0, 1).reshape(x_s.embedding.size(0), -1)
             
         ###############################################################
         # Energy estimation
@@ -662,9 +703,9 @@ class EquiformerV2_OC20(BaseModel):
             #         raise RuntimeError("Forces were not computed despite self.regress_forces being True.")
             
         if not self.regress_forces:
-            return energy, embs, embs_student, x0.embedding, x1.embedding, predicted_x1.embedding, node_energy, node_energy2
+            return energy, embs, embs_2, embs_student, embs_student_2, x0.embedding, x1.embedding, predicted_x1.embedding, node_energy, node_energy2
         else:
-            return energy, forces, grad_forces, embs, embs_student, x0.embedding, x1.embedding, predicted_x1.embedding, node_energy, node_energy2
+            return energy, forces, grad_forces, embs, embs_2, embs_student, embs_student_2, x0.embedding, x1.embedding, predicted_x1.embedding, node_energy, node_energy2
 
     
     # Initialize the edge rotation matrics

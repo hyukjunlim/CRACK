@@ -478,9 +478,9 @@ class ForcesTrainerV2(BaseTrainerV2):
         # forward pass.
         if (self.config["model_attributes"].get("regress_forces", True)
             or self.config['model_attributes'].get('use_auxiliary_task', False)):
-            out_energy, out_forces, out_grad_forces, embs, embs_student, x0_embedding, x1_embedding, predicted_x1_embedding, node_energy, node_energy2 = self.model(batch_list)
+            out_energy, out_forces, out_grad_forces, embs, embs_2, embs_student, embs_student_2, x0_embedding, x1_embedding, predicted_x1_embedding, node_energy, node_energy2 = self.model(batch_list)
         else:
-            out_energy, embs, embs_student, x0_embedding, x1_embedding, predicted_x1_embedding, node_energy, node_energy2 = self.model(batch_list)
+            out_energy, embs, embs_2, embs_student, embs_student_2, x0_embedding, x1_embedding, predicted_x1_embedding, node_energy, node_energy2 = self.model(batch_list)
 
         if out_energy.shape[-1] == 1:
             out_energy = out_energy.view(-1)
@@ -493,7 +493,9 @@ class ForcesTrainerV2(BaseTrainerV2):
             "node_energy": node_energy,
             "node_energy2": node_energy2,
             "embs": embs,
+            "embs_2": embs_2,
             "embs_student": embs_student,
+            "embs_student_2": embs_student_2,
         }
 
         if (self.config["model_attributes"].get("regress_forces", True)
@@ -510,31 +512,21 @@ class ForcesTrainerV2(BaseTrainerV2):
         labels = torch.arange(student.size(0), device=student.device)
         return F.cross_entropy(logits, labels)
     
-    def barlow_twins_loss(self, student, teacher, lamb=0.005):
-        N, d = student.size()
-        student_norm = (student - student.mean(dim=0, keepdim=True)) / (student.std(dim=0, unbiased=False, keepdim=True) + 1e-6)
-        teacher_norm = (teacher - teacher.mean(dim=0, keepdim=True)) / (teacher.std(dim=0, unbiased=False, keepdim=True) + 1e-6)
-        C = (student_norm.T @ teacher_norm) / N
-        off_diag_mask = ~torch.eye(d, dtype=torch.bool, device=C.device)
-        loss_diag = torch.sum((1 - C.diag())**2)
-        loss_off  = torch.sum(C[off_diag_mask]**2)
-        return loss_diag + lamb * loss_off
-    
     def _compute_loss(self, out, batch_list):
         loss = []
         
-        # # InfoNCE loss
-        # info_nce_mult = self.config["optim"].get("info_nce_coefficient", 10)
-        # info_nce_loss = self.InfoNCE_loss(out["embs_student"], out["embs"], temperature=0.1)
-        # loss.append(
-        #     info_nce_mult * info_nce_loss
-        # )
-        
-        # Barlow Twins loss
-        bt_mult = self.config["optim"].get("bt_coefficient", 0.1)
-        bt_loss = self.barlow_twins_loss(out["embs_student"], out["embs"], lamb=0.005)
+        # InfoNCE loss
+        info_nce_mult = self.config["optim"].get("info_nce_coefficient", 10)
+        info_nce_loss = self.InfoNCE_loss(out["embs_student"], out["embs"], temperature=0.1)
         loss.append(
-            bt_mult * bt_loss
+            info_nce_mult * info_nce_loss
+        )
+        
+        # InfoNCE_2 loss
+        info_nce_mult_2 = self.config["optim"].get("info_nce_coefficient_2", 10)
+        info_nce_loss_2 = self.InfoNCE_loss(out["embs_student_2"], out["embs_2"], temperature=0.1)
+        loss.append(
+            info_nce_mult_2 * info_nce_loss_2
         )
         
         # n2n loss.
