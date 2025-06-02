@@ -503,21 +503,95 @@ class ForcesTrainerV2(BaseTrainerV2):
             
         return out
 
+    @staticmethod
+    def _normalize_embeddings(*embeddings):
+        """Normalize each embedding along the last dimension."""
+        return [F.normalize(e, dim=-1) for e in embeddings]
+
+    @staticmethod
+    def _compute_logits(a, b, temperature):
+        """Compute scaled dot-product logits between two sets of embeddings."""
+        return torch.matmul(a, b.T) / temperature
+
     def infonce_loss(self, student, teacher, temperature=0.1):
-        student = F.normalize(student, dim=-1)
-        teacher = F.normalize(teacher, dim=-1)
-        logits = torch.matmul(student, teacher.T) / temperature  # [num_nodes, num_nodes]
+        """
+        Standard InfoNCE loss for contrastive learning.
+        Args:
+            student: [N, D] tensor.
+            teacher: [N, D] tensor.
+            temperature: scaling factor.
+        Returns:
+            Scalar loss.
+        """
+        student, teacher = self._normalize_embeddings(student, teacher)
+        logits = self._compute_logits(student, teacher, temperature)
         labels = torch.arange(student.size(0), device=student.device)
         return F.cross_entropy(logits, labels)
-    
+
+    def supcon_loss(self, student, teacher, temperature=0.1):
+        """
+        Supervised Contrastive Loss (SupCon/SimCLR style).
+        Args:
+            student: [N, D] tensor.
+            teacher: [N, D] tensor.
+            temperature: scaling factor.
+        Returns:
+            Scalar loss.
+        """
+        student, teacher = self._normalize_embeddings(student, teacher)
+        features = torch.stack([student, teacher], dim=1)  # [N, 2, D]
+        device = student.device
+        batch_size = features.shape[0]
+        anchor_count = features.shape[1]
+        anchor_feature = torch.cat(torch.unbind(features, dim=1), dim=0)  # [2N, D]
+
+        # Compute logits
+        logits = self._compute_logits(anchor_feature, anchor_feature, temperature)
+        logits_max, _ = logits.max(dim=1, keepdim=True)
+        logits = logits - logits_max.detach()  # Numerical stability
+
+        # Mask for positive pairs (identity matrix, tiled)
+        mask = torch.eye(batch_size, dtype=torch.float32, device=device)
+        mask = mask.repeat(anchor_count, anchor_count)
+
+        # Mask out self-contrast cases
+        logits_mask = torch.ones_like(mask)
+        logits_mask = logits_mask.scatter(
+            1,
+            torch.arange(batch_size * anchor_count, device=device).view(-1, 1),
+            0
+        )
+        mask = mask * logits_mask
+
+        # Compute log-probabilities
+        exp_logits = torch.exp(logits) * logits_mask
+        log_prob = logits - torch.log(exp_logits.sum(1, keepdim=True) + 1e-12)
+
+        # Mean log-likelihood over positive pairs
+        mask_pos_pairs = mask.sum(1)
+        mask_pos_pairs = torch.where(mask_pos_pairs < 1e-6, 1, mask_pos_pairs)
+        mean_log_prob_pos = (mask * log_prob).sum(1) / mask_pos_pairs
+
+        # Loss
+        loss = -mean_log_prob_pos
+        loss = loss.view(anchor_count, batch_size).mean()
+        return loss
+
     def _compute_loss(self, out, batch_list):
         loss = []
         
-        # InfoNCE loss
-        info_nce_mult = self.config["optim"].get("info_nce_coefficient", 1)
-        info_nce_loss = self.infonce_loss(out["embs_student"], out["embs_teacher"], temperature=0.1)
+        # # InfoNCE loss
+        # info_nce_mult = self.config["optim"].get("info_nce_coefficient", 1)
+        # info_nce_loss = self.infonce_loss(out["embs_student"], out["embs_teacher"], temperature=0.1)
+        # loss.append(
+        #     info_nce_mult * info_nce_loss
+        # )
+        
+        # SupCon loss
+        supcon_mult = self.config["optim"].get("supcon_coefficient", 10)
+        supcon_loss = self.supcon_loss(out["embs_student"], out["embs_teacher"], temperature=0.07)
         loss.append(
-            info_nce_mult * info_nce_loss
+            supcon_mult * supcon_loss
         )
         
         # n2n loss.

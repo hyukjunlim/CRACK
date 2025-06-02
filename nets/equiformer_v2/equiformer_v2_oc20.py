@@ -610,7 +610,7 @@ class EquiformerV2_OC20(BaseModel):
                 end_time2 = time.time()
             
             embs_teacher = self.proj_teacher(x).embedding.narrow(1, 0, 1).reshape(x.embedding.size(0), -1)
-            embs_student = self.proj_student(predicted_x1).embedding.narrow(1, 0, 1).reshape(predicted_x1.embedding.size(0), -1)
+            embs_student = self.proj_student(x_s).embedding.narrow(1, 0, 1).reshape(x_s.embedding.size(0), -1)
             
         ###############################################################
         # Energy estimation
