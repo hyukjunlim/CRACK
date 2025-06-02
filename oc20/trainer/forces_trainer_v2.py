@@ -478,9 +478,9 @@ class ForcesTrainerV2(BaseTrainerV2):
         # forward pass.
         if (self.config["model_attributes"].get("regress_forces", True)
             or self.config['model_attributes'].get('use_auxiliary_task', False)):
-            out_energy, out_forces, out_grad_forces, embs_teacher, embs_student, x0_embedding, x1_embedding, predicted_x1_embedding, node_energy, node_energy2, x_raw_embedding = self.model(batch_list)
+            out_energy, out_forces, out_grad_forces, embs_teacher, embs_student, x0_embedding, x1_embedding, predicted_x1_embedding, node_energy, node_energy2 = self.model(batch_list)
         else:
-            out_energy, embs_teacher, embs_student, x0_embedding, x1_embedding, predicted_x1_embedding, node_energy, node_energy2, x_raw_embedding = self.model(batch_list)
+            out_energy, embs_teacher, embs_student, x0_embedding, x1_embedding, predicted_x1_embedding, node_energy, node_energy2 = self.model(batch_list)
 
         if out_energy.shape[-1] == 1:
             out_energy = out_energy.view(-1)
@@ -494,7 +494,6 @@ class ForcesTrainerV2(BaseTrainerV2):
             "node_energy2": node_energy2,
             "embs_teacher": embs_teacher,
             "embs_student": embs_student,
-            "x_raw": x_raw_embedding,
         }
 
         if (self.config["model_attributes"].get("regress_forces", True)
@@ -511,33 +510,14 @@ class ForcesTrainerV2(BaseTrainerV2):
         labels = torch.arange(student.size(0), device=student.device)
         return F.cross_entropy(logits, labels)
     
-    def soft_infonce_loss(self, student, teacher, temperature=0.1):
-        N = student.size(0)
-        student = F.normalize(student, dim=-1)
-        teacher = F.normalize(teacher, dim=-1)
-        cos_mat = torch.matmul(teacher, teacher.T)  # [N, N]
-        p_teacher = F.softmax(cos_mat / temperature, dim=1)  # [N, N]
-        logits = torch.matmul(student, teacher.T) / temperature
-        log_p_student = F.log_softmax(logits, dim=1)  # [N, N]
-        loss_matrix = - (p_teacher.detach() * log_p_student).sum(dim=1)  # [N]
-        loss = loss_matrix.mean()  # scalar
-        return loss
-        
     def _compute_loss(self, out, batch_list):
         loss = []
         
-        # # InfoNCE loss
-        # info_nce_mult = self.config["optim"].get("info_nce_coefficient", 1)
-        # info_nce_loss = self.infonce_loss(out["embs_student"], out["embs_teacher"], temperature=0.1)
-        # loss.append(
-        #     info_nce_mult * info_nce_loss
-        # )
-        
-        # Soft InfoNCE loss
-        soft_infonce_mult = self.config["optim"].get("info_nce_coefficient", 1)
-        soft_infonce_loss = self.soft_infonce_loss(out["embs_student"], out["embs_teacher"], temperature=0.1)
+        # InfoNCE loss
+        info_nce_mult = self.config["optim"].get("info_nce_coefficient", 1)
+        info_nce_loss = self.infonce_loss(out["embs_student"], out["embs_teacher"], temperature=0.1)
         loss.append(
-            soft_infonce_mult * soft_infonce_loss
+            info_nce_mult * info_nce_loss
         )
         
         # n2n loss.

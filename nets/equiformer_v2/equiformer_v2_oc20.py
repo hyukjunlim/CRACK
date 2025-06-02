@@ -609,9 +609,8 @@ class EquiformerV2_OC20(BaseModel):
             if speed_compare:
                 end_time2 = time.time()
             
-            x_raw = x.embedding.narrow(1, 0, 1).reshape(x.embedding.size(0), -1)
             embs_teacher = self.proj_teacher(x).embedding.narrow(1, 0, 1).reshape(x.embedding.size(0), -1)
-            embs_student = self.proj_student(x_s).embedding.narrow(1, 0, 1).reshape(x_s.embedding.size(0), -1)
+            embs_student = self.proj_student(predicted_x1).embedding.narrow(1, 0, 1).reshape(predicted_x1.embedding.size(0), -1)
             
         ###############################################################
         # Energy estimation
@@ -654,9 +653,9 @@ class EquiformerV2_OC20(BaseModel):
             #         raise RuntimeError("Forces were not computed despite self.regress_forces being True.")
             
         if not self.regress_forces:
-            return energy, embs_teacher, embs_student, x0.embedding, x1.embedding, predicted_x1.embedding, node_energy, node_energy2, x_raw
+            return energy, embs_teacher, embs_student, x0.embedding, x1.embedding, predicted_x1.embedding, node_energy, node_energy2
         else:
-            return energy, forces, grad_forces, embs_teacher, embs_student, x0.embedding, x1.embedding, predicted_x1.embedding, node_energy, node_energy2, x_raw
+            return energy, forces, grad_forces, embs_teacher, embs_student, x0.embedding, x1.embedding, predicted_x1.embedding, node_energy, node_energy2
 
     
     # Initialize the edge rotation matrics
