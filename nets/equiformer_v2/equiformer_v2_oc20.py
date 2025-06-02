@@ -47,6 +47,7 @@ from .layer_norm import (
 from .transformer_block import (
     SO2EquivariantGraphAttention,
     FeedForwardNetwork,
+    FeedForwardNetwork_noamp,
     TransBlockV2, 
 )
 from .input_block import EdgeDegreeEmbedding
@@ -399,7 +400,7 @@ class EquiformerV2_OC20(BaseModel):
             self.use_sep_s2_act
         )
         
-        self.proj_teacher = FeedForwardNetwork(
+        self.proj_teacher = FeedForwardNetwork_noamp(
             self.sphere_channels,
             self.ffn_hidden_channels, 
             self.sphere_channels,
@@ -412,7 +413,7 @@ class EquiformerV2_OC20(BaseModel):
             self.use_sep_s2_act
         )
         
-        self.proj_student = FeedForwardNetwork(
+        self.proj_student = FeedForwardNetwork_noamp(
             self.sphere_channels,
             self.ffn_hidden_channels, 
             self.sphere_channels,
@@ -447,31 +448,23 @@ class EquiformerV2_OC20(BaseModel):
     def freeze_backbone(self):
         for param in self.parameters():
             param.requires_grad = False
-        
+
+        modules_to_enable = []
         if self.regress_forces:
-            for param in self.force_block.parameters():
-                param.requires_grad = True
-        
-        for block in self.blocks_student:
-            for param in block.parameters():
-                param.requires_grad = True
-            
-        for param in self.norm_student.parameters():
-            param.requires_grad = True
-                
-        for param in self.delta_student.parameters():
-            param.requires_grad = True
-        
-        for param in self.energy_block_student.parameters():
-            param.requires_grad = True
-            
-        for param in self.proj_teacher.parameters():
-            param.requires_grad = True
-            
-        for param in self.proj_student.parameters():
-            param.requires_grad = True
-            
-            
+            modules_to_enable.append(self.force_block)
+        modules_to_enable.extend([
+            *self.blocks_student,
+            self.norm_student,
+            self.delta_student,
+            self.proj_teacher,
+            self.proj_student,
+            self.energy_block_student,
+        ])
+        for module in modules_to_enable:
+            if module is not None:
+                for param in module.parameters():
+                    param.requires_grad = True
+
     @conditional_grad(torch.enable_grad())
     def _initialize_graph_and_embeddings(self, data, set_pos_requires_grad=False):
         atomic_numbers = data.atomic_numbers.long()
@@ -565,6 +558,7 @@ class EquiformerV2_OC20(BaseModel):
         ###############################################################
 
         x0 = x.clone()
+        embs_teacher = torch.zeros(self.num_layers, x.embedding.size(0), self.sphere_channels, device=x.embedding.device, dtype=x.embedding.dtype)
         
         pure_eqv2 = False
         speed_compare = False
@@ -579,6 +573,8 @@ class EquiformerV2_OC20(BaseModel):
                 edge_index,
                 batch=data.batch    # for GraphDropPath
             )
+            if i != self.num_layers - 1:
+                embs_teacher[i] = self.proj_teacher(x).embedding.narrow(1, 0, 1).reshape(x.embedding.size(0), -1)
             
         # Final layer norm
         x.embedding = self.norm(x.embedding).detach()
@@ -615,10 +611,8 @@ class EquiformerV2_OC20(BaseModel):
             
             if speed_compare:
                 end_time2 = time.time()
-                print(f"Time taken for student: {end_time2 - start_time2} seconds", flush=True)
-                print(f"Time ratio: {((end_time1 - start_time1) / (end_time2 - start_time2))}", flush=True)
                 
-            embs_teacher = self.proj_teacher(x).embedding.narrow(1, 0, 1).reshape(x.embedding.size(0), -1)
+            embs_teacher[-1] = self.proj_teacher(x).embedding.narrow(1, 0, 1).reshape(x.embedding.size(0), -1)
             embs_student = self.proj_student(x_s).embedding.narrow(1, 0, 1).reshape(x_s.embedding.size(0), -1)
             
         ###############################################################
@@ -653,7 +647,7 @@ class EquiformerV2_OC20(BaseModel):
             #     total_energy = energy.sum() # Sum energy over the batch to get a scalar
             #     grad_forces = -torch.autograd.grad(
             #         outputs=total_energy, 
-            #         inputs=pos, 
+            #         inputs=pos_s, 
             #         create_graph=True,      # Allow for higher-order derivatives
             #         retain_graph=True       # Keep graph for potential further use (e.g. loss.backward())
             #     )[0]

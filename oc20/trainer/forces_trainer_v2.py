@@ -503,21 +503,46 @@ class ForcesTrainerV2(BaseTrainerV2):
             
         return out
 
-    def InfoNCE_loss(self, student, teacher, temperature=0.1):
+    def infonce_loss(self, student, teacher, temperature=0.1):
         student = F.normalize(student, dim=-1)
         teacher = F.normalize(teacher, dim=-1)
         logits = torch.matmul(student, teacher.T) / temperature  # [num_nodes, num_nodes]
         labels = torch.arange(student.size(0), device=student.device)
         return F.cross_entropy(logits, labels)
     
+    def multineg_loss(self, embs_student, embs_teacher, temperature=0.1):
+        N, D = embs_student.shape
+        L = embs_teacher.shape[0]
+        student = F.normalize(embs_student, dim=-1)
+        teacher = F.normalize(embs_teacher.view(L * N, D), dim=-1)
+        logits = torch.matmul(student, teacher.t()) / temperature
+
+        device = embs_student.device
+        idx_nodes = torch.arange(N, device=device)
+        layer_idx = torch.arange(L - 1, device=device).view(1, L - 1)
+        node_idx  = idx_nodes.view(N, 1)
+        mask_indices = layer_idx * N + node_idx
+        mask = torch.zeros_like(logits, dtype=torch.bool)
+        mask.scatter_(1, mask_indices, True)
+        logits = logits.masked_fill(mask, float('-inf'))
+        pos_indices = (L - 1) * N + idx_nodes
+        return F.cross_entropy(logits, pos_indices)
+    
     def _compute_loss(self, out, batch_list):
         loss = []
         
-        # InfoNCE loss
-        info_nce_mult = self.config["optim"].get("info_nce_coefficient", 1)
-        info_nce_loss = self.InfoNCE_loss(out["embs_student"], out["embs_teacher"], temperature=0.1)
+        # # InfoNCE loss
+        # info_nce_mult = self.config["optim"].get("info_nce_coefficient", 1)
+        # info_nce_loss = self.infonce_loss(out["embs_student"], out["embs_teacher"][-1], temperature=0.1)
+        # loss.append(
+        #     info_nce_mult * info_nce_loss
+        # )
+        
+        # MultiNeg loss
+        multineg_mult = self.config["optim"].get("info_nce_coefficient", 1)
+        multineg_loss = self.multineg_loss(out["embs_student"], out["embs_teacher"], temperature=0.1)
         loss.append(
-            info_nce_mult * info_nce_loss
+            multineg_mult * multineg_loss
         )
         
         # n2n loss.
@@ -628,8 +653,9 @@ class ForcesTrainerV2(BaseTrainerV2):
                         
                         # Gradient loss.
                         if out["grad_forces"] is not None:
+                            grad_energy_mult = self.config["optim"].get("grad_energy_coefficient", 100)
                             loss.append(
-                                energy_mult
+                                grad_energy_mult
                                 * self.loss_fn["force"](out["grad_forces"][mask], force_target[mask])
                             )
                 else:
