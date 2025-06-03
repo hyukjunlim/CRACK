@@ -399,18 +399,18 @@ class EquiformerV2_OC20(BaseModel):
             self.use_sep_s2_act
         )
         
-        # self.proj_teacher = FeedForwardNetwork(
-        #     self.sphere_channels,
-        #     self.ffn_hidden_channels, 
-        #     self.sphere_channels,
-        #     self.lmax_list,
-        #     self.mmax_list,
-        #     self.SO3_grid,  
-        #     self.ffn_activation,
-        #     self.use_gate_act,
-        #     self.use_grid_mlp,
-        #     self.use_sep_s2_act
-        # )
+        self.proj_teacher = FeedForwardNetwork(
+            self.sphere_channels,
+            self.ffn_hidden_channels, 
+            self.sphere_channels,
+            self.lmax_list,
+            self.mmax_list,
+            self.SO3_grid,  
+            self.ffn_activation,
+            self.use_gate_act,
+            self.use_grid_mlp,
+            self.use_sep_s2_act
+        )
         
         self.proj_student = FeedForwardNetwork(
             self.sphere_channels,
@@ -455,7 +455,7 @@ class EquiformerV2_OC20(BaseModel):
             *self.blocks_student,
             self.norm_student,
             self.delta_student,
-            # self.proj_teacher,
+            self.proj_teacher,
             self.proj_student,
             self.energy_block_student,
         ])
@@ -575,7 +575,7 @@ class EquiformerV2_OC20(BaseModel):
         # Final layer norm
         x.embedding = self.norm(x.embedding).detach()
         
-        embs_teacher = x.embedding.narrow(1, 0, 1).reshape(x.embedding.size(0), -1)
+        embs_teacher = self.proj_teacher(x).embedding.narrow(1, 0, 1).reshape(x.embedding.size(0), -1)
         
         if speed_compare:
             end_time1 = time.time()
