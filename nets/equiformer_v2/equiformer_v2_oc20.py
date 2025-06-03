@@ -425,8 +425,6 @@ class EquiformerV2_OC20(BaseModel):
             self.use_sep_s2_act
         )
         
-        self.norm_proj_student = get_normalization_layer(self.norm_type, lmax=max(self.lmax_list), num_channels=self.sphere_channels)
-        
         self.energy_block_student = FeedForwardNetwork(
             self.sphere_channels,
             self.ffn_hidden_channels, 
@@ -459,7 +457,6 @@ class EquiformerV2_OC20(BaseModel):
             self.delta_student,
             self.proj_teacher,
             self.proj_student,
-            self.norm_proj_student,
             self.energy_block_student,
         ])
         for module in modules_to_enable:
@@ -564,6 +561,11 @@ class EquiformerV2_OC20(BaseModel):
         pure_eqv2 = False
         speed_compare = False
         
+        embs_teacher = torch.zeros(2, x.embedding.size(0), self.sphere_channels, device=x.embedding.device, dtype=x.embedding.dtype)
+        _x = x.clone()
+        _x.embedding = _x.embedding.detach()
+        embs_teacher[0] = self.proj_teacher(_x).embedding.narrow(1, 0, 1).reshape(_x.embedding.size(0), -1)
+        
         if speed_compare:
             start_time1 = time.time()
         for i in range(self.num_layers):
@@ -575,10 +577,12 @@ class EquiformerV2_OC20(BaseModel):
                 batch=data.batch    # for GraphDropPath
             )
         
+        _x = x.clone()
+        _x.embedding = _x.embedding.detach()
+        embs_teacher[-1] = self.proj_teacher(_x).embedding.narrow(1, 0, 1).reshape(_x.embedding.size(0), -1)
+        
         # Final layer norm
         x.embedding = self.norm(x.embedding).detach()
-        
-        embs_teacher = self.proj_teacher(x).embedding.narrow(1, 0, 1).reshape(x.embedding.size(0), -1)
         
         if speed_compare:
             end_time1 = time.time()
@@ -598,9 +602,7 @@ class EquiformerV2_OC20(BaseModel):
                 start_time2 = time.time()
 
             for i in range(self.num_layers_student):
-                x_norm_s = x_s.clone()
-                x_norm_s.embedding = self.norm_proj_student(x_s.embedding)
-                embs_student[i] = self.proj_student(x_norm_s).embedding.narrow(1, 0, 1).reshape(x_s.embedding.size(0), -1)
+                embs_student[i] = self.proj_student(x_s).embedding.narrow(1, 0, 1).reshape(x_s.embedding.size(0), -1)
                 
                 x_s = self.blocks_student[i](
                     x_s,                  # SO3_Embedding
@@ -610,10 +612,9 @@ class EquiformerV2_OC20(BaseModel):
                     batch=data.batch    # for GraphDropPath
                 )
                 
-            x_norm_s = x_s.clone()
-            x_norm_s.embedding = self.norm_proj_student(x_s.embedding)
-            embs_student[-1] = self.proj_student(x_norm_s).embedding.narrow(1, 0, 1).reshape(x_s.embedding.size(0), -1)
+            embs_student[-1] = self.proj_student(x_s).embedding.narrow(1, 0, 1).reshape(x_s.embedding.size(0), -1)
 
+            # Final layer norm
             x_s.embedding = self.norm_student(x_s.embedding)
             
             res_x_s = x_s.embedding

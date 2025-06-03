@@ -625,19 +625,19 @@ class ForcesTrainerV2(BaseTrainerV2):
     def _compute_loss(self, out, batch_list):
         loss = []
         
-        # # InfoNCE loss
-        # info_nce_mult = self.config["optim"].get("info_nce_coefficient", 10)
-        # info_nce_loss = self.infonce_loss(out["embs_student"][-1], out["embs_teacher"], temperature=0.1)
-        # loss.append(
-        #     info_nce_mult * info_nce_loss
-        # )
-        
-        # SupCon loss
-        supcon_mult = self.config["optim"].get("supcon_coefficient", 10)
-        supcon_loss = self.supcon_loss(out["embs_student"], out["embs_teacher"].unsqueeze(0), temperature=0.1)
+        # InfoNCE loss
+        info_nce_mult = self.config["optim"].get("info_nce_coefficient", 10)
+        info_nce_loss = self.infonce_loss(out["embs_student"][-1], out["embs_teacher"][-1], temperature=0.1)
         loss.append(
-            supcon_mult * supcon_loss
+            info_nce_mult * info_nce_loss
         )
+        
+        # # SupCon loss
+        # supcon_mult = self.config["optim"].get("supcon_coefficient", 10)
+        # supcon_loss = self.supcon_loss(out["embs_student"][-1:], out["embs_teacher"][-1:], temperature=0.1)
+        # loss.append(
+        #     supcon_mult * supcon_loss
+        # )
         
         # # HiCLR loss
         # hiclr_mult = self.config["optim"].get("hiclr_coefficient", 10)
