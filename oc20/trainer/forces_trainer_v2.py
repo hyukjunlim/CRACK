@@ -623,14 +623,152 @@ class ForcesTrainerV2(BaseTrainerV2):
         loss = F.cross_entropy(logits, labels)
         return loss
     
+    def make_logits(anchor, pos_set, neg_sets, temperature):
+        """
+        anchor:   [N, D] (normalized)
+        pos_set:  [N, D] or None (normalized). If None, we omit positives.
+        neg_sets: list of [N, D] (normalized) arrays to use as negatives.
+        """
+        # 1) Compute positive similarity if pos_set is given:
+        if pos_set is not None:
+            pos_sim = (anchor * pos_set).sum(dim=-1, keepdim=True) / temperature  # [N,1]
+        else:
+            pos_sim = None
+
+        # 2) Collect all negatives into one big [N, M] matrix:
+        #    where M = sum_j (size of neg_sets[j])
+        neg_list = []
+        for neg in neg_sets:
+            neg_list.append(torch.matmul(anchor, neg.T) / temperature)  # [N, neg_dim]
+        if neg_list:
+            neg_mat = torch.cat(neg_list, dim=1)  # [N, total_negatives]
+            
+            # Mask out “self” if anchor and neg_set come from same tensor and same indices.
+            # (Assume each neg_set that requires masking is already arranged so that diagonal = anchor[i] vs. neg[i].)
+            # You’ll need to build a boolean mask if you’re comparing the exact same embeddings. 
+            # For simplicity, assume caller has masked out diag = –inf where needed.
+        else:
+            neg_mat = None
+
+        # 3) Concatenate pos and negatives
+        if pos_sim is not None and neg_mat is not None:
+            logits = torch.cat([pos_sim, neg_mat], dim=1)  # [N, 1 + total_negatives]
+        elif pos_sim is not None:
+            logits = pos_sim  # no negatives
+        else:
+            logits = neg_mat  # only negatives; in that case we’d want to treat “no positive” scenario differently.
+
+        return logits
+
+    def ablation_loss(
+        self,
+        student, teacher,       # [N, D] raw embeddings
+        temp=0.1,
+        use_t1=True,            # stu→tea
+        use_t2=True,            # stu→stu
+        use_t3=True,            # tea→stu
+        use_t4=True             # tea→tea
+    ):
+        # 1) Normalize
+        stu_n = F.normalize(student, dim=-1)  # [N, D]
+        tea_n = F.normalize(teacher, dim=-1)  # [N, D]
+        N = student.size(0)
+        device = student.device
+
+        # Precompute mask for “remove diagonal” (for any times we compare a set to itself)
+        mask = torch.eye(N, device=device, dtype=torch.bool)
+
+        losses = []
+
+        # ───────────────────────────────────────────────────
+        # T₁ = stu→tea
+        # ───────────────────────────────────────────────────
+        if use_t1:
+            # positives = teacher[i]
+            pos1 = tea_n                    # [N, D]
+            # negatives = tea_n (with diag masked)  +  stu_n (with diag masked)
+            neg_t1 = torch.matmul(stu_n, tea_n.T) / temp        # [N, N]
+            neg_t1.masked_fill_(mask, float('-inf'))
+            neg_s1 = torch.matmul(stu_n, stu_n.T) / temp        # [N, N]
+            neg_s1.masked_fill_(mask, float('-inf'))
+
+            logits1 = torch.cat([
+                (stu_n * pos1).sum(dim=-1, keepdim=True) / temp,  # [N, 1]
+                neg_t1,
+                neg_s1
+            ], dim=1)  # [N, 1 + N + N]
+            labels1 = torch.zeros(N, dtype=torch.long, device=device)
+            losses.append(F.cross_entropy(logits1, labels1))
+
+        # ───────────────────────────────────────────────────
+        # T₂ = stu→stu (negatives only, no positive)
+        # ───────────────────────────────────────────────────
+        if use_t2:
+            # anchor = stu_n, negatives = stu_n(with diag masked)
+            neg_s2 = torch.matmul(stu_n, stu_n.T) / temp
+            neg_s2.masked_fill_(mask, float('-inf'))
+
+            # If no explicit positive, you could “fake” a positive with +inf at index 0,
+            # but normally we skip cross-entropy here; instead we just push apart stu embeddings.
+            # One option: use NT-Xent style “each i’s positive is itself at index 0”—
+            # but that’s what T₁ already does for +stu→tea. 
+            # In practice, T₂ is baked into T₁’s logits1 when use_t1=True.
+            # So if you want T₂ standalone, you’d have to contrive a “positive index 0” always.
+            # We’ll assume T₂ is used only alongside T₁ in typical KD. 
+            # Therefore, we skip separate T₂ here and let it be included in T₁’s neg_s1.
+            pass
+
+        # ───────────────────────────────────────────────────
+        # T₃ = tea→stu
+        # ───────────────────────────────────────────────────
+        if use_t3:
+            pos3 = stu_n  # teacher[i] vs student[i]
+            neg_s3 = torch.matmul(tea_n, stu_n.T) / temp
+            neg_s3.masked_fill_(mask, float('-inf'))
+            neg_t3 = torch.matmul(tea_n, tea_n.T) / temp
+            neg_t3.masked_fill_(mask, float('-inf'))
+
+            logits3 = torch.cat([
+                (tea_n * pos3).sum(dim=-1, keepdim=True) / temp,  # [N,1]
+                neg_s3,
+                neg_t3
+            ], dim=1)  # [N, 1 + N + N]
+            labels3 = torch.zeros(N, dtype=torch.long, device=device)
+            losses.append(F.cross_entropy(logits3, labels3))
+
+        # ───────────────────────────────────────────────────
+        # T₄ = tea→tea (negatives only)
+        # ───────────────────────────────────────────────────
+        if use_t4:
+            # anchor = tea_n, negatives = tea_n(with diag masked)
+            neg_t4 = torch.matmul(tea_n, tea_n.T) / temp
+            neg_t4.masked_fill_(mask, float('-inf'))
+
+            # Same remark as T₂: typically T₄ is folded into logits3’s neg_t3.
+            # If you want T₄ standalone, you’d need to define a dummy positive.
+            pass
+
+        # 2) Average over whichever cross‐entropy terms were added
+        if len(losses) == 0:
+            raise ValueError("At least one of use_t1..use_t4 must be True.")
+        return sum(losses) / len(losses)
+    
     def _compute_loss(self, out, batch_list):
         loss = []
         
-        # Extended InfoNCE loss
-        extended_infonce_mult = self.config["optim"].get("extended_infonce_coefficient", 10)
-        extended_infonce_loss = self.extended_infonce_loss(out["embs_student"], out["embs_teacher"], temperature=0.05)
+        # # Extended InfoNCE loss
+        # extended_infonce_mult = self.config["optim"].get("extended_infonce_coefficient", 10)
+        # extended_infonce_loss_1 = self.extended_infonce_loss(out["embs_student"], out["embs_teacher"], temperature=0.05)
+        # extended_infonce_loss_2 = self.extended_infonce_loss(out["embs_teacher"], out["embs_student"], temperature=0.05)
+        # loss.append(
+        #     extended_infonce_mult * (extended_infonce_loss_1 + extended_infonce_loss_2) / 2
+        # )
+        
+        # Ablation loss
+        ablation_mult = self.config["optim"].get("ablation_coefficient", 10)
+        ablation_loss = self.ablation_loss(out["embs_student"], out["embs_teacher"], temp=0.05, use_t1=True, use_t2=False, use_t3=False, use_t4=True)
         loss.append(
-            extended_infonce_mult * extended_infonce_loss
+            ablation_mult * ablation_loss
         )
         
         # n2n loss.
