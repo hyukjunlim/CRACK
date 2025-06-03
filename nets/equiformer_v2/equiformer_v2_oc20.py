@@ -571,7 +571,7 @@ class EquiformerV2_OC20(BaseModel):
                 edge_index,
                 batch=data.batch    # for GraphDropPath
             )
-        
+            
         # Final layer norm
         x.embedding = self.norm(x.embedding).detach()
         
@@ -655,9 +655,9 @@ class EquiformerV2_OC20(BaseModel):
             #         raise RuntimeError("Forces were not computed despite self.regress_forces being True.")
             
         if not self.regress_forces:
-            return energy, embs_teacher, embs_student, x0.embedding, x1.embedding, predicted_x1.embedding, node_energy, node_energy2
+            return energy, embs_teacher, embs_student, x0.embedding, x1.embedding, predicted_x1.embedding, node_energy, node_energy2, edge_index
         else:
-            return energy, forces, grad_forces, embs_teacher, embs_student, x0.embedding, x1.embedding, predicted_x1.embedding, node_energy, node_energy2
+            return energy, forces, grad_forces, embs_teacher, embs_student, x0.embedding, x1.embedding, predicted_x1.embedding, node_energy, node_energy2, edge_index
 
     
     # Initialize the edge rotation matrics
