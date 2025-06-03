@@ -568,17 +568,67 @@ class ForcesTrainerV2(BaseTrainerV2):
         Returns:
             Scalar loss.
         """
-        student, teacher = self._normalize_embeddings(student, teacher)
-        logits = self._compute_logits(student, teacher, temperature)
+        student = F.normalize(student, dim=-1)
+        teacher = F.normalize(teacher, dim=-1)
+        logits = torch.matmul(student, teacher.T) / temperature
         labels = torch.arange(student.size(0), device=student.device)
         return F.cross_entropy(logits, labels)
+    
+    def extended_infonce_loss(self, student: torch.Tensor,
+                          teacher: torch.Tensor,
+                          temperature: float = 0.1) -> torch.Tensor:
+        """
+        Extended InfoNCE that treats both teacher embeddings and other student embeddings 
+        as negatives for each student anchor.
+
+        Args:
+            student: [N, D] tensor of student embeddings.
+            teacher: [N, D] tensor of teacher embeddings.
+            temperature: scaling factor (float).
+
+        Returns:
+            A scalar loss (torch.Tensor).
+        """
+        # 1) Normalize both sets of embeddings
+        student_norm = F.normalize(student, dim=-1)  # [N, D]
+        teacher_norm = F.normalize(teacher, dim=-1)  # [N, D]
+
+        N, D = student_norm.shape
+
+        # 2) Compute the “positive” similarity: student[i] · teacher[i]
+        #    Result is [N, 1]
+        pos_sim = (student_norm * teacher_norm).sum(dim=-1, keepdim=True) / temperature
+
+        # 3) Compute “negative” similarities to all teacher embeddings:
+        #    Shape → [N, N], where row i contains sim(student[i], teacher[0..N-1]) / temp
+        neg_t = torch.matmul(student_norm, teacher_norm.T) / temperature
+        #    Mask out the diagonal (so teacher[i] is not counted as a “negative”)
+        mask = torch.eye(N, device=student_norm.device, dtype=torch.bool)
+        neg_t.masked_fill_(mask, float('-inf'))
+
+        # 4) Compute “negative” similarities to all student embeddings:
+        #    Shape → [N, N], where row i contains sim(student[i], student[0..N-1]) / temp
+        neg_s = torch.matmul(student_norm, student_norm.T) / temperature
+        neg_s.masked_fill_(mask, float('-inf'))
+
+        # 5) Concatenate positives and negatives into one logit vector per anchor:
+        #    - First column is the positive sim for each i
+        #    - Next N columns are neg_t[i, :], then next N columns are neg_s[i, :]
+        logits = torch.cat([pos_sim, neg_t, neg_s], dim=1)  # → [N, 1 + N + N]
+
+        # 6) The “correct” label for each row i is index 0 (the positive)
+        labels = torch.zeros(N, dtype=torch.long, device=student_norm.device)
+
+        # 7) Compute cross-entropy over these (1 + 2N) logits
+        loss = F.cross_entropy(logits, labels)
+        return loss
     
     def hiclr_loss(self, student, teacher, temperature=0.1, lambdx=0.5):
         """
         HiCLR loss.
         Args:
             student: [L, N, D] tensor.
-            teacher: [N, D] tensor.
+            teacher: [2, N, D] tensor.
             temperature: scaling factor.
             lambdx: weighting factor.
         Returns:
@@ -587,49 +637,39 @@ class ForcesTrainerV2(BaseTrainerV2):
         L, N, D = student.shape
 
         # 1. Compute the usual InfoNCE term between the final student embedding and teacher
-        loss = self.infonce_loss(student[-1], teacher, temperature)
+        loss = self.infonce_loss(student[-1], teacher[-1], temperature)
 
-        # 2. If L > 1, compute all KL( p(z|z_{i-1}) || p(z|z_i) ) in one shot
-        if L > 1:
-            # --- 2.1 Normalize all student embeddings at once: shape = (L, N, D) ---
-            z_norm = F.normalize(student, dim=-1)
-            z_prev = z_norm[:-1]   # (L-1, N, D)
-            z_curr = z_norm[1:]    # (L-1, N, D)
+        # 2. Normalize embeddings
+        student, teacher = self._normalize_embeddings(student, teacher)
 
-            # --- 2.2 Flatten the first two dims (L-1, N) → single batch of size (L-1)*N ---
-            z_prev_flat = z_prev.reshape((L - 1) * N, D)
-            z_curr_flat = z_curr.reshape((L - 1) * N, D)
-
-            # --- 2.3 Compute logits against the same teacher “key‐bank” for all (L-1)*N samples ---
-            logits_prev_flat = z_prev_flat @ teacher.T      # ((L-1)*N, N)
-            logits_curr_flat = z_curr_flat @ teacher.T      # ((L-1)*N, N)
-            logits_prev = (logits_prev_flat / temperature).view(L - 1, N, N)
-            logits_curr = (logits_curr_flat / temperature).view(L - 1, N, N)
-
-            # --- 2.4 Turn logits into two categorical distributions over N keys ---
-            p_prev     = F.softmax(logits_prev,    dim=-1)  # shape (L-1, N, N)
-            log_p_curr = F.log_softmax(logits_curr, dim=-1)  # shape (L-1, N, N)
-            log_p_prev = torch.log(p_prev + 1e-10)  # shape (L-1, N, N)
-
-            # --- 2.5 Compute KL divergence per‐sample: KL( p_prev || p_curr ) ---
-            kl_all = (p_prev * (log_p_prev - log_p_curr)).sum(dim=-1)  # shape (L-1, N)
-            avg_kl_per_level = kl_all.mean(dim=1)  # (L-1,)
-            hierarchical_term = lambdx * avg_kl_per_level.sum()  # scalar
-
-            # --- 2.6 Add to the InfoNCE loss ---
-            loss = loss + hierarchical_term
-
+        # 3. Cosine similarity
+        cos_tt = torch.matmul(teacher[0], teacher[-1].T)
+        
+        # 4. KL divergence
+        for i in range(1, L):
+            cos_ss = torch.matmul(student[0], student[i].T)
+            P_tt = F.softmax(cos_tt / temperature, dim=-1)
+            log_P_ss = F.log_softmax(cos_ss / temperature, dim=-1)
+            loss = loss + lambdx * F.kl_div(log_P_ss, P_tt, reduction='batchmean') * (i / (L - 1))
+        
         return loss
     
     
     def _compute_loss(self, out, batch_list):
         loss = []
         
-        # InfoNCE loss
-        info_nce_mult = self.config["optim"].get("info_nce_coefficient", 10)
-        info_nce_loss = self.infonce_loss(out["embs_student"][-1], out["embs_teacher"][-1], temperature=0.1)
+        # # InfoNCE loss
+        # info_nce_mult = self.config["optim"].get("info_nce_coefficient", 10)
+        # info_nce_loss = self.infonce_loss(out["embs_student"], out["embs_teacher"], temperature=0.1)
+        # loss.append(
+        #     info_nce_mult * info_nce_loss
+        # )
+        
+        # Extended InfoNCE loss
+        extended_infonce_mult = self.config["optim"].get("extended_infonce_coefficient", 10)
+        extended_infonce_loss = self.extended_infonce_loss(out["embs_student"], out["embs_teacher"], temperature=0.1)
         loss.append(
-            info_nce_mult * info_nce_loss
+            extended_infonce_mult * extended_infonce_loss
         )
         
         # # SupCon loss
