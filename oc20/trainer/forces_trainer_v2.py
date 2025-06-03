@@ -513,6 +513,51 @@ class ForcesTrainerV2(BaseTrainerV2):
         """Compute scaled dot-product logits between two sets of embeddings."""
         return torch.matmul(a, b.T) / temperature
 
+    def supcon_loss(self, student, teacher, temperature=0.1):
+        """
+        Supervised Contrastive Loss (SupCon/SimCLR style).
+        Args:
+            student: [L, N, D] tensor.
+            teacher: [M, N, D] tensor.
+            temperature: scaling factor.
+        Returns:
+            Scalar loss.
+        """
+        # 1. Get shape
+        L, N, D = student.shape
+        M = teacher.shape[0]
+
+        # 2. Normalize embeddings
+        student_norm, teacher_norm = self._normalize_embeddings(student, teacher)
+
+        # 3. Flatten embeddings
+        student_flat = student_norm.permute(1, 0, 2).reshape(N * L, D)
+        teacher_flat = teacher_norm.permute(1, 0, 2).reshape(N * M, D)
+
+        # 4. Compute logits
+        logits = (student_flat @ teacher_flat.T) / temperature
+
+        # 5. Numerically stable exp
+        logits_max, _ = torch.max(logits, dim=1, keepdim=True)  # [N*L, 1]
+        logits = logits - logits_max.detach()
+        exp_logits = torch.exp(logits)  # [N*L, N*M]
+
+        # 6. Get positive keys
+        node_ids = torch.arange(N, device=student.device).repeat_interleave(L)  # [N*L]
+        node_indices = node_ids * M
+        pos_idx = node_indices.unsqueeze(1) + torch.arange(M, device=student.device).unsqueeze(0)
+
+        # 7. Denominator & Numerator
+        denom = exp_logits.sum(dim=1)                   # [N*L]
+        selected = exp_logits.gather(1, pos_idx)        # [N*L, M]
+        numerator = selected.sum(dim=1)                 # [N*L]
+
+        # 8. Compute loss
+        loss_per_anchor = -torch.log(numerator / denom + 1e-12)  # [N*L]
+        loss = loss_per_anchor.mean()
+
+        return loss
+
     def infonce_loss(self, student, teacher, temperature=0.1):
         """
         Standard InfoNCE loss for contrastive learning.
@@ -527,72 +572,79 @@ class ForcesTrainerV2(BaseTrainerV2):
         logits = self._compute_logits(student, teacher, temperature)
         labels = torch.arange(student.size(0), device=student.device)
         return F.cross_entropy(logits, labels)
-
-    def supcon_loss(self, student, teacher, temperature=0.1):
+    
+    def hiclr_loss(self, student, teacher, temperature=0.1, lambdx=0.5):
         """
-        Supervised Contrastive Loss (SupCon/SimCLR style).
+        HiCLR loss.
         Args:
-            student: [N, D] tensor.
+            student: [L, N, D] tensor.
             teacher: [N, D] tensor.
             temperature: scaling factor.
+            lambdx: weighting factor.
         Returns:
             Scalar loss.
         """
-        student, teacher = self._normalize_embeddings(student, teacher)
-        features = torch.stack([student, teacher], dim=1)  # [N, 2, D]
-        device = student.device
-        batch_size = features.shape[0]
-        anchor_count = features.shape[1]
-        anchor_feature = torch.cat(torch.unbind(features, dim=1), dim=0)  # [2N, D]
+        L, N, D = student.shape
 
-        # Compute logits
-        logits = self._compute_logits(anchor_feature, anchor_feature, temperature)
-        logits_max, _ = logits.max(dim=1, keepdim=True)
-        logits = logits - logits_max.detach()  # Numerical stability
+        # 1. Compute the usual InfoNCE term between the final student embedding and teacher
+        loss = self.infonce_loss(student[-1], teacher, temperature)
 
-        # Mask for positive pairs (identity matrix, tiled)
-        mask = torch.eye(batch_size, dtype=torch.float32, device=device)
-        mask = mask.repeat(anchor_count, anchor_count)
+        # 2. If L > 1, compute all KL( p(z|z_{i-1}) || p(z|z_i) ) in one shot
+        if L > 1:
+            # --- 2.1 Normalize all student embeddings at once: shape = (L, N, D) ---
+            z_norm = F.normalize(student, dim=-1)
+            z_prev = z_norm[:-1]   # (L-1, N, D)
+            z_curr = z_norm[1:]    # (L-1, N, D)
 
-        # Mask out self-contrast cases
-        logits_mask = torch.ones_like(mask)
-        logits_mask = logits_mask.scatter(
-            1,
-            torch.arange(batch_size * anchor_count, device=device).view(-1, 1),
-            0
-        )
-        mask = mask * logits_mask
+            # --- 2.2 Flatten the first two dims (L-1, N) → single batch of size (L-1)*N ---
+            z_prev_flat = z_prev.reshape((L - 1) * N, D)
+            z_curr_flat = z_curr.reshape((L - 1) * N, D)
 
-        # Compute log-probabilities
-        exp_logits = torch.exp(logits) * logits_mask
-        log_prob = logits - torch.log(exp_logits.sum(1, keepdim=True) + 1e-12)
+            # --- 2.3 Compute logits against the same teacher “key‐bank” for all (L-1)*N samples ---
+            logits_prev_flat = z_prev_flat @ teacher.T      # ((L-1)*N, N)
+            logits_curr_flat = z_curr_flat @ teacher.T      # ((L-1)*N, N)
+            logits_prev = (logits_prev_flat / temperature).view(L - 1, N, N)
+            logits_curr = (logits_curr_flat / temperature).view(L - 1, N, N)
 
-        # Mean log-likelihood over positive pairs
-        mask_pos_pairs = mask.sum(1)
-        mask_pos_pairs = torch.where(mask_pos_pairs < 1e-6, 1, mask_pos_pairs)
-        mean_log_prob_pos = (mask * log_prob).sum(1) / mask_pos_pairs
+            # --- 2.4 Turn logits into two categorical distributions over N keys ---
+            p_prev     = F.softmax(logits_prev,    dim=-1)  # shape (L-1, N, N)
+            log_p_curr = F.log_softmax(logits_curr, dim=-1)  # shape (L-1, N, N)
+            log_p_prev = torch.log(p_prev + 1e-10)  # shape (L-1, N, N)
 
-        # Loss
-        loss = -mean_log_prob_pos
-        loss = loss.view(anchor_count, batch_size).mean()
+            # --- 2.5 Compute KL divergence per‐sample: KL( p_prev || p_curr ) ---
+            kl_all = (p_prev * (log_p_prev - log_p_curr)).sum(dim=-1)  # shape (L-1, N)
+            avg_kl_per_level = kl_all.mean(dim=1)  # (L-1,)
+            hierarchical_term = lambdx * avg_kl_per_level.sum()  # scalar
+
+            # --- 2.6 Add to the InfoNCE loss ---
+            loss = loss + hierarchical_term
+
         return loss
-
+    
+    
     def _compute_loss(self, out, batch_list):
         loss = []
         
         # # InfoNCE loss
-        # info_nce_mult = self.config["optim"].get("info_nce_coefficient", 1)
-        # info_nce_loss = self.infonce_loss(out["embs_student"], out["embs_teacher"], temperature=0.1)
+        # info_nce_mult = self.config["optim"].get("info_nce_coefficient", 10)
+        # info_nce_loss = self.infonce_loss(out["embs_student"][-1], out["embs_teacher"], temperature=0.1)
         # loss.append(
         #     info_nce_mult * info_nce_loss
         # )
         
         # SupCon loss
         supcon_mult = self.config["optim"].get("supcon_coefficient", 10)
-        supcon_loss = self.supcon_loss(out["embs_student"], out["embs_teacher"], temperature=0.07)
+        supcon_loss = self.supcon_loss(out["embs_student"], out["embs_teacher"].unsqueeze(0), temperature=0.1)
         loss.append(
             supcon_mult * supcon_loss
         )
+        
+        # # HiCLR loss
+        # hiclr_mult = self.config["optim"].get("hiclr_coefficient", 10)
+        # hiclr_loss = self.hiclr_loss(out["embs_student"], out["embs_teacher"], temperature=0.1)
+        # loss.append(
+        #     hiclr_mult * hiclr_loss
+        # )
         
         # n2n loss.
         n2n_mult = self.config["optim"].get("n2n_coefficient", 10)
@@ -1025,7 +1077,7 @@ class ForcesTrainerV2(BaseTrainerV2):
         ):
             with torch.cuda.amp.autocast(enabled=self.scaler is not None):
                 out = self._forward(batch)
-            loss = self._compute_loss(out, batch)
+                loss = self._compute_loss(out, batch)
             metrics = self._compute_metrics(out, batch, evaluator, metrics)
             metrics = evaluator.update("loss", loss.item(), metrics)
             

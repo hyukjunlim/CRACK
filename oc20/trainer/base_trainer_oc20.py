@@ -427,6 +427,7 @@ class BaseTrainer(ABC):
         for i in range(len(self.model.module.blocks_student)):
             self.model.module.blocks_student[i].load_state_dict(self.model.module.blocks[i].state_dict())
         self.model.module.norm_student.load_state_dict(self.model.module.norm.state_dict())
+        self.model.module.norm_proj_student.load_state_dict(self.model.module.norm.state_dict())
         self.model.module.energy_block_student.load_state_dict(self.model.module.energy_block.state_dict())
         
 

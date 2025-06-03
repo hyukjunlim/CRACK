@@ -47,7 +47,6 @@ from .layer_norm import (
 from .transformer_block import (
     SO2EquivariantGraphAttention,
     FeedForwardNetwork,
-    FeedForwardNetwork_noamp,
     TransBlockV2, 
 )
 from .input_block import EdgeDegreeEmbedding
@@ -400,7 +399,7 @@ class EquiformerV2_OC20(BaseModel):
             self.use_sep_s2_act
         )
         
-        self.proj_teacher = FeedForwardNetwork_noamp(
+        self.proj_teacher = FeedForwardNetwork(
             self.sphere_channels,
             self.ffn_hidden_channels, 
             self.sphere_channels,
@@ -413,7 +412,7 @@ class EquiformerV2_OC20(BaseModel):
             self.use_sep_s2_act
         )
         
-        self.proj_student = FeedForwardNetwork_noamp(
+        self.proj_student = FeedForwardNetwork(
             self.sphere_channels,
             self.ffn_hidden_channels, 
             self.sphere_channels,
@@ -425,6 +424,8 @@ class EquiformerV2_OC20(BaseModel):
             self.use_grid_mlp,
             self.use_sep_s2_act
         )
+        
+        self.norm_proj_student = get_normalization_layer(self.norm_type, lmax=max(self.lmax_list), num_channels=self.sphere_channels)
         
         self.energy_block_student = FeedForwardNetwork(
             self.sphere_channels,
@@ -458,6 +459,7 @@ class EquiformerV2_OC20(BaseModel):
             self.delta_student,
             self.proj_teacher,
             self.proj_student,
+            self.norm_proj_student,
             self.energy_block_student,
         ])
         for module in modules_to_enable:
@@ -572,9 +574,11 @@ class EquiformerV2_OC20(BaseModel):
                 edge_index,
                 batch=data.batch    # for GraphDropPath
             )
-            
+        
         # Final layer norm
         x.embedding = self.norm(x.embedding).detach()
+        
+        embs_teacher = self.proj_teacher(x).embedding.narrow(1, 0, 1).reshape(x.embedding.size(0), -1)
         
         if speed_compare:
             end_time1 = time.time()
@@ -588,10 +592,16 @@ class EquiformerV2_OC20(BaseModel):
         if pure_eqv2:
             predicted_x1 = x1.clone()
         else:
+            embs_student = torch.zeros(self.num_layers_student + 1, x_s.embedding.size(0), self.sphere_channels, device=x_s.embedding.device, dtype=x_s.embedding.dtype)
+            
             if speed_compare:
                 start_time2 = time.time()
-                
+
             for i in range(self.num_layers_student):
+                x_norm_s = x_s.clone()
+                x_norm_s.embedding = self.norm_proj_student(x_s.embedding)
+                embs_student[i] = self.proj_student(x_norm_s).embedding.narrow(1, 0, 1).reshape(x_s.embedding.size(0), -1)
+                
                 x_s = self.blocks_student[i](
                     x_s,                  # SO3_Embedding
                     atomic_numbers_s,
@@ -600,6 +610,10 @@ class EquiformerV2_OC20(BaseModel):
                     batch=data.batch    # for GraphDropPath
                 )
                 
+            x_norm_s = x_s.clone()
+            x_norm_s.embedding = self.norm_proj_student(x_s.embedding)
+            embs_student[-1] = self.proj_student(x_norm_s).embedding.narrow(1, 0, 1).reshape(x_s.embedding.size(0), -1)
+
             x_s.embedding = self.norm_student(x_s.embedding)
             
             res_x_s = x_s.embedding
@@ -608,9 +622,7 @@ class EquiformerV2_OC20(BaseModel):
             
             if speed_compare:
                 end_time2 = time.time()
-            
-            embs_teacher = self.proj_teacher(x).embedding.narrow(1, 0, 1).reshape(x.embedding.size(0), -1)
-            embs_student = self.proj_student(x_s).embedding.narrow(1, 0, 1).reshape(x_s.embedding.size(0), -1)
+                print(f"Time taken for {self.num_layers_student} layers: {end_time2 - start_time2} seconds", flush=True)
             
         ###############################################################
         # Energy estimation
