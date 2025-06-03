@@ -660,14 +660,14 @@ class ForcesTrainerV2(BaseTrainerV2):
         
         # # InfoNCE loss
         # info_nce_mult = self.config["optim"].get("info_nce_coefficient", 10)
-        # info_nce_loss = self.infonce_loss(out["embs_student"], out["embs_teacher"], temperature=0.1)
+        # info_nce_loss = self.infonce_loss(out["embs_student"], out["embs_teacher"], temperature=0.05)
         # loss.append(
         #     info_nce_mult * info_nce_loss
         # )
         
         # Extended InfoNCE loss
         extended_infonce_mult = self.config["optim"].get("extended_infonce_coefficient", 10)
-        extended_infonce_loss = self.extended_infonce_loss(out["embs_student"], out["embs_teacher"], temperature=0.1)
+        extended_infonce_loss = self.extended_infonce_loss(out["embs_student"], out["embs_teacher"], temperature=0.05)
         loss.append(
             extended_infonce_mult * extended_infonce_loss
         )
