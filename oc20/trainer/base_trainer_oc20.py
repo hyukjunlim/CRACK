@@ -425,7 +425,7 @@ class BaseTrainer(ABC):
             
         # Load pretrained weights from the first EquiformerV2 block into the student module
         self.model.module.blocks_student[0].load_state_dict(self.model.module.blocks[0].state_dict())
-        self.model.module.blocks_student[1].load_state_dict(self.model.module.blocks[-1].state_dict())
+        self.model.module.blocks_student[1].load_state_dict(self.model.module.blocks[1].state_dict())
         self.model.module.norm_student.load_state_dict(self.model.module.norm.state_dict())
         self.model.module.energy_block_student.load_state_dict(self.model.module.energy_block.state_dict())
         
