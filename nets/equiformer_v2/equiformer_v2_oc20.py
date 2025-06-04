@@ -399,20 +399,7 @@ class EquiformerV2_OC20(BaseModel):
             self.use_sep_s2_act
         )
         
-        self.proj_teacher = FeedForwardNetwork(
-            self.sphere_channels,
-            self.ffn_hidden_channels, 
-            self.sphere_channels,
-            self.lmax_list,
-            self.mmax_list,
-            self.SO3_grid,  
-            self.ffn_activation,
-            self.use_gate_act,
-            self.use_grid_mlp,
-            self.use_sep_s2_act
-        )
-        
-        self.proj_student = FeedForwardNetwork(
+        self.proj_simclr = FeedForwardNetwork(
             self.sphere_channels,
             self.ffn_hidden_channels, 
             self.sphere_channels,
@@ -455,8 +442,7 @@ class EquiformerV2_OC20(BaseModel):
             *self.blocks_student,
             self.norm_student,
             self.delta_student,
-            self.proj_teacher,
-            self.proj_student,
+            self.proj_simclr,
             self.energy_block_student,
         ])
         for module in modules_to_enable:
@@ -552,6 +538,8 @@ class EquiformerV2_OC20(BaseModel):
         atomic_numbers_s, num_atoms_s, pos_s, edge_index_s, edge_distance_s, edge_distance_vec_s, x_s = \
             self._initialize_graph_and_embeddings(data, set_pos_requires_grad=False)
         
+        N = x_s.embedding.size(0)
+        
         ###############################################################
         # Update spherical node embeddings
         ###############################################################
@@ -563,7 +551,7 @@ class EquiformerV2_OC20(BaseModel):
         
         if speed_compare:
             start_time1 = time.time()
-        for i in range(self.num_layers):
+        for i in range(self.num_layers - 1):
             x = self.blocks[i](
                 x,                  # SO3_Embedding
                 atomic_numbers,
@@ -572,10 +560,19 @@ class EquiformerV2_OC20(BaseModel):
                 batch=data.batch    # for GraphDropPath
             )
             
+        _x = x.clone()
+        _x.embedding = _x.embedding.detach()
+        
+        x = self.blocks[-1](
+            x,                  # SO3_Embedding
+            atomic_numbers,
+            edge_distance,
+            edge_index,
+            batch=data.batch    # for GraphDropPath
+        )
+            
         # Final layer norm
         x.embedding = self.norm(x.embedding).detach()
-        
-        embs_teacher = self.proj_teacher(x).embedding.narrow(1, 0, 1).reshape(x.embedding.size(0), -1)
         
         if speed_compare:
             end_time1 = time.time()
@@ -600,15 +597,26 @@ class EquiformerV2_OC20(BaseModel):
                     edge_index_s,
                     batch=data.batch    # for GraphDropPath
                 )
-                
+            
             # Final layer norm
             x_s.embedding = self.norm_student(x_s.embedding)
-            
-            embs_student = self.proj_student(x_s).embedding.narrow(1, 0, 1).reshape(x_s.embedding.size(0), -1)
             
             res_x_s = x_s.embedding
             predicted_x1 = self.delta_student(x_s)
             predicted_x1.embedding = res_x_s + predicted_x1.embedding
+            
+            # SimSiam
+            h_1 = self.blocks_student[-1](
+                _x,                  # SO3_Embedding
+                atomic_numbers_s,
+                edge_distance_s,
+                edge_index_s,
+                batch=data.batch    # for GraphDropPath
+            )
+            h_1.embedding = self.norm_student(h_1.embedding)
+            h_2 = predicted_x1.clone()
+            embs_teacher = self.proj_simclr(h_1).embedding.narrow(1, 0, 1).reshape(N, -1)
+            embs_student = self.proj_simclr(h_2).embedding.narrow(1, 0, 1).reshape(N, -1)
             
             if speed_compare:
                 end_time2 = time.time()
@@ -655,9 +663,9 @@ class EquiformerV2_OC20(BaseModel):
             #         raise RuntimeError("Forces were not computed despite self.regress_forces being True.")
             
         if not self.regress_forces:
-            return energy, embs_teacher, embs_student, x0.embedding, x1.embedding, predicted_x1.embedding, node_energy, node_energy2, edge_index
+            return energy, embs_teacher, embs_student, x0.embedding, x1.embedding, predicted_x1.embedding, node_energy, node_energy2
         else:
-            return energy, forces, grad_forces, embs_teacher, embs_student, x0.embedding, x1.embedding, predicted_x1.embedding, node_energy, node_energy2, edge_index
+            return energy, forces, grad_forces, embs_teacher, embs_student, x0.embedding, x1.embedding, predicted_x1.embedding, node_energy, node_energy2
 
     
     # Initialize the edge rotation matrics

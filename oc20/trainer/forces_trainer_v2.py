@@ -478,9 +478,9 @@ class ForcesTrainerV2(BaseTrainerV2):
         # forward pass.
         if (self.config["model_attributes"].get("regress_forces", True)
             or self.config['model_attributes'].get('use_auxiliary_task', False)):
-            out_energy, out_forces, out_grad_forces, embs_teacher, embs_student, x0_embedding, x1_embedding, predicted_x1_embedding, node_energy, node_energy2, edge_index = self.model(batch_list)
+            out_energy, out_forces, out_grad_forces, embs_teacher, embs_student, x0_embedding, x1_embedding, predicted_x1_embedding, node_energy, node_energy2 = self.model(batch_list)
         else:
-            out_energy, embs_teacher, embs_student, x0_embedding, x1_embedding, predicted_x1_embedding, node_energy, node_energy2, edge_index = self.model(batch_list)
+            out_energy, embs_teacher, embs_student, x0_embedding, x1_embedding, predicted_x1_embedding, node_energy, node_energy2 = self.model(batch_list)
 
         if out_energy.shape[-1] == 1:
             out_energy = out_energy.view(-1)
@@ -494,7 +494,6 @@ class ForcesTrainerV2(BaseTrainerV2):
             "node_energy2": node_energy2,
             "embs_teacher": embs_teacher,
             "embs_student": embs_student,
-            "edge_index": edge_index
         }
 
         if (self.config["model_attributes"].get("regress_forces", True)
@@ -520,53 +519,8 @@ class ForcesTrainerV2(BaseTrainerV2):
         labels = torch.arange(student.size(0), device=student.device)
         return F.cross_entropy(logits, labels)
     
-    def relational_infonce_distillation(self, student_node_emb, # [N, D] student's final layer
-                                        teacher_node_emb, # [N, D] teacher's embeddings
-                                        node_pairs,       # [2, M] tensor of (i,j) indices
-                                        temperature=0.1
-                                        ):
-        # Transpose node_pairs from [2, M] to [M, 2]
-        if node_pairs.shape[0] == 2 and node_pairs.ndim == 2: # Check if it's [2,M]
-            node_pairs = node_pairs.T # Now node_pairs is [M, 2]
-        
-        M = node_pairs.shape[0]
-        
-        if M == 0: # No pairs to form relations
-            return torch.tensor(0.0, device=student_node_emb.device)
-
-        # Get embeddings for i-th and j-th nodes in each pair
-        s_emb_i = student_node_emb[node_pairs[:, 0]] # Shape [M, D]
-        s_emb_j = student_node_emb[node_pairs[:, 1]] # Shape [M, D]
-        t_emb_i = teacher_node_emb[node_pairs[:, 0]] # Shape [M, D]
-        t_emb_j = teacher_node_emb[node_pairs[:, 1]] # Shape [M, D]
-
-        # 1. Generate Relational Vectors (using difference)
-        student_relations = s_emb_i - s_emb_j
-        teacher_relations = t_emb_i - t_emb_j
-
-        # 2. Normalize
-        student_relations_norm = F.normalize(student_relations, dim=-1)
-        teacher_relations_norm = F.normalize(teacher_relations, dim=-1)
-
-        # 3. Compute Logits
-        logits = torch.matmul(student_relations_norm, teacher_relations_norm.T) / temperature
-
-        # 4. Define Labels
-        labels = torch.arange(M, device=logits.device)
-
-        # 5. Calculate Loss
-        loss = F.cross_entropy(logits, labels)
-        return loss
-
     def _compute_loss(self, out, batch_list):
         loss = []
-        
-        # Custom loss
-        custom_mult = self.config["optim"].get("custom_coefficient", 10)
-        custom_loss = self.relational_infonce_distillation(out["embs_student"], out["embs_teacher"], out["edge_index"], temperature=0.1)
-        loss.append(
-            custom_mult * custom_loss
-        )
         
         # InfoNCE loss
         info_nce_mult = self.config["optim"].get("info_nce_coefficient", 10)
@@ -575,12 +529,12 @@ class ForcesTrainerV2(BaseTrainerV2):
             info_nce_mult * info_nce_loss
         )
         
-        # # n2n loss.
-        # n2n_mult = self.config["optim"].get("n2n_coefficient", 10)
-        # n2n_loss = self.loss_fn["student"](out["predicted_x1"], out["x1"])
-        # loss.append(
-        #     n2n_mult * n2n_loss
-        # )
+        # n2n loss.
+        n2n_mult = self.config["optim"].get("n2n_coefficient", 10)
+        n2n_loss = self.loss_fn["student"](out["predicted_x1"], out["x1"])
+        loss.append(
+            n2n_mult * n2n_loss
+        )
         
         # Energy loss.
         energy_target = torch.cat(
