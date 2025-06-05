@@ -505,7 +505,7 @@ class ForcesTrainerV2(BaseTrainerV2):
 
     def infonce_loss(self, student, teacher, temperature=0.1):
         """
-        Standard InfoNCE loss for contrastive learning.
+        InfoNCE loss for contrastive learning.
         Args:
             student: [N, D] tensor.
             teacher: [N, D] tensor.
@@ -513,11 +513,19 @@ class ForcesTrainerV2(BaseTrainerV2):
         Returns:
             Scalar loss.
         """
-        student = F.normalize(student, dim=-1)
-        teacher = F.normalize(teacher, dim=-1)
-        logits = torch.matmul(student, teacher.T) / temperature
-        labels = torch.arange(student.size(0), device=student.device)
-        return F.cross_entropy(logits, labels)
+        N = student.size(0) # Batch size
+        student_norm = F.normalize(student, dim=-1)
+        teacher_norm = F.normalize(teacher, dim=-1)
+        all_keys = torch.cat((teacher_norm, student_norm), dim=0)
+        logits_unmasked = torch.matmul(student_norm, all_keys.T) / temperature
+        mask = torch.zeros_like(logits_unmasked, dtype=torch.bool)
+        row_indices = torch.arange(N, device=student.device)
+        col_indices_for_self_similarity = N + row_indices
+        mask[row_indices, col_indices_for_self_similarity] = True
+        logits_masked = logits_unmasked.masked_fill(mask, -float('inf'))
+        labels = torch.arange(N, device=student.device)
+        loss = F.cross_entropy(logits_masked, labels)
+        return loss
     
     def _compute_loss(self, out, batch_list):
         loss = []
