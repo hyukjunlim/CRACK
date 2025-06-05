@@ -478,9 +478,9 @@ class ForcesTrainerV2(BaseTrainerV2):
         # forward pass.
         if (self.config["model_attributes"].get("regress_forces", True)
             or self.config['model_attributes'].get('use_auxiliary_task', False)):
-            out_energy, out_forces, out_grad_forces, embs_teacher, embs_student, x0_embedding, x1_embedding, predicted_x1_embedding, node_energy, node_energy2 = self.model(batch_list)
+            out_energy, out_forces, out_grad_forces, embs_teacher, embs_student, embs_student_prev, x0_embedding, x1_embedding, predicted_x1_embedding, node_energy, node_energy2 = self.model(batch_list)
         else:
-            out_energy, embs_teacher, embs_student, x0_embedding, x1_embedding, predicted_x1_embedding, node_energy, node_energy2 = self.model(batch_list)
+            out_energy, embs_teacher, embs_student, embs_student_prev, x0_embedding, x1_embedding, predicted_x1_embedding, node_energy, node_energy2 = self.model(batch_list)
 
         if out_energy.shape[-1] == 1:
             out_energy = out_energy.view(-1)
@@ -494,6 +494,7 @@ class ForcesTrainerV2(BaseTrainerV2):
             "node_energy2": node_energy2,
             "embs_teacher": embs_teacher,
             "embs_student": embs_student,
+            "embs_student_prev": embs_student_prev,
         }
 
         if (self.config["model_attributes"].get("regress_forces", True)
@@ -513,10 +514,28 @@ class ForcesTrainerV2(BaseTrainerV2):
         Returns:
             Scalar loss.
         """
+        student = F.normalize(student, dim=-1)
+        teacher = F.normalize(teacher, dim=-1)
+        logits = torch.matmul(student, teacher.T) / temperature
+        labels = torch.arange(student.size(0), device=student.device)
+        return F.cross_entropy(logits, labels)
+    
+    def self_infonce_loss(self, student, teacher, student_prev, temperature=0.1):
+        """
+        InfoNCE loss for contrastive learning.
+        Args:
+            student: [N, D] tensor.
+            teacher: [N, D] tensor.
+            temperature: scaling factor.
+        Returns:
+            Scalar loss.
+        """
         N = student.size(0) # Batch size
         student_norm = F.normalize(student, dim=-1)
         teacher_norm = F.normalize(teacher, dim=-1)
-        all_keys = torch.cat((teacher_norm, student_norm), dim=0)
+        student_prev_norm = F.normalize(student_prev, dim=-1)
+        
+        all_keys = torch.cat((teacher_norm, student_prev_norm), dim=0)
         logits_unmasked = torch.matmul(student_norm, all_keys.T) / temperature
         mask = torch.zeros_like(logits_unmasked, dtype=torch.bool)
         row_indices = torch.arange(N, device=student.device)
@@ -531,8 +550,8 @@ class ForcesTrainerV2(BaseTrainerV2):
         loss = []
         
         # InfoNCE loss
-        info_nce_mult = self.config["optim"].get("info_nce_coefficient", 10)
-        info_nce_loss = self.infonce_loss(out["embs_student"], out["embs_teacher"], temperature=0.1)
+        info_nce_mult = self.config["optim"].get("info_nce_coefficient", 5)
+        info_nce_loss = self.self_infonce_loss(out["embs_student"], out["embs_teacher"], out["embs_student_prev"], temperature=0.1)
         loss.append(
             info_nce_mult * info_nce_loss
         )
