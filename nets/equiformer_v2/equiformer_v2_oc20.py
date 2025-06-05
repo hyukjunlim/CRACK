@@ -425,6 +425,19 @@ class EquiformerV2_OC20(BaseModel):
             self.use_sep_s2_act
         )
         
+        self.proj_student_prev = FeedForwardNetwork(
+            self.sphere_channels,
+            self.ffn_hidden_channels, 
+            self.sphere_channels,
+            self.lmax_list,
+            self.mmax_list,
+            self.SO3_grid,  
+            self.ffn_activation,
+            self.use_gate_act,
+            self.use_grid_mlp,
+            self.use_sep_s2_act
+        )
+        
         self.energy_block_student = FeedForwardNetwork(
             self.sphere_channels,
             self.ffn_hidden_channels, 
@@ -457,6 +470,7 @@ class EquiformerV2_OC20(BaseModel):
             self.delta_student,
             self.proj_teacher,
             self.proj_student,
+            self.proj_student_prev,
             self.energy_block_student,
         ])
         for module in modules_to_enable:
@@ -599,7 +613,7 @@ class EquiformerV2_OC20(BaseModel):
                     batch=data.batch    # for GraphDropPath
                 )
                 if i == 0:
-                    embs_student_prev = self.proj_student(x_s).embedding.narrow(1, 0, 1).reshape(N, -1)
+                    embs_student_prev = self.proj_student_prev(x_s).embedding.narrow(1, 0, 1).reshape(N, -1)
             
             # Final layer norm
             x_s.embedding = self.norm_student(x_s.embedding)
