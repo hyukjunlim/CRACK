@@ -425,19 +425,6 @@ class EquiformerV2_OC20(BaseModel):
             self.use_sep_s2_act
         )
         
-        self.proj_student_prev = FeedForwardNetwork(
-            self.sphere_channels,
-            self.ffn_hidden_channels, 
-            self.sphere_channels,
-            self.lmax_list,
-            self.mmax_list,
-            self.SO3_grid,  
-            self.ffn_activation,
-            self.use_gate_act,
-            self.use_grid_mlp,
-            self.use_sep_s2_act
-        )
-        
         self.energy_block_student = FeedForwardNetwork(
             self.sphere_channels,
             self.ffn_hidden_channels, 
@@ -470,7 +457,6 @@ class EquiformerV2_OC20(BaseModel):
             self.delta_student,
             self.proj_teacher,
             self.proj_student,
-            self.proj_student_prev,
             self.energy_block_student,
         ])
         for module in modules_to_enable:
@@ -612,8 +598,6 @@ class EquiformerV2_OC20(BaseModel):
                     edge_index_s,
                     batch=data.batch    # for GraphDropPath
                 )
-                if i == 0:
-                    embs_student_prev = self.proj_student_prev(x_s).embedding.narrow(1, 0, 1).reshape(N, -1)
             
             # Final layer norm
             x_s.embedding = self.norm_student(x_s.embedding)
@@ -670,11 +654,11 @@ class EquiformerV2_OC20(BaseModel):
             #     # forces will have shape [num_atoms, 3] matching pos
             #     if grad_forces is None: # Safeguard check
             #         raise RuntimeError("Forces were not computed despite self.regress_forces being True.")
-            
+
         if not self.regress_forces:
-            return energy, embs_teacher, embs_student, embs_student_prev, x0.embedding, x.embedding, predicted_x1.embedding, node_energy, node_energy2
+            return energy, embs_teacher, embs_student, x0.embedding, x.embedding, predicted_x1.embedding, node_energy, node_energy2
         else:
-            return energy, forces, grad_forces, embs_teacher, embs_student, embs_student_prev, x0.embedding, x.embedding, predicted_x1.embedding, node_energy, node_energy2
+            return energy, forces, grad_forces, embs_teacher, embs_student, x0.embedding, x.embedding, predicted_x1.embedding, node_energy, node_energy2
 
     
     # Initialize the edge rotation matrics
