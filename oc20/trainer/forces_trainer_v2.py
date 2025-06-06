@@ -520,40 +520,15 @@ class ForcesTrainerV2(BaseTrainerV2):
         labels = torch.arange(student.size(0), device=student.device)
         return F.cross_entropy(logits, labels)
     
-    def self_infonce_loss(self, student, teacher, student_prev, temperature=0.1):
-        """
-        InfoNCE loss for contrastive learning.
-        Args:
-            student: [N, D] tensor.
-            teacher: [N, D] tensor.
-            temperature: scaling factor.
-        Returns:
-            Scalar loss.
-        """
-        N = student.size(0) # Batch size
-        student_norm = F.normalize(student, dim=-1)
-        teacher_norm = F.normalize(teacher, dim=-1)
-        student_prev_norm = F.normalize(student_prev, dim=-1)
-        
-        all_keys = torch.cat((teacher_norm, student_prev_norm), dim=0)
-        logits_unmasked = torch.matmul(student_norm, all_keys.T) / temperature
-        mask = torch.zeros_like(logits_unmasked, dtype=torch.bool)
-        row_indices = torch.arange(N, device=student.device)
-        col_indices_for_self_similarity = N + row_indices
-        mask[row_indices, col_indices_for_self_similarity] = True
-        logits_masked = logits_unmasked.masked_fill(mask, -float('inf'))
-        labels = torch.arange(N, device=student.device)
-        loss = F.cross_entropy(logits_masked, labels)
-        return loss
-    
     def _compute_loss(self, out, batch_list):
         loss = []
         
         # InfoNCE loss
-        info_nce_mult = self.config["optim"].get("info_nce_coefficient", 5)
-        info_nce_loss = self.self_infonce_loss(out["embs_student"], out["embs_teacher"], out["embs_student_prev"], temperature=0.1)
+        info_nce_mult = self.config["optim"].get("info_nce_coefficient", 10)
+        info_nce_loss_ts = self.infonce_loss(out["embs_teacher"], out["embs_student"], temperature=0.1)
+        info_nce_loss_st = self.infonce_loss(out["embs_student"], out["embs_teacher"], temperature=0.1)
         loss.append(
-            info_nce_mult * info_nce_loss
+            info_nce_mult * (info_nce_loss_ts + info_nce_loss_st) / 2
         )
         
         # n2n loss.
