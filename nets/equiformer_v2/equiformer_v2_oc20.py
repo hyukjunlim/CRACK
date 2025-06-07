@@ -611,7 +611,9 @@ class EquiformerV2_OC20(BaseModel):
                 print(f"Time taken for {self.num_layers_student} layers: {end_time2 - start_time2} seconds", flush=True)
                 
             # SSL-KD
-            embs_teacher = self.proj_teacher(x).embedding.narrow(1, 0, 1).reshape(N, -1)
+            embs_teacher = x.embedding.narrow(1, 0, 1).reshape(N, -1)
+            # embs_teacher = self.proj_teacher(x).embedding.narrow(1, 0, 1).reshape(N, -1)
+            # embs_student = predicted_x1.embedding.narrow(1, 0, 1).reshape(N, -1)
             embs_student = self.proj_student(predicted_x1).embedding.narrow(1, 0, 1).reshape(N, -1)
             
             
@@ -656,9 +658,9 @@ class EquiformerV2_OC20(BaseModel):
             #         raise RuntimeError("Forces were not computed despite self.regress_forces being True.")
 
         if not self.regress_forces:
-            return energy, embs_teacher, embs_student, x0.embedding, x.embedding, predicted_x1.embedding, node_energy, node_energy2
+            return energy, embs_teacher, embs_student, x0.embedding, x.embedding, predicted_x1.embedding, node_energy, node_energy2, edge_index
         else:
-            return energy, forces, grad_forces, embs_teacher, embs_student, x0.embedding, x.embedding, predicted_x1.embedding, node_energy, node_energy2
+            return energy, forces, grad_forces, embs_teacher, embs_student, x0.embedding, x.embedding, predicted_x1.embedding, node_energy, node_energy2, edge_index
 
     
     # Initialize the edge rotation matrics

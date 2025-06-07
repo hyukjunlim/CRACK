@@ -478,9 +478,9 @@ class ForcesTrainerV2(BaseTrainerV2):
         # forward pass.
         if (self.config["model_attributes"].get("regress_forces", True)
             or self.config['model_attributes'].get('use_auxiliary_task', False)):
-            out_energy, out_forces, out_grad_forces, embs_teacher, embs_student, x0_embedding, x1_embedding, predicted_x1_embedding, node_energy, node_energy2 = self.model(batch_list)
+            out_energy, out_forces, out_grad_forces, embs_teacher, embs_student, x0_embedding, x1_embedding, predicted_x1_embedding, node_energy, node_energy2, edge_index = self.model(batch_list)
         else:
-            out_energy, embs_teacher, embs_student, x0_embedding, x1_embedding, predicted_x1_embedding, node_energy, node_energy2 = self.model(batch_list)
+            out_energy, embs_teacher, embs_student, x0_embedding, x1_embedding, predicted_x1_embedding, node_energy, node_energy2, edge_index = self.model(batch_list)
 
         if out_energy.shape[-1] == 1:
             out_energy = out_energy.view(-1)
@@ -494,6 +494,7 @@ class ForcesTrainerV2(BaseTrainerV2):
             "node_energy2": node_energy2,
             "embs_teacher": embs_teacher,
             "embs_student": embs_student,
+            "edge_index": edge_index,
         }
 
         if (self.config["model_attributes"].get("regress_forces", True)
@@ -503,30 +504,60 @@ class ForcesTrainerV2(BaseTrainerV2):
             
         return out
 
-    def infonce_loss(self, z1, z2, temperature=0.1):
+    # def infonce_loss(self, z1, z2, temperature=0.1):
+    #     """
+    #     InfoNCE loss for contrastive learning.
+    #     Args:
+    #         z1: [N, D] tensor.
+    #         z2: [N, D] tensor.
+    #         edge_index: [2, E] tensor.
+    #         temperature: scaling factor.
+    #     Returns:
+    #         Scalar loss.
+    #     """
+    #     z1 = F.normalize(z1, dim=-1)
+    #     z2 = F.normalize(z2, dim=-1)
+    #     logits = torch.matmul(z1, z2.T) / temperature
+    #     labels = torch.arange(z1.size(0), device=z1.device)
+    #     return F.cross_entropy(logits, labels)
+    
+    def relation_loss(self, z1, z2, edge_index, temperature=0.15):
         """
-        InfoNCE loss for contrastive learning.
+        Relation loss for contrastive learning.
         Args:
             z1: [N, D] tensor.
             z2: [N, D] tensor.
+            edge_index: [2, E] tensor.
             temperature: scaling factor.
         Returns:
             Scalar loss.
         """
         z1 = F.normalize(z1, dim=-1)
         z2 = F.normalize(z2, dim=-1)
-        logits = torch.matmul(z1, z2.T) / temperature
-        labels = torch.arange(z1.size(0), device=z1.device)
+        src, dst = edge_index
+        x1 = z1[src] - z1[dst]
+        x2 = z2[src] - z2[dst]
+        x1 = F.normalize(x1, dim=-1)
+        x2 = F.normalize(x2, dim=-1)
+        logits = torch.matmul(x1, x2.T) / temperature
+        labels = torch.arange(x1.size(0), device=z1.device)
         return F.cross_entropy(logits, labels)
     
     def _compute_loss(self, out, batch_list):
         loss = []
         
-        # InfoNCE loss
-        info_nce_mult = self.config["optim"].get("info_nce_coefficient", 10)
-        info_nce_loss = self.infonce_loss(out["embs_teacher"], out["embs_student"])
+        # # InfoNCE loss
+        # info_nce_mult = self.config["optim"].get("info_nce_coefficient", 10)
+        # info_nce_loss = self.infonce_loss(out["embs_teacher"], out["embs_student"])
+        # loss.append(
+        #     info_nce_mult * info_nce_loss
+        # )
+        
+        # Relation loss
+        relation_mult = self.config["optim"].get("relation_coefficient", 10)
+        relation_loss = self.relation_loss(out["embs_student"], out["embs_teacher"], out["edge_index"])
         loss.append(
-            info_nce_mult * info_nce_loss
+            relation_mult * relation_loss
         )
         
         # # n2n loss.
