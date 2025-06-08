@@ -548,7 +548,7 @@ class ForcesTrainerV2(BaseTrainerV2):
         
         # # InfoNCE loss
         # info_nce_mult = self.config["optim"].get("info_nce_coefficient", 10)
-        # info_nce_loss = self.infonce_loss(out["embs_teacher"], out["embs_student"])
+        # info_nce_loss = self.infonce_loss(out["embs_student"], out["embs_teacher"])
         # loss.append(
         #     info_nce_mult * info_nce_loss
         # )
@@ -560,12 +560,12 @@ class ForcesTrainerV2(BaseTrainerV2):
             relation_mult * relation_loss
         )
         
-        # # n2n loss.
-        # n2n_mult = self.config["optim"].get("n2n_coefficient", 10)
-        # n2n_loss = self.loss_fn["student"](out["predicted_x1"], out["x1"])
-        # loss.append(
-        #     n2n_mult * n2n_loss
-        # )
+        # n2n loss.
+        n2n_mult = self.config["optim"].get("n2n_coefficient", 10)
+        n2n_loss = self.loss_fn["student"](out["predicted_x1"], out["x1"])
+        loss.append(
+            n2n_mult * n2n_loss
+        )
         
         # Energy loss.
         energy_target = torch.cat(
