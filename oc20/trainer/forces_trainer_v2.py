@@ -42,7 +42,7 @@ from ocpmodels.modules.normalizer import Normalizer
 #from ocpmodels.trainers.base_trainer import BaseTrainer
 from .base_trainer_v2 import BaseTrainerV2
 from .engine import AverageMeter
-
+from torch_geometric.utils import to_undirected
 
 @registry.register_trainer("forces_v2")
 class ForcesTrainerV2(BaseTrainerV2):
@@ -504,26 +504,9 @@ class ForcesTrainerV2(BaseTrainerV2):
             
         return out
 
-    # def infonce_loss(self, z1, z2, temperature=0.1):
-    #     """
-    #     InfoNCE loss for contrastive learning.
-    #     Args:
-    #         z1: [N, D] tensor.
-    #         z2: [N, D] tensor.
-    #         edge_index: [2, E] tensor.
-    #         temperature: scaling factor.
-    #     Returns:
-    #         Scalar loss.
-    #     """
-    #     z1 = F.normalize(z1, dim=-1)
-    #     z2 = F.normalize(z2, dim=-1)
-    #     logits = torch.matmul(z1, z2.T) / temperature
-    #     labels = torch.arange(z1.size(0), device=z1.device)
-    #     return F.cross_entropy(logits, labels)
-    
-    def relation_loss(self, z1, z2, edge_index, temperature=0.15):
+    def infonce_loss(self, z1, z2, temperature=0.1):
         """
-        Relation loss for contrastive learning.
+        InfoNCE loss for contrastive learning.
         Args:
             z1: [N, D] tensor.
             z2: [N, D] tensor.
@@ -532,6 +515,25 @@ class ForcesTrainerV2(BaseTrainerV2):
         Returns:
             Scalar loss.
         """
+        z1 = F.normalize(z1, dim=-1)
+        z2 = F.normalize(z2, dim=-1)
+        logits = torch.matmul(z1, z2.T) / temperature
+        labels = torch.arange(z1.size(0), device=z1.device)
+        return F.cross_entropy(logits, labels)
+    
+    def crack_loss(self, z1, z2, edge_index, temperature=0.15):
+        """
+        CRACK: Contrastive Relational-Aware Compression of Knowledge Loss. 
+        Distills the teacher's understanding of interatomic relationships into a student model. 
+        Args: 
+            z1: Teacher's final node (atom) embeddings [N, D_teacher]. 
+            z2: Student's node embeddings after passing through a projection head to match the teacher's dimension [N, D_teacher]. 
+            edge_index: Molecular graph connectivity (bonds) in COO format [2, E]. 
+            temperature: A scaling factor to control the sharpness of the contrastive loss. 
+        Returns: 
+            A scalar loss value representing the relational distillation loss. 
+        """ 
+        edge_index = to_undirected(edge_index)
         z1 = F.normalize(z1, dim=-1)
         z2 = F.normalize(z2, dim=-1)
         src, dst = edge_index
@@ -553,19 +555,19 @@ class ForcesTrainerV2(BaseTrainerV2):
         #     info_nce_mult * info_nce_loss
         # )
         
-        # Relation loss
-        relation_mult = self.config["optim"].get("relation_coefficient", 10)
-        relation_loss = self.relation_loss(out["embs_student"], out["embs_teacher"], out["edge_index"])
+        # Crack loss
+        crack_mult = self.config["optim"].get("crack_coefficient", 10)
+        crack_loss = self.crack_loss(out["embs_student"], out["embs_teacher"], out["edge_index"])
         loss.append(
-            relation_mult * relation_loss
+            crack_mult * crack_loss
         )
         
-        # n2n loss.
-        n2n_mult = self.config["optim"].get("n2n_coefficient", 10)
-        n2n_loss = self.loss_fn["student"](out["predicted_x1"], out["x1"])
-        loss.append(
-            n2n_mult * n2n_loss
-        )
+        # # n2n loss.
+        # n2n_mult = self.config["optim"].get("n2n_coefficient", 10)
+        # n2n_loss = self.loss_fn["student"](out["predicted_x1"], out["x1"])
+        # loss.append(
+        #     n2n_mult * n2n_loss
+        # )
         
         # Energy loss.
         energy_target = torch.cat(
