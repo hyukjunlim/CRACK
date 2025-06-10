@@ -24,7 +24,15 @@ from tqdm import tqdm
 
 # Visualization Imports
 import matplotlib.pyplot as plt
+from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE # Import TSNE
+try:
+    from umap import UMAP
+    UMAP_AVAILABLE = True
+except ImportError:
+    UMAP = None
+    UMAP_AVAILABLE = False
+    logging.warning("umap-learn not installed. UMAP plots will be disabled.")
 try:
     from mpl_toolkits.mplot3d import Axes3D
     MPL_3D_AVAILABLE = True
@@ -127,8 +135,10 @@ class ForcesTrainerV2(BaseTrainerV2):
 
         # --- Student Visualization Configuration ---
         self.visualize_student = self.config.get("visualize_student", True) # Enable/disable visualization
-        self.viz_output_dir = self.config.get("visualization_output_dir", os.path.join(self.run_dir, "student_visualizations")) # Default to run_dir subdir
-        self.viz_num_samples = self.config.get("visualization_num_samples", 100) # Max samples to plot
+        self.enable_embedding_distribution_visualization = self.config.get("visualize_embedding_distribution", True)
+        self.visualization_methods = self.config.get("visualization_methods", ["pca", "tsne", "umap"])
+        self.viz_output_dir = self.config.get("visualization_output_dir", os.path.join(self.run_dir, "student_visualizations_n2n")) # Default to run_dir subdir
+        self.viz_num_samples = self.config.get("visualization_num_samples", 2000) # Max samples to plot
         self.viz_plots = self.config.get("visualization_plots", ["2d", "3d"]) # Plots to generate ('2d', '3d')
         self.viz_pca_dpi = self.config.get("visualization_pca_dpi", 300) # DPI for saved plots
 
@@ -562,12 +572,12 @@ class ForcesTrainerV2(BaseTrainerV2):
             crack_mult * crack_loss
         )
         
-        # # n2n loss.
-        # n2n_mult = self.config["optim"].get("n2n_coefficient", 10)
-        # n2n_loss = self.loss_fn["student"](out["predicted_x1"], out["x1"])
-        # loss.append(
-        #     n2n_mult * n2n_loss
-        # )
+        # n2n loss.
+        n2n_mult = self.config["optim"].get("n2n_coefficient", 10)
+        n2n_loss = self.loss_fn["student"](out["predicted_x1"], out["x1"])
+        loss.append(
+            n2n_mult * n2n_loss
+        )
         
         # Energy loss.
         energy_target = torch.cat(
@@ -981,7 +991,7 @@ class ForcesTrainerV2(BaseTrainerV2):
         loader = self.val_loader if split == "val" else self.test_loader
         
         # Data collection for visualization (only on master)
-        viz_data = {"x0": [], "x1": [], "predicted_x1": []}
+        viz_data = {"x0": [], "x1": [], "predicted_x1": [], "embs_student": [], "node_energy": []}
         samples_collected = 0
         
         for i, batch in tqdm(
@@ -1009,6 +1019,13 @@ class ForcesTrainerV2(BaseTrainerV2):
                 viz_data["x0"].append(x0_batch)
                 viz_data["x1"].append(x1_batch)
                 viz_data["predicted_x1"].append(predicted_x1_batch)
+
+                if self.enable_embedding_distribution_visualization:
+                    if "embs_student" in out and out["embs_student"] is not None:
+                        viz_data["embs_student"].append(out["embs_student"].detach().cpu())
+                    if "node_energy" in out and out["node_energy"] is not None:
+                        viz_data["node_energy"].append(out["node_energy"].detach().cpu())
+
                 samples_collected += len(x0_batch)
 
         aggregated_metrics = {}
@@ -1049,10 +1066,122 @@ class ForcesTrainerV2(BaseTrainerV2):
             
             self.visualize_predictions(viz_x0, viz_x1, viz_predicted_x1)
             
+            if self.enable_embedding_distribution_visualization and viz_data["embs_student"]:
+                viz_embs_student = torch.cat(viz_data["embs_student"], dim=0)[:self.viz_num_samples]
+                if viz_data["node_energy"]:
+                    viz_node_energy = torch.cat(viz_data["node_energy"], dim=0)[:self.viz_num_samples]
+                    min_len = min(len(viz_embs_student), len(viz_node_energy))
+                    viz_embs_student = viz_embs_student[:min_len]
+                    viz_node_energy = viz_node_energy[:min_len]
+                else:
+                    viz_node_energy = None
+                self.visualize_embedding_distribution(viz_embs_student, viz_node_energy)
+            
         if self.ema and use_ema:
             self.ema.restore()
 
         return metrics
+
+    def visualize_embedding_distribution(self, student_embeds: torch.Tensor, node_energies: torch.Tensor = None):
+        """
+        Visualizes the distribution of student embeddings using various
+        dimensionality reduction techniques.
+
+        Args:
+            student_embeds (torch.Tensor): Student embeddings [N, D]. Assumed on CPU.
+            node_energies (torch.Tensor, optional): Per-atom energies for coloring. Assumed on CPU.
+        """
+        n_samples = student_embeds.shape[0]
+        if n_samples == 0:
+            self.file_logger.info("No samples provided for embedding distribution visualization.")
+            return
+
+        self.file_logger.info(f"Generating student embedding distribution visualizations for {n_samples} samples...")
+
+        student_embeds_np = student_embeds.numpy()
+        node_energies_np = node_energies.numpy().ravel() if node_energies is not None else None
+
+        seed = self.config.get("cmd", {}).get("seed", None)
+        epoch_step_info = f"Epoch_{self.epoch:.2f}_Step_{self.step}" if hasattr(self, 'epoch') and hasattr(self, 'step') else "Unknown_Epoch_Step"
+
+        for method in self.visualization_methods:
+            method = method.lower()
+            reducer = None
+            plot_suffix = f"_{method}"
+            
+            max_components = 0
+            if '2d' in self.viz_plots:
+                max_components = 2
+            if '3d' in self.viz_plots and MPL_3D_AVAILABLE:
+                max_components = 3
+            if max_components == 0:
+                continue
+
+            if method == 'pca':
+                reducer = PCA(n_components=max_components)
+            elif method == 'tsne':
+                perplexity = 50
+                if perplexity >= n_samples:
+                    perplexity = max(5.0, float(n_samples - 1))
+                reducer = TSNE(n_components=max_components, perplexity=perplexity, random_state=seed, n_iter=300, init='pca', learning_rate='auto')
+                plot_suffix += f"_perplexity{int(perplexity)}"
+            elif method == 'umap':
+                if not UMAP_AVAILABLE:
+                    self.file_logger.info("Skipping UMAP plot because umap-learn is not installed.")
+                    continue
+                reducer = UMAP(n_components=max_components, random_state=seed)
+            else:
+                self.file_logger.info(f"Unknown visualization method: {method}. Skipping.")
+                continue
+
+            self.file_logger.info(f"Running {method.upper()} for {max_components} components...")
+            try:
+                points_transformed = reducer.fit_transform(student_embeds_np)
+            except Exception as e:
+                self.file_logger.error(f"{method.upper()} failed: {e}", exc_info=True)
+                continue
+
+            for n_components_str in self.viz_plots:
+                n_components = int(n_components_str[0])
+                if n_components > max_components:
+                    continue
+                if n_components == 3 and not MPL_3D_AVAILABLE:
+                    continue
+
+                fig = plt.figure(figsize=(14, 12) if n_components == 3 else (12, 10))
+                ax = fig.add_subplot(111, projection='3d' if n_components == 3 else None)
+                
+                scatter_kwargs = {'alpha': 0.7, 's': 30}
+                if node_energies_np is not None:
+                    scatter_kwargs['c'] = node_energies_np
+                    scatter_kwargs['cmap'] = 'viridis'
+
+                if n_components == 2:
+                    scatter = ax.scatter(points_transformed[:, 0], points_transformed[:, 1], **scatter_kwargs)
+                elif n_components == 3:
+                    scatter = ax.scatter(points_transformed[:, 0], points_transformed[:, 1], points_transformed[:, 2], **scatter_kwargs)
+                
+                if node_energies_np is not None:
+                    cbar = fig.colorbar(scatter, ax=ax)
+                    cbar.set_label("Node Energy")
+                
+                title = f'Student Embedding Distribution - {n_components}D {method.upper()} ({epoch_step_info})'
+                ax.set_title(title, fontsize=14)
+                ax.set_xlabel(f'{method.upper()} Dimension 1', fontsize=12)
+                ax.set_ylabel(f'{method.upper()} Dimension 2', fontsize=12)
+                if n_components == 3:
+                    ax.set_zlabel(f'{method.upper()} Dimension 3', fontsize=12)
+                ax.grid(True, linestyle='--', alpha=0.2)
+
+                plot_filename = f"student_embedding_distribution_{n_components}d_{epoch_step_info}{plot_suffix}.png"
+                plot_path = os.path.join(self.viz_output_dir, plot_filename)
+                try:
+                    plt.savefig(plot_path, dpi=self.viz_pca_dpi, bbox_inches='tight')
+                    self.file_logger.info(f"Saved {n_components}D {method.upper()} plot to {plot_path}")
+                except IOError as e:
+                    self.file_logger.error(f"Failed to save {n_components}D {method.upper()} plot to {plot_path}: {e}")
+                finally:
+                    plt.close(fig)
 
     def visualize_predictions(self, x0: torch.Tensor, x1_true: torch.Tensor, x1_pred: torch.Tensor):
         """
@@ -1066,7 +1195,7 @@ class ForcesTrainerV2(BaseTrainerV2):
         """
         n_samples = x0.shape[0]
         if n_samples == 0:
-            self.file_logger.warning("No samples provided for student visualization.")
+            self.file_logger.info("No samples provided for student visualization.")
             return
 
         self.file_logger.info(f"Generating student prediction visualizations for {n_samples} samples using t-SNE...")
@@ -1164,7 +1293,7 @@ class ForcesTrainerV2(BaseTrainerV2):
         # n_samples for t-SNE is the number of rows in all_points_flat
         if perplexity_value >= all_points_flat.shape[0]:
             perplexity_value = max(5.0, float(all_points_flat.shape[0] - 1)) # t-SNE perplexity must be float and < n_samples
-            self.file_logger.warning(f"Perplexity adjusted to {perplexity_value} due to low sample count ({all_points_flat.shape[0]} total points for t-SNE).")
+            self.file_logger.info(f"Perplexity adjusted to {perplexity_value} due to low sample count ({all_points_flat.shape[0]} total points for t-SNE).")
 
         _perplexity_value_for_plot = perplexity_value # To pass to the plotting helper
 
@@ -1197,4 +1326,4 @@ class ForcesTrainerV2(BaseTrainerV2):
                 except Exception as e:
                     self.file_logger.error(f"t-SNE or 3D plotting failed: {e}", exc_info=True) # Log traceback
             else:
-                self.file_logger.warning("Skipping 3D t-SNE plot because mpl_toolkits.mplot3d is not available.")
+                self.file_logger.info("Skipping 3D t-SNE plot because mpl_toolkits.mplot3d is not available.")
