@@ -139,7 +139,7 @@ class ForcesTrainerV2(BaseTrainerV2):
         self.visualization_methods = self.config.get("visualization_methods", ["pca", "tsne", "umap"])
         self.viz_output_dir = self.config.get("visualization_output_dir", os.path.join(self.run_dir, "student_visualizations_n2n")) # Default to run_dir subdir
         self.viz_num_samples = self.config.get("visualization_num_samples", 2000) # Max samples to plot
-        self.viz_plots = self.config.get("visualization_plots", ["2d", "3d"]) # Plots to generate ('2d', '3d')
+        self.viz_plots = self.config.get("visualization_plots", ["2d"]) # Plots to generate ('2d')
         self.viz_pca_dpi = self.config.get("visualization_pca_dpi", 300) # DPI for saved plots
 
         if self.visualize_student and distutils.is_master():
@@ -991,8 +991,7 @@ class ForcesTrainerV2(BaseTrainerV2):
         loader = self.val_loader if split == "val" else self.test_loader
         
         # Data collection for visualization (only on master)
-        viz_data = {"x0": [], "x1": [], "predicted_x1": [], "embs_student": [], "node_energy": []}
-        samples_collected = 0
+        viz_data = {"x0": [], "x1": [], "predicted_x1": [], "embs_student": [], "embs_teacher": [], "node_energy": [], "_energy_target_per_atom": []}
         
         for i, batch in tqdm(
             enumerate(loader),
@@ -1008,25 +1007,44 @@ class ForcesTrainerV2(BaseTrainerV2):
             metrics = evaluator.update("loss", loss.item(), metrics)
             
             # Collect visualization data on master process
-            if distutils.is_master() and self.visualize_student and samples_collected < self.viz_num_samples:
-                needed = self.viz_num_samples - samples_collected
+            if distutils.is_master() and self.visualize_student:
                 
                 # Ensure tensors are on CPU for storage
-                x0_batch = out["x0"].detach().cpu()[:needed]
-                x1_batch = out["x1"].detach().cpu()[:needed]
-                predicted_x1_batch = out["predicted_x1"].detach().cpu()[:needed]
+                x0_batch = out["x0"].detach().cpu()
+                x1_batch = out["x1"].detach().cpu()
+                predicted_x1_batch = out["predicted_x1"].detach().cpu()
                 
                 viz_data["x0"].append(x0_batch)
                 viz_data["x1"].append(x1_batch)
                 viz_data["predicted_x1"].append(predicted_x1_batch)
 
                 if self.enable_embedding_distribution_visualization:
-                    if "embs_student" in out and out["embs_student"] is not None:
+                    has_student = "embs_student" in out and out["embs_student"] is not None
+                    has_teacher = "embs_teacher" in out and out["embs_teacher"] is not None
+
+                    if has_student:
                         viz_data["embs_student"].append(out["embs_student"].detach().cpu())
+                    if has_teacher:
+                        viz_data["embs_teacher"].append(out["embs_teacher"].detach().cpu())
+
+                    if has_student or has_teacher:
+                        if has_student:
+                            ref_device = out["embs_student"].device
+                        else:
+                            ref_device = out["embs_teacher"].device
+                        _energy_target = torch.cat([b.y.to(ref_device) for b in batch], dim=0)
+                        
+                        # Create a batch index tensor to map atoms to graphs
+                        batch_idx = torch.cat([
+                            torch.full((data.num_nodes,), i, dtype=torch.long, device=ref_device)
+                            for i, data in enumerate(batch)
+                        ])
+                        
+                        _energy_target_per_atom = _energy_target[batch_idx]
+                        viz_data["_energy_target_per_atom"].append(_energy_target_per_atom.detach().cpu())
+
                     if "node_energy" in out and out["node_energy"] is not None:
                         viz_data["node_energy"].append(out["node_energy"].detach().cpu())
-
-                samples_collected += len(x0_batch)
 
         aggregated_metrics = {}
         for k in metrics:
@@ -1058,51 +1076,96 @@ class ForcesTrainerV2(BaseTrainerV2):
             )
 
         # Call visualization function on master process if enabled and data collected
-        if distutils.is_master() and self.visualize_student and samples_collected > 0:
+        if distutils.is_master() and self.visualize_student and viz_data["x0"]:
             # Concatenate collected batches
             viz_x0 = torch.cat(viz_data["x0"], dim=0)
             viz_x1 = torch.cat(viz_data["x1"], dim=0)
             viz_predicted_x1 = torch.cat(viz_data["predicted_x1"], dim=0)
             
-            self.visualize_predictions(viz_x0, viz_x1, viz_predicted_x1)
+            # self.visualize_predictions(viz_x0, viz_x1, viz_predicted_x1)
             
-            if self.enable_embedding_distribution_visualization and viz_data["embs_student"]:
-                viz_embs_student = torch.cat(viz_data["embs_student"], dim=0)[:self.viz_num_samples]
+            if self.enable_embedding_distribution_visualization and (viz_data["embs_student"] or viz_data["embs_teacher"]):
+                
+                viz_energy_target = None
+                if viz_data["_energy_target_per_atom"]:
+                    viz_energy_target = torch.cat(viz_data["_energy_target_per_atom"], dim=0)
+                
+                viz_node_energy = None
                 if viz_data["node_energy"]:
-                    viz_node_energy = torch.cat(viz_data["node_energy"], dim=0)[:self.viz_num_samples]
-                    min_len = min(len(viz_embs_student), len(viz_node_energy))
-                    viz_embs_student = viz_embs_student[:min_len]
-                    viz_node_energy = viz_node_energy[:min_len]
-                else:
-                    viz_node_energy = None
-                self.visualize_embedding_distribution(viz_embs_student, viz_node_energy)
+                    viz_node_energy = torch.cat(viz_data["node_energy"], dim=0)
+
+                if viz_data["embs_student"]:
+                    viz_embs_student = torch.cat(viz_data["embs_student"], dim=0)
+                    self.visualize_embedding_distribution(
+                        embeds=viz_embs_student,
+                        embedding_name="student",
+                        node_energies=viz_node_energy,
+                        energy_targets=viz_energy_target,
+                    )
+                
+                if viz_data["embs_teacher"]:
+                    viz_embs_teacher = torch.cat(viz_data["embs_teacher"], dim=0)
+                    self.visualize_embedding_distribution(
+                        embeds=viz_embs_teacher,
+                        embedding_name="teacher",
+                        node_energies=viz_node_energy,
+                        energy_targets=viz_energy_target,
+                    )
             
         if self.ema and use_ema:
             self.ema.restore()
 
         return metrics
 
-    def visualize_embedding_distribution(self, student_embeds: torch.Tensor, node_energies: torch.Tensor = None):
+    def visualize_embedding_distribution(self, embeds: torch.Tensor, embedding_name: str, node_energies: torch.Tensor = None, energy_targets: torch.Tensor = None):
         """
-        Visualizes the distribution of student embeddings using various
+        Visualizes the distribution of embeddings using various
         dimensionality reduction techniques.
 
         Args:
-            student_embeds (torch.Tensor): Student embeddings [N, D]. Assumed on CPU.
+            embeds (torch.Tensor): Embeddings [N, D]. Assumed on CPU.
+            embedding_name (str): Name of the embedding source (e.g., "student", "teacher").
             node_energies (torch.Tensor, optional): Per-atom energies for coloring. Assumed on CPU.
+            energy_targets (torch.Tensor, optional): Original per-atom graph-level energy targets for highlighting. Assumed on CPU.
         """
-        n_samples = student_embeds.shape[0]
+        n_samples = embeds.shape[0]
         if n_samples == 0:
-            self.file_logger.info("No samples provided for embedding distribution visualization.")
+            self.file_logger.info(f"No samples provided for {embedding_name} embedding distribution visualization.")
             return
 
-        self.file_logger.info(f"Generating student embedding distribution visualizations for {n_samples} samples...")
+        self.file_logger.info(f"Generating {embedding_name} embedding distribution visualizations for {n_samples} samples...")
 
-        student_embeds_np = student_embeds.numpy()
+        embeds_np = embeds.numpy()
         node_energies_np = node_energies.numpy().ravel() if node_energies is not None else None
 
-        seed = self.config.get("cmd", {}).get("seed", None)
         epoch_step_info = f"Epoch_{self.epoch:.2f}_Step_{self.step}" if hasattr(self, 'epoch') and hasattr(self, 'step') else "Unknown_Epoch_Step"
+
+        highlight_mask = None
+        if energy_targets is not None:
+            energy_targets_np = energy_targets.numpy().ravel()
+            highlight_mask = (energy_targets_np >= 1.5) & (energy_targets_np <= 2.0)
+
+            # Plot and save histogram of energy targets
+            try:
+                fig, ax = plt.subplots(figsize=(10, 6))
+                ax.hist(energy_targets_np, bins=50, color='skyblue', edgecolor='black', alpha=0.7)
+                ax.set_title(f'Distribution of Target Energies per Atom ({epoch_step_info})')
+                ax.set_xlabel('Graph Target Energy')
+                ax.set_ylabel('Frequency (Number of Atoms)')
+                ax.grid(True, linestyle='--', alpha=0.6)
+                
+                plot_filename = f"energy_target_distribution_{epoch_step_info}.png"
+                plot_path = os.path.join(self.viz_output_dir, plot_filename)
+                
+                plt.savefig(plot_path, dpi=self.viz_pca_dpi, bbox_inches='tight')
+                self.file_logger.info(f"Saved energy target distribution plot to {plot_path}")
+            except Exception as e:
+                self.file_logger.error(f"Failed to create or save energy target distribution plot: {e}", exc_info=True)
+            finally:
+                if 'fig' in locals() and plt.fignum_exists(fig.number):
+                    plt.close(fig)
+
+        seed = self.config.get("cmd", {}).get("seed", None)
 
         for method in self.visualization_methods:
             method = method.lower()
@@ -1136,7 +1199,7 @@ class ForcesTrainerV2(BaseTrainerV2):
 
             self.file_logger.info(f"Running {method.upper()} for {max_components} components...")
             try:
-                points_transformed = reducer.fit_transform(student_embeds_np)
+                points_transformed = reducer.fit_transform(embeds_np)
             except Exception as e:
                 self.file_logger.error(f"{method.upper()} failed: {e}", exc_info=True)
                 continue
@@ -1158,14 +1221,23 @@ class ForcesTrainerV2(BaseTrainerV2):
 
                 if n_components == 2:
                     scatter = ax.scatter(points_transformed[:, 0], points_transformed[:, 1], **scatter_kwargs)
+                    if highlight_mask is not None and np.any(highlight_mask):
+                        ax.scatter(points_transformed[highlight_mask, 0], points_transformed[highlight_mask, 1],
+                                   s=40, facecolors='none', edgecolors='red', linewidths=1.2, label='Target Energy: 1.5 to 2.0')
                 elif n_components == 3:
                     scatter = ax.scatter(points_transformed[:, 0], points_transformed[:, 1], points_transformed[:, 2], **scatter_kwargs)
+                    if highlight_mask is not None and np.any(highlight_mask):
+                        ax.scatter(points_transformed[highlight_mask, 0], points_transformed[highlight_mask, 1], points_transformed[highlight_mask, 2],
+                                   s=40, facecolors='none', edgecolors='red', linewidths=1.2, label='Target Energy: 1.5 to 2.0')
                 
                 if node_energies_np is not None:
                     cbar = fig.colorbar(scatter, ax=ax)
                     cbar.set_label("Node Energy")
+
+                if highlight_mask is not None and np.any(highlight_mask):
+                    ax.legend()
                 
-                title = f'Student Embedding Distribution - {n_components}D {method.upper()} ({epoch_step_info})'
+                title = f'{embedding_name.capitalize()} Embedding Distribution - {n_components}D {method.upper()} ({epoch_step_info})'
                 ax.set_title(title, fontsize=14)
                 ax.set_xlabel(f'{method.upper()} Dimension 1', fontsize=12)
                 ax.set_ylabel(f'{method.upper()} Dimension 2', fontsize=12)
@@ -1173,7 +1245,7 @@ class ForcesTrainerV2(BaseTrainerV2):
                     ax.set_zlabel(f'{method.upper()} Dimension 3', fontsize=12)
                 ax.grid(True, linestyle='--', alpha=0.2)
 
-                plot_filename = f"student_embedding_distribution_{n_components}d_{epoch_step_info}{plot_suffix}.png"
+                plot_filename = f"{embedding_name}_embedding_distribution_{n_components}d_{epoch_step_info}{plot_suffix}.png"
                 plot_path = os.path.join(self.viz_output_dir, plot_filename)
                 try:
                     plt.savefig(plot_path, dpi=self.viz_pca_dpi, bbox_inches='tight')
