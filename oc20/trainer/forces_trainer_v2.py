@@ -573,7 +573,7 @@ class ForcesTrainerV2(BaseTrainerV2):
         )
         
         # n2n loss.
-        n2n_mult = self.config["optim"].get("n2n_coefficient", 10)
+        n2n_mult = self.config["optim"].get("n2n_coefficient", 100)
         n2n_loss = self.loss_fn["student"](out["predicted_x1"], out["x1"])
         loss.append(
             n2n_mult * n2n_loss

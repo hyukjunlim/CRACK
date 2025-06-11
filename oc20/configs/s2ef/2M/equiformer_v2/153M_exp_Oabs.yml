@@ -113,7 +113,7 @@ optim:
   energy_coefficient: 4
   energy_coefficient2: 0.5
   n2n_coefficient: 100
-  info_nce_coefficient: 10
+  crack_coefficient: 10
   clip_grad_norm: 100
   ema_decay: 0.999
   loss_energy: mae

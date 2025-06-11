@@ -612,8 +612,6 @@ class EquiformerV2_OC20(BaseModel):
                 
             # SSL-KD
             embs_teacher = x.embedding.narrow(1, 0, 1).reshape(N, -1)
-            # embs_teacher = self.proj_teacher(x).embedding.narrow(1, 0, 1).reshape(N, -1)
-            # embs_student = predicted_x1.embedding.narrow(1, 0, 1).reshape(N, -1)
             embs_student = self.proj_student(predicted_x1).embedding.narrow(1, 0, 1).reshape(N, -1)
             
             
