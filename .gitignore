@@ -9,6 +9,7 @@
 /output/
 /flow_output/
 /scripts_ssup/
+/mpflows/
 __pycache__/
 *.pt
 *.pyc
